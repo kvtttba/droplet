@@ -9,6 +9,9 @@ import io.github.kvtttba.droplet.core.model.AssetClass
 import io.github.kvtttba.droplet.core.model.Currency
 import io.github.kvtttba.droplet.core.model.DepositInterestMode
 import io.github.kvtttba.droplet.core.model.ExchangeRateSnapshot
+import io.github.kvtttba.droplet.core.model.LoanMethod
+import io.github.kvtttba.droplet.core.model.LoanPlan
+import io.github.kvtttba.droplet.core.model.Money
 import io.github.kvtttba.droplet.core.model.Quantity
 import io.github.kvtttba.droplet.core.model.UnitPrice
 import java.math.BigDecimal
@@ -231,5 +234,70 @@ internal object AssetsFormatters {
         val bd = runCatching { BigDecimal(sharePctDecimal) }.getOrNull() ?: return 0f
         if (bd.compareTo(BigDecimal.ZERO) <= 0) return 0f
         return bd.toFloat().coerceAtLeast(0.01f)
+    }
+
+    fun loanMethodLabel(method: LoanMethod): String = when (method) {
+        LoanMethod.EQUAL_INSTALLMENT -> "等额本息"
+        LoanMethod.EQUAL_PRINCIPAL -> "等额本金"
+        LoanMethod.FIXED_FEE -> "固定手续费"
+    }
+
+    fun loanMethodDescription(method: LoanMethod): String = when (method) {
+        LoanMethod.EQUAL_INSTALLMENT -> "每期总还款额固定，适合房贷/车贷/消费贷"
+        LoanMethod.EQUAL_PRINCIPAL -> "每期本金固定、利息逐期递减，总利息更省"
+        LoanMethod.FIXED_FEE -> "本金按期均摊，每期收取固定金额或固定费率手续费"
+    }
+
+    fun formatLoanRateOrFeeSummary(
+        plan: LoanPlan,
+        hidden: Boolean = false,
+    ): String = when (plan.method) {
+        LoanMethod.EQUAL_INSTALLMENT,
+        LoanMethod.EQUAL_PRINCIPAL,
+        -> {
+            val rateText = plan.annualRateDecimal
+                ?.let { runCatching { BigDecimal(it) }.getOrNull() }
+                ?.takeIf { it.compareTo(BigDecimal.ZERO) > 0 }
+                ?.let { formatAnnualRatePercent(plan.annualRateDecimal) }
+            if (rateText != null) "年利率 $rateText" else "免息 0.00%"
+        }
+        LoanMethod.FIXED_FEE -> when {
+            plan.fixedFeePerPeriodMinor != null && plan.fixedFeePerPeriodMinor!! > 0L -> {
+                val formatted = PrivacyAmountFormatter.format(
+                    money = Money(plan.fixedFeePerPeriodMinor!!, plan.currency),
+                    hidden = hidden,
+                )
+                "每期手续费 $formatted"
+            }
+            !plan.fixedFeeRateDecimal.isNullOrBlank() &&
+                runCatching { BigDecimal(plan.fixedFeeRateDecimal!!) }.getOrNull()
+                    ?.compareTo(BigDecimal.ZERO) == 1 ->
+                "每期费率 ${formatAnnualRatePercent(plan.fixedFeeRateDecimal)}"
+            else -> "免手续费分期"
+        }
+    }
+
+    fun formatLocalDateIso(date: LocalDate): String = date.format(isoDateFormatter)
+
+    fun formatLocalDateMonthDay(date: LocalDate): String =
+        date.format(DateTimeFormatter.ofPattern("MM-dd"))
+
+    /**
+     * Converts an optional percentage string (e.g. `"4.8"`, `"0.6"`, `"0"`) into a canonical
+     * 8-decimal ratio string (`"0.048"`, `"0.006"`, `"0"`). Returns null when blank.
+     */
+    fun parseOptionalRatePercentToCanonicalDecimal(
+        percentText: String,
+        label: String,
+    ): String? {
+        val cleaned = percentText.trim().removeSuffix("%").trim()
+        if (cleaned.isEmpty()) return null
+        val pctBd = runCatching { BigDecimal(cleaned) }.getOrElse {
+            throw IllegalArgumentException("${label}格式无效")
+        }
+        require(pctBd.compareTo(BigDecimal.ZERO) >= 0) { "${label}不能为负数" }
+        require(pctBd.compareTo(BigDecimal("1000")) <= 0) { "${label}数值过大，请检查输入" }
+        val ratio = pctBd.divide(HUNDRED, ExchangeRateSnapshot.SCALE, RoundingMode.HALF_UP)
+        return UnitPrice.of(ratio).canonical
     }
 }

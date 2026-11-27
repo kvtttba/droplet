@@ -18,10 +18,12 @@ import io.github.kvtttba.droplet.core.security.AppLockStateMachine
 import io.github.kvtttba.droplet.core.security.BiometricAuthenticator
 import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreCreditCardReminderPreferencesRepository
+import io.github.kvtttba.droplet.core.security.DataStoreLoanReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreMarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreNetworkProxyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStorePrivacyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.KeystoreSecretCipher
+import io.github.kvtttba.droplet.core.security.LoanReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.MonotonicClock
 import io.github.kvtttba.droplet.core.security.NetworkProxyPreferencesRepository
@@ -44,6 +46,10 @@ annotation class MarketSyncDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class CreditCardReminderDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class LoanReminderDataStore
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -130,6 +136,26 @@ object SecurityModule {
         @CreditCardReminderDataStore dataStore: DataStore<Preferences>,
     ): CreditCardReminderPreferencesRepository =
         DataStoreCreditCardReminderPreferencesRepository(dataStore)
+
+    @Provides
+    @Singleton
+    @LoanReminderDataStore
+    fun provideLoanReminderPreferencesDataStore(
+        @ApplicationContext context: Context,
+        @ApplicationScope applicationScope: CoroutineScope,
+    ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        scope = applicationScope,
+        produceFile = {
+            context.preferencesDataStoreFile(SecurityContract.LOAN_REMINDER_PREFERENCES_FILE)
+        },
+    )
+
+    @Provides
+    @Singleton
+    fun provideLoanReminderPreferencesRepository(
+        @LoanReminderDataStore dataStore: DataStore<Preferences>,
+    ): LoanReminderPreferencesRepository =
+        DataStoreLoanReminderPreferencesRepository(dataStore)
 
     @Provides
     @Singleton

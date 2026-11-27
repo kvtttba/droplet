@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-- **当前阶段**：`M3.1`（信用卡额度、账单日与还款本地提醒）已完成验收并合入 `main`。
-- **下一个待执行切片**：**`M3.2`**（分期贷款引擎与到期自动还款分录）
-- **最新已合入提交**：`feat/m3-1-credit-card-billing-reminders` 合入 `main`（CI `#46030027009` 全线绿灯，详见 `git log`）
+- **当前阶段**：`M3.2`（分期贷款引擎与到期自动还款分录）已完成验收并合入 `main`。
+- **下一个待执行切片**：**`M3.3`**（往来借贷、待报销冲抵与多次退款）
+- **最新已合入提交**：`feat/m3-2-installment-loans` 合入 `main`（CI `#46039360302` 全线绿灯，详见 `git log`）
 
 ---
 
@@ -38,8 +38,8 @@
 | `M2.2` | 投资持仓引擎与定存/理财计算 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点投资引擎（`PortfolioPositionEngine` 加权平均成本/定投/部分卖出结转/清仓零残差再买/分红/防超卖/8 位加密小数/跨币种行情折算、`FixedDepositCalculator` ACT/365 三模式计息与到期/提前支取分录辅助、`BankWealthValuationHelper` 公开净值与手动净值/收益金额反推、`PortfolioSummaryAggregator` 全账户与持仓净资产/三币种分布及 `includeInNetWorth` 过滤）；`:core:database` `InvestmentRepository` / `LocalInvestmentRepository` 原子复式写入与实时 Flow 持仓/总览聚合；`:app` `InvestmentModule` + `InvestmentEntryPoint`；206 项测试 & 16 张 Roborazzi 截图 + API 31 E2E + 15 MB Debug APK 全绿 | `feat/m2-2-investment-portfolio-engine` 已验收合入（CI `#46010205871`） |
 | `M2.3` | 资产总览页、持仓详情与后台定时刷新 | ✅ 已完成 | `:feature:assets` 接入 Hilt 与真实 Room Flow 资产总览（CNY/USD/HKD 实时切换、真实三币种分布条、进页 5 分钟节流 + 下拉/一键刷新 + 上次更新时间、全局隐私隐身、分组账户卡与不计入总资产折叠区、9 类资产/定存/理财新建表单）；`InvestmentDetailScreen` / `Route` / `ViewModel`（8 位加密份额、加权成本与浮盈/已实现/分红/税费/净总回报、买/定投/卖实时结转预览与防超卖/分红/定存结息支取付息/手动覆写与清除/银行理财手动净值或收益反推与历史流水）；`:core:security` `MarketSyncPreferencesRepository` + `:app` WorkManager `MarketRefreshWorker`（经 `EntryPointAccessors` 访问 `MarketDataEntryPoint`）& `MarketSyncScheduler` + `:feature:settings` 行情同步与网络代理设置页；222 项测试 & 18 张 Roborazzi 截图 + API 31 投资/行情全链路 E2E + 15 MB Debug APK 全绿 | `feat/m2-3-assets-ui-and-market-sync` 已验收合入（CI `#46017227034`） |
 | `M3.1` | 信用卡额度、账单日与还款本地提醒 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点 `CreditCardStatementCalculator`（29–31 号月末夹紧含闰/平年二月、同月/跨月/跨年还款日、上期已出/本期未出账单区间与倒计时、提醒窗口、已用/可用额度含溢缴款与超限保护、出账后还款/退款冲减不变量与五态判定）与 `CreditCardRepaymentHelper`（借贷恒平单/跨币种 `TRANSFER` 还款分录）；`:core:database` `CreditCardRepository` + 信用卡流水响应式查询（Room Schema `v1` 零变更）；`:core:security` `CreditCardReminderPreferencesRepository`；升级 `AssetsScreen` 信用账户分组进度条/倒计时/本期应还并直达 `CreditCardDetailScreen`（已出/未出/全部流水切换、一键立即还款表单、信用参数快捷编辑）；设置页新增「信用卡还款提醒」与 Android 13+ 通知权限引导；`:app` `POST_NOTIFICATIONS`、通知渠道/`CreditCardReminderNotificationPublisher`（支持隐私隐身与详情深链）、WorkManager `CreditCardReminderWorker`（同日防重）与 `CreditCardReminderScheduler`；244 项测试 & 19 张 Roborazzi 截图 + API 31 信用卡全链路 E2E + 15 MB Debug APK 全绿 | `feat/m3-1-credit-card-billing-reminders` 已验收合入（CI `#46030027009`） |
-| `M3.2` | 分期贷款引擎与到期自动还款分录 | ⬜ 待开始 | 等额本息/等额本金/固定手续费计划表、到期自动拆本息分录与通知 | 下一切片 |
-| `M3.3` | 往来借贷、待报销冲抵与多次退款 | ⬜ 待开始 | 往来人借入/借出/分次还/利息/坏账核销、待报销冲抵与差额转支出、多次关联退款 | — |
+| `M3.2` | 分期贷款引擎与到期自动还款分录 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点 `LoanScheduleCalculator`（等额本息 `EQUAL_INSTALLMENT` / 等额本金 `EQUAL_PRINCIPAL` / 固定手续费 `FIXED_FEE`、29–31 号月末安全夹紧、末期本金尾差平齐确保 `SUM(principalMinor) == totalPrincipalMinor` 且末期剩余本金严格归零、提前结清与汇总计算）与 `LoanRepaymentHelper`（复用 `LedgerEngine.buildLoanRepayment` 生成借贷恒平 `LOAN_REPAY` 分录，支持 `MANUAL` 与 `LOAN_AUTO`）；`:core:database` 扩充 `LoanDao` 原子条件更新与 `LoanRepository`（Room Schema `v1` 零变更，支持原子创建 `LOAN` 负债户与期初余额+计划表、逐期手动/自动幂等入账、提前结清、归档与安全删除）；`:core:security` `LoanReminderPreferencesRepository`（按期次同日防重）；升级 `AssetsScreen`「分期贷款」分区与新建分期表单并直达 `LoanDetailScreen`（逐期计划表、单期一键入账、提前结清与参数维护）；`:app` `droplet_loan_reminders` 通知渠道、`LoanReminderNotificationPublisher`（支持隐私隐身与深链）、WorkManager `LoanScheduleWorker`（每日离线自动入账与到期提醒）与 `LoanScheduleScheduler`；268 项测试 & 20 张 Roborazzi 截图 + API 31 分期贷款全链路 E2E + 16 MB Debug APK 全绿 | `feat/m3-2-installment-loans` 已验收合入（CI `#46039360302`） |
+| `M3.3` | 往来借贷、待报销冲抵与多次退款 | ⬜ 待开始 | 往来人借入/借出/分次还/利息/坏账核销、待报销冲抵与差额转支出、多次关联退款 | 下一切片 |
 | `M4.1` | AI 配置、Keystore 加密与 JSON 解析引擎 | ⬜ 待开始 | OpenAI Compatible 配置页与连通性测试、Keystore 加密存储、隐私最小化 Prompt、容错解析 | — |
 | `M4.2` | 图片/语音/一句话记账与草稿批量确认 UI | ⬜ 待开始 | 拍照/长截图/批量/系统分享、语音双模式、一句话多笔、离线草稿箱与批量确认流 + APK | — |
 | `M5.1` | 预算管理与预警、周期记账与模板 | ⬜ 待开始 | 月/年总预算与分类预算及预警、周期自动生成、高频一键模板 | — |
@@ -138,22 +138,36 @@
    - 落地 `CreditCardReminderNotificationPublisher`（渠道 `droplet_credit_card_reminders`、Android 13+ 权限校验、遵循全局 `PrivacyPreferences.amountsHidden` 自动隐藏通知金额、点击 `PendingIntent` 携带 `EXTRA_CREDIT_CARD_ACCOUNT_ID` 深链直达对应卡片详情页）；
    - 落地 `CreditCardReminderWorker`（经 Hilt `CreditCardReminderEntryPoint` 扫描到期窗口仍有待还金额的信用卡并按卡同日防重复推送）、`CreditCardReminderScheduler`（WorkManager 24h 离线唯一周期任务，关闭开关自动取消）与 `CreditCardModule`，并在 `DropletApplication.onCreate()` 初始化渠道及持续订阅提醒配置自动重调度。
 
-### M3.2 启动入口契约（分期贷款引擎与到期自动还款分录）
-1. 从 `main` 切出分支 `feat/m3-2-installment-loans`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m3.2"`。
-2. **纯 JVM 分期贷款计划表与还款引擎 (`:core:domain`)**：
-   - 新增 `io.github.kvtttba.droplet.core.domain.loan`（严守零浮点，全量 `Money` 4 位定点 `Long` + `BigDecimal` 高精度中间计算）：
-     - `LoanScheduleCalculator`：基于已有 `:core:model` `LoanPlan` / `LoanInstallment` / `LoanMethod`（`EQUAL_INSTALLMENT` 等额本息、`EQUAL_PRINCIPAL` 等额本金、`FIXED_FEE` 信用卡/消费固定手续费分期），支持 29–31 号扣款日月末夹紧、最后一期本金尾差平齐（确保 `SUM(installment.principalMinor) == totalPrincipalMinor` 且末期 `remainingPrincipalMinor == 0`）、以及提前结清 / 剩余本金与剩余利息汇总计算；
-     - `LoanRepaymentHelper`：复用已有 `LedgerEngine.buildLoanRepayment(...)` 生成每期复式还款分录（本金冲减 `Liability:Loan`，利息/手续费计入 `Expense:Interest`，付款账户扣除当期应还总额，`displayType = LOAN_REPAY`，支持 `TransactionSource.MANUAL` 与 `TransactionSource.LOAN_AUTO`）。
-3. **分期贷款仓储、资产页联动与详情 UI (`:core:database` & `:feature:assets` & `:app`)**：
-   - 在 `:core:database` 补齐 `LoanDao` 必要查询（保持 Room Schema `v1` 兼容不变）并新增 `LoanRepository` / `LocalLoanRepository`：封装分期贷款原子创建（联动新建或绑定 `AccountSubType.LOAN` 负债账户 + 期初入账/生成逐期 `LoanInstallment`）、逐期手动确认还款、到期自动入账（幂等防重：仅针对 `PENDING` 且 `transactionId == null` 期次在单事务内写分录并回填 `PAID` + `transactionId` + `paidAt`）、提前结清与归档/删除；
-   - 升级 `AssetsScreen`「分期贷款」分组展示真实剩余期数、待还本金、下期到期日与金额，支持新建分期贷款表单（选还款方式、总本金、期数、年利率或每期固定手续费/费率、首期日、每月扣款日、关联付款户与利息分类、自动入账开关、提前提醒天数）并点击直达 `LoanDetailScreen` / `Route` / `ViewModel`（完整逐期计划表、单期一键入账、提前结清与参数维护，同步在 `DropletAppShell` 提供无 Hilt 预览槽位）。
-4. **到期自动入账与到期前本地提醒 (`:app`)**：
-   - 复用 M3.1 `POST_NOTIFICATIONS` 与 `rememberNotificationPermissionController`，在 `:app` 落地分期贷款提醒通知渠道（`droplet_loan_reminders`）、`LoanReminderNotificationPublisher`（遵循全局隐私金额隐身、点击深链直达贷款详情）、WorkManager `LoanScheduleWorker`（经 Hilt `@EntryPoint` 每日离线扫描：对 `autoPost = true` 且已到期的 `PENDING` 期次幂等生成复式还款分录，对处于 `remindDaysBefore` 提醒窗口的 `PENDING` 期次发送到期提醒并防同日重复推送）与 `LoanScheduleScheduler`。
-5. **测试、截图与门禁**：
-   - 补齐 `LoanScheduleCalculator` L1 单测（等额本息/等额本金/固定手续费数学精度、零利率、尾差归零、闰年/31 号月末扣款夹紧）、`LoanRepository` L2 Room 单测、ViewModel 单测、`LoanScheduleWorker` & `LoanScheduleScheduler` 单测；
-   - 更新 `assets_light.png` / `assets_dark.png` 并新增 `loan_detail_light.png` Roborazzi 截图（固定 `Asia/Shanghai` 时区）；
-   - 扩充 API 31 模拟器 `DropletAppE2ETest`（按 `test04_...` 顺序覆盖新建分期贷款 → 查看逐期还款计划表 → 确认首期还款并核对剩余本金与贷款负债同步扣减）；
-   - 通过本地单测（`ANDROID_HOME=/data/home/android-sdk ./gradlew --max-workers=1 -Dorg.gradle.jvmargs="-Xmx2048m -Dfile.encoding=UTF-8" ...`）、`verifyRoborazziDebug`、`assembleDebug`、`gitleaks` 与 GitHub Actions 全线 CI 绿灯。
+### M3.2 已落地的核心约定
+1. **纯 JVM 分期贷款计划表与还款引擎 (`:core:domain`)**：
+   - 新增 `io.github.kvtttba.droplet.core.domain.loan`（零浮点，全量 `Money` 4 位定点 `Long` + `BigDecimal` 高精度中间计算）：
+     - `LoanScheduleCalculator`：基于 `:core:model` 的 `LoanPlan` / `LoanInstallment` / `LoanMethod`，完整支持等额本息（`EQUAL_INSTALLMENT`）、等额本金（`EQUAL_PRINCIPAL`）与信用卡/消费固定手续费分期（`FIXED_FEE`，支持按每期固定金额或年化费率换算），含 29–31 号月末安全夹紧（平/闰年 2 月与 30 天月份）、末期本金尾差平齐不变量（`SUM(installment.principalMinor) == totalPrincipalMinor` 且末期 `remainingPrincipalMinor == 0`）、提前结清与剩余本息汇总；
+     - `LoanRepaymentHelper`：复用 `LedgerEngine.buildLoanRepayment(...)` 构造每期借贷恒平 `LOAN_REPAY` 复式分录（本金冲减 `Liability:Loan`、利息/手续费计入 `Expense:Interest`、付款账户扣减当期总额），支持 `TransactionSource.MANUAL` 与 `TransactionSource.LOAN_AUTO`。
+2. **分期贷款仓储、防重偏好与资产/详情 UI 闭环 (`:core:database` & `:core:security` & `:feature:assets`)**：
+   - 保持 Room Schema `v1` 零变更，扩展 `LoanDao`（新增 `markInstallmentPaidIfPending` 原子条件更新防并发双入账、`getPendingUnpostedInstallmentsUpTo` 等查询）与 `LoanRepository` / `LocalLoanRepository`：新建分期贷款自动联动创建 `AccountSubType.LOAN` 负债户并写入平衡期初分录（使 `PortfolioSummaryAggregator` 即刻体现负债）及全量逐期计划表；支持逐期手动确认还款、到期幂等自动入账（`PENDING && transactionId == null`）、提前结清（剩余本金一次性冲平并保留实际已付利息与违约金）、归档与安全删除；
+   - `:core:security` 新增 `LoanReminderPreferences` / `DataStoreLoanReminderPreferencesRepository`（独立 `droplet_loan_reminder_preferences.preferences_pb`，经 `SecurityModule` `@LoanReminderDataStore` 绑定，记录每期次同日已推送日期防重）；
+   - `AssetsScreen` / `AssetsViewModel` 在「信用账户」下方落地「分期贷款」分区（剩余期数、待还本金、下期到期日与金额、到期状态胶囊）与 `CreateLoanPlanSheet` 新建表单，直达 `LoanDetailScreen` / `LoanDetailRoute` / `LoanDetailViewModel` / `LoanDetailSheets`（`DropletRoutes.LOAN_DETAIL_PATTERN`，含逐期计划表、单期一键入账、提前结清、参数编辑/归档/安全删除、Android 13+ 通知权限引导与 `DropletAppShell` 预览槽位）。
+3. **每日离线自动入账与到期提醒 (`:app`)**：
+   - 新增通知渠道 `droplet_loan_reminders`、`LoanReminderNotificationPublisher`（遵循全局 `PrivacyPreferences.amountsHidden` 隐藏金额，点击携带 `EXTRA_LOAN_PLAN_ID` 深链直达贷款详情页）、`LoanScheduleWorker`（经 Hilt `LoanScheduleEntryPoint` 每日离线扫描并执行 `autoPostDueInstallments` 与提醒窗口推送）、`LoanScheduleScheduler`（WorkManager 24h 离线唯一周期任务）与 `LoanModule`，在 `DropletApplication.onCreate()` 初始化渠道并自动保活调度。
+
+### M3.3 启动入口契约（往来借贷、待报销冲抵与多次退款）
+1. 从 `main` 切出分支 `feat/m3-3-debt-reimburse-refund`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m3.3"`。
+2. **纯 JVM 领域辅助与计算引擎 (`:core:domain`)**：
+   - 在 `io.github.kvtttba.droplet.core.domain.debt`（及关联报销/退款辅助）中严守零浮点，充分复用 `LedgerEngine` 既有 `buildDebtLend` / `buildDebtBorrow` / `buildDebtCollect` / `buildDebtRepay` / `buildBadDebtWriteOff` / `buildReimbursableAdvance` / `buildReimbursementSettlement` / `buildRefund` 及 `LedgerAggregator` 净支出重算能力：
+     - **往来借贷聚合与提醒窗口**：按往来人（`DebtProfile` 及其绑定的 `AccountSubType.RECEIVABLE` 应收户与 `AccountSubType.PAYABLE` 应付户）聚合应收余额、应付余额、净往来余额、累计已收/已还本金、累计利息与坏账核销，提供约定还款日倒计时与提醒窗口判定（复用到期提醒能力）；
+     - **待报销进度与冲抵计算**：按原垫付流水汇总已冲抵金额、剩余待报销金额、`ReimburseState`（`PENDING` / `PARTIAL` / `SETTLED`）状态推演，支持单笔/批量冲抵及「实报少于垫付 → 差额一键转个人自付支出（或实报超出转收入）」的平衡校验；
+     - **多次关联退款计算**：按原支出交易汇总历史全部 `POSTED` 关联退款，计算剩余可退上限、单笔及分类净支出金额，防止超额退款。
+3. **Room 仓储与 DAO 扩充（Room Schema `v1` 零变更，`:core:database` & `:core:security`）**：
+   - 补齐 `DebtProfileDao` / `TransactionDao` 必要查询（严禁修改 Room Schema `v1` 表结构），新增 `DebtRepository` / `LocalDebtRepository`（往来人新建自动创建或绑定 `RECEIVABLE` / `PAYABLE` 账户、借出/借入/分次收款含息/分次还款含息/坏账核销原子写入、往来流水观察、归档/安全删除）与 `ReimbursementAndRefundRepository`（或集成至既有/独立 Repository：待报销列表与冲抵明细观察、单笔/批量报销到账并原子回写原单 `reimburseState`、在已有支出上发起全额/部分/多次关联退款并校验累计退款不超原支出）；
+   - 如落地约定还款日提醒，参照 M3.1/M3.2 在 `:core:security` 增加 `DebtReminderPreferencesRepository`（按往来人同日防重）并在 `:app` 接入 `droplet_debt_reminders` 通知渠道 + `DebtReminderWorker` / `DebtReminderScheduler`。
+4. **资产页、详情页与流水退款 UI 闭环 (`:feature:assets` & `:feature:ledger` & `:app`)**：
+   - 升级 `AssetsScreen` 展示真实的「往来借贷」分组（应收/应付总额与按往来人卡片，直达 `DebtDetailScreen` 支持新建往来人、记借出/借入、分次收款/还款含利息、坏账一键核销、编辑约定还款日与提醒）以及「待报销」分组/专页（`ReimbursementListScreen`，支持单笔或批量勾选确认报销到账、输入实报金额并选择差额自付支出分类一键冲平）；
+   - 升级 `feature:ledger` 交易详情与列表展示：在任意 `POSTED` 支出流水详情页新增「退款」操作（底部表单支持全额/部分/多次退款、显示已退金额与剩余可退上限，并列出全部关联退款记录与原单净支出）；对 `REIMBURSE` 流水清晰展示待报销状态与关联冲抵记录；所有新增页面保持 Stateless Screen + Hilt Route 分层并在 `DropletAppShell` 提供预览槽位，严格接入全局隐私金额隐身。
+5. **开发构建环境与测试门禁（`ccarm` + `pu`）**：
+   - 代码编辑、`gitleaks`、`git commit/push` 与 `gh-kvtttba` 在 `ccarm`（`/home/ggcoke/projects/droplet-android`）执行；所有 Gradle 编译/单测/Roborazzi/APK 通过 `droplet-pu gradle ...` 在 `pu` 执行；
+   - 补齐 L1 往来借贷/待报销/多次退款领域单测、L2 Room Repository 单测、ViewModel/Worker 单测；更新受影响的 Roborazzi 截图并新增往来借贷详情/待报销或退款详情黄金截图（固定 `Asia/Shanghai` 时区）；
+   - 扩充 API 31 模拟器 `DropletAppE2ETest`（按 `test05_...` 顺序覆盖往来借出+部分收款含息或坏账核销、待报销冲抵含差额自付、支出部分/多次退款净支出核对）；
+   - 通过本地单测、`verifyRoborazziDebug`、`assembleDebug`、`gitleaks` 与 GitHub Actions 全线 CI 绿灯。
 
 ---
 
@@ -161,7 +175,7 @@
 
 - **[M0] OpenJDK 21 下纯 JVM 模块编译目标**：纯 JVM 模块不要写 `kotlin { jvmToolchain(17) }`（会触发下载独立 JDK 17），统一使用 `java.sourceCompatibility/targetCompatibility = JavaVersion.VERSION_17` + `kotlin.compilerOptions.jvmTarget = JvmTarget.JVM_17`。
 - **[M0] 纯 JVM 单测与 Android Release 编译提速**：执行 `./gradlew :core:model:test :core:domain:test :core:network:test testDebugUnitTest`，避免根任务 `./gradlew test` 触发所有 Android 模块的 Release 单测编译。
-- **[M0] Debug APK 体积控制**：`material-icons-extended` 会让未混淆 Debug APK 膨胀至 59 MB；改用 `core:ui` 精选矢量 `DropletIcons` + `packaging.dex.useLegacyPackaging = true` 后 Debug APK 降至 ~12–14 MB，便于飞书直接交付与真机快速安装。
+- **[M0] Debug APK 体积控制**：`material-icons-extended` 会让未混淆 Debug APK 膨胀至 59 MB；改用 `core:ui` 精选矢量 `DropletIcons` + `packaging.dex.useLegacyPackaging = true` 后 Debug APK 降至 ~12–16 MB，便于飞书直接交付与真机快速安装。
 - **[M0] Roborazzi + Hilt 兼容性**：纯 Compose 截图测试使用 `@Config(application = Application::class, sdk = [35], qualifiers = "w412dp-h915dp-xxhdpi")` 跳过 `DropletApplication` 的 `@HiltAndroidApp` 初始化，配合 `RoborazziOptions.CompareOptions(changeThreshold = 0.015f)` 在本地 Debian 与 GitHub Actions `ubuntu-latest` 之间稳定通过。
 - **[M0] 本机 GitHub PAT 权限**：本机 `gh` PAT 具备 `contents: write` 与 `workflows: write` 权限，未开 `pull_requests: write`，可通过 `feat/**` 分支推送直接触发 CI 验证，验收后合入 `main`。
 - **[M1.1] 非交互 Shell 本地跑 Android Gradle 任务**：本机 Android SDK 位于 `/data/home/android-sdk`，非交互 Shell 需显式传 `ANDROID_HOME=/data/home/android-sdk`（切勿创建/提交 `local.properties`）。
@@ -174,3 +188,4 @@
 - **[M2.2] KSP2 跨模块新增接口缓存、8G 无 Swap 内存控制与防双计规则**：向 `:core:database` 新增被 `:app` Hilt `@Module` 引用的接口时，若复用历史长驻 Gradle Daemon 偶发 KSP2 `NoIsolationWorkerFactory` 读取旧 jar 索引报错，执行 `./gradlew --no-build-cache :core:database:clean :app:clean :app:kspDebugKotlin` 或重启 Daemon 即可刷新；本机 8 GB 无 Swap 环境下并行运行单测 + Roborazzi + `assembleDebug` 易触发 OOM Killer，建议分步执行并加 `--max-workers=1 -Dorg.gradle.jvmargs="-Xmx2048m -Dfile.encoding=UTF-8"`；总净资产汇总须用持仓实时/应计市值替换 `INVEST_HOLDING` 账面成本避免双计，定存仅在 `MONTHLY_PAYOUT` 模式下从当前应计利息扣除 `alreadyPaidInterest`，避免 `SIMPLE_AT_MATURITY` 部分提前支取的已结利息冲减剩余本金的正常计息。
 - **[M2.3] Compose `clickable` 语义合并与 E2E `ModalBottomSheet` 稳定性**：`Modifier.clickable` 默认 `mergeDescendants = true`，当父容器与子 `Text` 同时设置 `testTag` 时合并语义树仅保留父节点 `testTag`（`first-wins`），故需将 E2E 稳定标识直接放在可点击容器上（或无合并目标文本节点上）；涉及底部弹窗提交的模拟器 E2E 须等待弹窗节点消失后再滚动底层 `LazyColumn`，且 `:core:model` 的 `DecimalCanonicalizer` 为 `internal`，外部模块统一通过 `UnitPrice.of(...)`/`Quantity.of(...)` 获取规范小数串。
 - **[M3.1] WorkManager 离线调度单测与共享 DB 模拟器 E2E 确定性**：无约束、零延迟的周期性 WorkManager 任务在 Robolectric `SynchronousExecutor` 下会在 `enqueueUniquePeriodicWork` 时立即同步执行，在非 Hilt 测试 `Application` 中需为调度器单测注入 `NoOpWorker` `WorkerFactory` 隔离真实 Worker 依赖解析；`DropletAppE2ETest` 多个 `@Test` 共享同一 Hilt `@Singleton` Room 数据库（`droplet_ledger.db`），须保留 `@FixMethodOrder(MethodSorters.NAME_ASCENDING)` 并按 `test01_` / `test02_` / `test03_` 递增命名避免后续用例污染前置账目断言，同时对点击触发的异步 DataStore 状态回写使用 `composeRule.waitUntil` 等待生效。
+- **[M3.2] `pu` 构建机 KSP2 缓存清理、Room 原子条件防重与 `LedgerFeatureViewModelsTest` 双流竞态**：在 `ccarm` 新增 `:core:database` / `:core:security` 接口并同步到 `pu` 后，若 `pu` 长驻 Gradle Daemon 报 KSP2 `PROCESSING_ERROR` 找不到新接口，先执行 `droplet-pu gradle-nosync --stop` 重启 Daemon 即可彻底恢复；分期到期自动入账与手动确认共用 `LoanDao.markInstallmentPaidIfPending`（`WHERE id = :id AND status = 'PENDING' AND transaction_id IS NULL`）实现数据库层原子幂等，避免并发双入账；`LedgerFeatureViewModelsTest` 删除流水后需同时等待 `transactionCount == 0 && monthlyExpense == Money.zero(Currency.CNY)`，消除 Room 多流组合的瞬时竞态。

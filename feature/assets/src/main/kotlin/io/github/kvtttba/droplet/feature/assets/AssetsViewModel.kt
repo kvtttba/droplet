@@ -4,24 +4,31 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.kvtttba.droplet.core.database.repository.CreateInvestmentAssetRequest
+import io.github.kvtttba.droplet.core.database.repository.CreateLoanPlanRequest
 import io.github.kvtttba.droplet.core.database.repository.CreditCardRepository
 import io.github.kvtttba.droplet.core.database.repository.InvestmentRepository
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
+import io.github.kvtttba.droplet.core.database.repository.LoanRepository
 import io.github.kvtttba.droplet.core.database.repository.MarketDataRepository
 import io.github.kvtttba.droplet.core.database.repository.MarketSyncReport
 import io.github.kvtttba.droplet.core.database.repository.MarketSyncStatus
 import io.github.kvtttba.droplet.core.database.repository.OpenFixedDepositRequest
+import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
 import io.github.kvtttba.droplet.core.domain.investment.AssetGroupSummary
 import io.github.kvtttba.droplet.core.domain.investment.AssetOverviewGroup
 import io.github.kvtttba.droplet.core.domain.investment.CurrencyDistribution
 import io.github.kvtttba.droplet.core.domain.investment.InvestmentPortfolioTotals
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioSummary
+import io.github.kvtttba.droplet.core.domain.loan.LoanPlanSummary
+import io.github.kvtttba.droplet.core.domain.loan.LoanScheduleCalculator
 import io.github.kvtttba.droplet.core.model.Account
 import io.github.kvtttba.droplet.core.model.AccountSubType
+import io.github.kvtttba.droplet.core.model.AccountType
 import io.github.kvtttba.droplet.core.model.AssetClass
 import io.github.kvtttba.droplet.core.model.Currency
 import io.github.kvtttba.droplet.core.model.DepositInterestMode
+import io.github.kvtttba.droplet.core.model.LoanMethod
 import io.github.kvtttba.droplet.core.model.MarketQuote
 import io.github.kvtttba.droplet.core.model.Money
 import io.github.kvtttba.droplet.core.network.NetworkClock
@@ -67,19 +74,43 @@ data class CreateInvestmentAssetFormInput(
     val depositCashAccountId: String? = null,
 )
 
+data class CreateLoanPlanFormInput(
+    val name: String,
+    val method: LoanMethod,
+    val currency: Currency,
+    val principalText: String,
+    val totalPeriodsText: String,
+    val annualRatePercentText: String = "",
+    val fixedFeeUseRate: Boolean = false,
+    val fixedFeePerPeriodText: String = "",
+    val fixedFeeRatePercentText: String = "",
+    val firstDueDateIso: String,
+    val monthlyRepayDayText: String,
+    val paymentAccountId: String?,
+    val interestExpenseAccountId: String = DefaultSeedCatalog.AccountIds.EXP_FINANCE_INTEREST_FEE,
+    val autoPost: Boolean = false,
+    val remindDaysBeforeText: String = "3",
+    val includeInNetWorth: Boolean = true,
+    val note: String = "",
+)
+
 data class AssetsUiState(
     val displayCurrency: Currency = Currency.CNY,
     val summary: PortfolioSummary = emptyPortfolioSummary(Currency.CNY),
     val creditCardSummariesById: Map<String, CreditCardStatementSummary> = emptyMap(),
+    val loanSummaries: List<LoanPlanSummary> = emptyList(),
     val quotesByAssetId: Map<String, MarketQuote> = emptyMap(),
     val availableCashAccounts: List<Account> = emptyList(),
     val availableHoldingAccounts: List<Account> = emptyList(),
+    val availableLoanPaymentAccounts: List<Account> = emptyList(),
+    val availableExpenseCategories: List<Account> = emptyList(),
     val lastUpdatedAtEpochMs: Long? = null,
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val refreshNotice: AssetsRefreshNotice? = null,
     val excludedExpanded: Boolean = false,
     val isCreatingAsset: Boolean = false,
+    val isCreatingLoan: Boolean = false,
     val userMessage: String? = null,
 ) {
     companion object {
@@ -138,6 +169,7 @@ private data class AssetsRuntimeState(
     val refreshNotice: AssetsRefreshNotice? = null,
     val excludedExpanded: Boolean = false,
     val isCreatingAsset: Boolean = false,
+    val isCreatingLoan: Boolean = false,
     val userMessage: String? = null,
 )
 
@@ -146,12 +178,20 @@ private data class MarketMetadataSnapshot(
     val lastUpdatedAtEpochMs: Long? = null,
 )
 
+private data class AssetsCoreData(
+    val displayCurrency: Currency,
+    val summary: PortfolioSummary,
+    val creditCardSummaries: Map<String, CreditCardStatementSummary>,
+    val loanSummaries: List<LoanPlanSummary>,
+)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class AssetsViewModel @Inject constructor(
     private val investmentRepository: InvestmentRepository,
     private val creditCardRepository: CreditCardRepository,
     private val creditCardReminderPreferencesRepository: CreditCardReminderPreferencesRepository,
+    private val loanRepository: LoanRepository,
     private val marketDataRepository: MarketDataRepository,
     private val ledgerRepository: LedgerRepository,
     private val clock: NetworkClock,
@@ -175,6 +215,8 @@ class AssetsViewModel @Inject constructor(
         }
         .map { summaries -> summaries.associateBy { it.account.id } }
 
+    private val loanSummariesFlow = loanRepository.observeLoanSummaries(includeArchived = false)
+
     private val marketMetadataFlow = combine(
         marketDataRepository.observeMarketQuotes(),
         marketDataRepository.observeExchangeRates(),
@@ -191,35 +233,57 @@ class AssetsViewModel @Inject constructor(
         displayCurrencyFlow,
         portfolioSummaryFlow,
         creditCardSummariesFlow,
-    ) { displayCurrency, summary, creditCardSummaries ->
-        Triple(displayCurrency, summary, creditCardSummaries)
+        loanSummariesFlow,
+    ) { displayCurrency, summary, creditCardSummaries, loanSummaries ->
+        AssetsCoreData(
+            displayCurrency = displayCurrency,
+            summary = summary,
+            creditCardSummaries = creditCardSummaries,
+            loanSummaries = loanSummaries,
+        )
+    }
+
+    private val accountsCatalogFlow = combine(
+        ledgerRepository.observeOperationalAccounts(includeArchived = false),
+        ledgerRepository.observeCategories(AccountType.EXPENSE, includeArchived = false),
+    ) { operationalAccounts, expenseCategories ->
+        operationalAccounts to expenseCategories
     }
 
     val uiState: StateFlow<AssetsUiState> = combine(
         coreDataFlow,
         marketMetadataFlow,
-        ledgerRepository.observeOperationalAccounts(includeArchived = false),
+        accountsCatalogFlow,
         runtimeFlow,
-    ) { (displayCurrency, summary, creditCardSummaries), marketMeta, operationalAccounts, runtime ->
+    ) { coreData, marketMeta, (operationalAccounts, expenseCategories), runtime ->
         val cashAccounts = operationalAccounts.filter {
             it.subType in FUNDING_CASH_SUB_TYPES
         }
         val holdingAccounts = operationalAccounts.filter {
             it.subType == AccountSubType.INVEST_HOLDING
         }
+        val loanPaymentAccounts = operationalAccounts.filter {
+            it.subType in FUNDING_CASH_SUB_TYPES || it.subType == AccountSubType.CREDIT_CARD
+        }
+        val leafExpenseCategories = expenseCategories.filter { it.parentId != null }
+            .ifEmpty { expenseCategories }
         AssetsUiState(
-            displayCurrency = displayCurrency,
-            summary = summary,
-            creditCardSummariesById = creditCardSummaries,
+            displayCurrency = coreData.displayCurrency,
+            summary = coreData.summary,
+            creditCardSummariesById = coreData.creditCardSummaries,
+            loanSummaries = coreData.loanSummaries,
             quotesByAssetId = marketMeta.quotesByAssetId,
             availableCashAccounts = cashAccounts,
             availableHoldingAccounts = holdingAccounts,
+            availableLoanPaymentAccounts = loanPaymentAccounts,
+            availableExpenseCategories = leafExpenseCategories,
             lastUpdatedAtEpochMs = marketMeta.lastUpdatedAtEpochMs,
             isLoading = false,
             isRefreshing = runtime.isRefreshing,
             refreshNotice = runtime.refreshNotice,
             excludedExpanded = runtime.excludedExpanded,
             isCreatingAsset = runtime.isCreatingAsset,
+            isCreatingLoan = runtime.isCreatingLoan,
             userMessage = runtime.userMessage,
         )
     }.stateIn(
@@ -391,6 +455,130 @@ class AssetsViewModel @Inject constructor(
                     userMessage = result.fold(
                         onSuccess = { "已创建「${input.name.trim()}」" },
                         onFailure = { error -> error.message ?: "创建标的失败" },
+                    ),
+                )
+            }
+            onResult(result)
+        }
+    }
+
+    fun createLoanPlan(
+        input: CreateLoanPlanFormInput,
+        onResult: (Result<String>) -> Unit,
+    ) {
+        if (runtimeFlow.value.isCreatingLoan) return
+        viewModelScope.launch {
+            runtimeFlow.update { it.copy(isCreatingLoan = true) }
+            val result = runCatching {
+                val trimmedName = input.name.trim()
+                require(trimmedName.isNotEmpty()) { "请输入分期贷款名称" }
+
+                val principalText = input.principalText.trim()
+                require(principalText.isNotEmpty()) { "请输入贷款总本金" }
+                val principal = runCatching {
+                    Money.fromDecimalString(principalText, input.currency)
+                }.getOrElse {
+                    throw IllegalArgumentException("贷款总本金格式无效")
+                }
+                require(principal.isPositive) { "贷款总本金必须大于 0" }
+
+                val totalPeriods = input.totalPeriodsText.trim().toIntOrNull()
+                    ?: throw IllegalArgumentException("总期数需为正整数")
+                require(totalPeriods in 1..600) { "总期数需在 1–600 期之间" }
+
+                val firstDueAt = runCatching {
+                    AssetsFormatters.parseIsoDateToEpochMs(
+                        input.firstDueDateIso,
+                        zoneId = LoanScheduleCalculator.DEFAULT_ZONE_ID,
+                    )
+                }.getOrElse {
+                    throw IllegalArgumentException("首期还款日格式无效，请使用 YYYY-MM-DD")
+                }
+
+                val monthlyRepayDay = input.monthlyRepayDayText.trim().toIntOrNull()
+                    ?: throw IllegalArgumentException("每月扣款日需为 1–31 的整数")
+                require(monthlyRepayDay in 1..31) { "每月扣款日需在 1–31 之间" }
+
+                val paymentAccountId = input.paymentAccountId
+                    ?: throw IllegalArgumentException("请选择关联付款账户")
+
+                val remindDays = input.remindDaysBeforeText.trim().let { raw ->
+                    if (raw.isEmpty()) {
+                        null
+                    } else {
+                        val parsed = raw.toIntOrNull()
+                            ?: throw IllegalArgumentException("提前提醒天数需为 0–31 的整数")
+                        require(parsed in 0..31) { "提前提醒天数需在 0–31 之间" }
+                        parsed
+                    }
+                }
+
+                val annualRateDecimal: String?
+                val fixedFeePerPeriodMinor: Long?
+                val fixedFeeRateDecimal: String?
+
+                if (input.method == LoanMethod.FIXED_FEE) {
+                    annualRateDecimal = null
+                    if (input.fixedFeeUseRate) {
+                        fixedFeePerPeriodMinor = null
+                        fixedFeeRateDecimal = AssetsFormatters.parseOptionalRatePercentToCanonicalDecimal(
+                            input.fixedFeeRatePercentText,
+                            "每期手续费率",
+                        )
+                    } else {
+                        fixedFeeRateDecimal = null
+                        val trimmedFee = input.fixedFeePerPeriodText.trim()
+                        fixedFeePerPeriodMinor = if (trimmedFee.isEmpty()) {
+                            0L
+                        } else {
+                            val feeMoney = runCatching {
+                                Money.fromDecimalString(trimmedFee, input.currency)
+                            }.getOrElse {
+                                throw IllegalArgumentException("每期手续费格式无效")
+                            }
+                            require(!feeMoney.isNegative) { "每期手续费不能为负数" }
+                            feeMoney.amountMinor
+                        }
+                    }
+                } else {
+                    annualRateDecimal = AssetsFormatters.parseOptionalRatePercentToCanonicalDecimal(
+                        input.annualRatePercentText,
+                        "年利率",
+                    )
+                    fixedFeePerPeriodMinor = null
+                    fixedFeeRateDecimal = null
+                }
+
+                val created = loanRepository.createLoanPlan(
+                    CreateLoanPlanRequest(
+                        name = trimmedName,
+                        method = input.method,
+                        currency = input.currency,
+                        totalPrincipalMinor = principal.amountMinor,
+                        totalPeriods = totalPeriods,
+                        annualRateDecimal = annualRateDecimal,
+                        fixedFeePerPeriodMinor = fixedFeePerPeriodMinor,
+                        fixedFeeRateDecimal = fixedFeeRateDecimal,
+                        firstDueAt = firstDueAt,
+                        monthlyRepayDay = monthlyRepayDay,
+                        includeInNetWorth = input.includeInNetWorth,
+                        paymentAccountId = paymentAccountId,
+                        interestExpenseAccountId = input.interestExpenseAccountId,
+                        autoPost = input.autoPost,
+                        remindDaysBefore = remindDays,
+                        note = input.note.trim().takeIf { it.isNotEmpty() },
+                        nowEpochMs = clock.nowEpochMs(),
+                    ),
+                )
+                created.plan.id
+            }
+
+            runtimeFlow.update {
+                it.copy(
+                    isCreatingLoan = false,
+                    userMessage = result.fold(
+                        onSuccess = { "已创建分期贷款「${input.name.trim()}」并生成还款计划表" },
+                        onFailure = { error -> error.message ?: "创建分期贷款失败" },
                     ),
                 )
             }

@@ -20,6 +20,8 @@ import io.github.kvtttba.droplet.core.domain.investment.PositionLedgerState
 import io.github.kvtttba.droplet.core.domain.ledger.ExchangeRateTable
 import io.github.kvtttba.droplet.core.domain.ledger.LedgerEngine
 import io.github.kvtttba.droplet.core.domain.ledger.TransactionMeta
+import io.github.kvtttba.droplet.core.domain.loan.LoanPlanSummary
+import io.github.kvtttba.droplet.core.domain.loan.LoanScheduleCalculator
 import io.github.kvtttba.droplet.core.model.Account
 import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AccountType
@@ -28,7 +30,10 @@ import io.github.kvtttba.droplet.core.model.Currency
 import io.github.kvtttba.droplet.core.model.DepositInterestMode
 import io.github.kvtttba.droplet.core.model.ExchangeRateSnapshot
 import io.github.kvtttba.droplet.core.model.ExchangeRateSource
+import io.github.kvtttba.droplet.core.model.InstallmentStatus
 import io.github.kvtttba.droplet.core.model.InvestmentAsset
+import io.github.kvtttba.droplet.core.model.LoanMethod
+import io.github.kvtttba.droplet.core.model.LoanPlan
 import io.github.kvtttba.droplet.core.model.MarketQuote
 import io.github.kvtttba.droplet.core.model.Money
 import io.github.kvtttba.droplet.core.model.Quantity
@@ -52,6 +57,8 @@ import io.github.kvtttba.droplet.feature.assets.InvestmentDetailScreen
 import io.github.kvtttba.droplet.feature.assets.InvestmentDetailUiState
 import io.github.kvtttba.droplet.feature.assets.InvestmentHistoryKind
 import io.github.kvtttba.droplet.feature.assets.InvestmentTransactionItem
+import io.github.kvtttba.droplet.feature.assets.LoanDetailScreen
+import io.github.kvtttba.droplet.feature.assets.LoanDetailUiState
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsUiState
@@ -312,6 +319,24 @@ class DropletAppScreenshotTest {
     }
 
     @Test
+    fun captureLoanDetailLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                LoanDetailScreen(
+                    uiState = sampleLoanDetailUiState(),
+                    notificationPermissionGranted = true,
+                )
+            }
+        }
+        composeRule.onNodeWithTag("screen_loan_detail").assertIsDisplayed()
+        composeRule.onNodeWithTag("loan_detail_remaining_principal").assertTextContains("20,000.00", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/loan_detail_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
     fun captureMarketSyncSettingsLight() {
         composeRule.setContent {
             DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
@@ -546,6 +571,25 @@ class DropletAppScreenshotTest {
         composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
         composeRule.onNodeWithTag("settings_entry_credit_card_reminders").performClick()
         composeRule.onNodeWithTag("screen_credit_card_reminders").assertIsDisplayed()
+    }
+
+    @Test
+    fun interactiveShell_loanDetailNavigationWork() {
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.ASSETS,
+                initialThemeMode = ThemeMode.LIGHT,
+                initialDynamicColor = false,
+                assetsPreviewState = sampleAssetsUiState(),
+                loanDetailPreviewState = sampleLoanDetailUiState(),
+            )
+        }
+
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_loans")
+        composeRule.onNodeWithTag("assets_loan_新能源车贷").performClick()
+        composeRule.onNodeWithTag("screen_loan_detail").assertIsDisplayed()
+        composeRule.onNodeWithTag("loan_detail_back").performClick()
+        composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
     }
 
     companion object {
@@ -947,6 +991,8 @@ class DropletAppScreenshotTest {
                 includeInNetWorth = false,
             )
             val creditCard = sampleCreditCardAccount()
+            val loanAccount = sampleLoanAccount()
+            val loanSummary = sampleLoanPlanSummary()
             val debitCard = sampleOperationalAccounts
                 .first { it.id == DefaultSeedCatalog.AccountIds.DEBIT_CARD }
             val usdCash = sampleOperationalAccounts
@@ -1114,6 +1160,7 @@ class DropletAppScreenshotTest {
                 accounts = listOf(
                     debitCard,
                     creditCard,
+                    loanAccount,
                     usdCash,
                     etfHolding,
                     btcHolding,
@@ -1125,6 +1172,7 @@ class DropletAppScreenshotTest {
                 accountBalancesById = mapOf(
                     debitCard.id to Money.fromDecimalString("42800.00", Currency.CNY),
                     creditCard.id to Money.fromDecimalString("-12500.00", Currency.CNY),
+                    loanAccount.id to -loanSummary.remainingPrincipal,
                     usdCash.id to Money.fromDecimalString("1500.00", Currency.USD),
                     housingFund.id to Money.fromDecimalString("68400.00", Currency.CNY),
                 ),
@@ -1138,7 +1186,75 @@ class DropletAppScreenshotTest {
                 displayCurrency = Currency.CNY,
                 summary = summary,
                 creditCardSummariesById = mapOf(creditCard.id to creditCardSummary),
+                loanSummaries = listOf(loanSummary),
                 lastUpdatedAtEpochMs = fixedTimestampMs,
+                isLoading = false,
+            )
+        }
+
+        private fun sampleLoanAccount(): Account = Account(
+            id = "loan:snap-car-loan",
+            name = "新能源车贷",
+            type = AccountType.LIABILITY,
+            subType = AccountSubType.LOAN,
+            currency = Currency.CNY,
+            icon = "receipt_long",
+            color = "#AD1457",
+            includeInNetWorth = true,
+            sortOrder = 200,
+        )
+
+        private fun sampleLoanPlanSummary(): LoanPlanSummary {
+            val zone = LoanScheduleCalculator.DEFAULT_ZONE_ID
+            val plan = LoanPlan(
+                id = "snap-car-loan",
+                name = "新能源车贷",
+                method = LoanMethod.FIXED_FEE,
+                currency = Currency.CNY,
+                totalPrincipalMinor = Money.fromDecimalString("24000.00", Currency.CNY).amountMinor,
+                totalPeriods = 12,
+                fixedFeePerPeriodMinor = Money.fromDecimalString("80.00", Currency.CNY).amountMinor,
+                firstDueAt = LocalDate.of(2026, 9, 30).atStartOfDay(zone).toInstant().toEpochMilli(),
+                monthlyRepayDay = 30,
+                loanAccountId = "loan:snap-car-loan",
+                paymentAccountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+                interestExpenseAccountId = DefaultSeedCatalog.AccountIds.EXP_FINANCE_INTEREST_FEE,
+                autoPost = true,
+                remindDaysBefore = 5,
+            )
+            val generated = LoanScheduleCalculator.generateSchedule(plan, zoneId = zone).map { inst ->
+                if (inst.periodNumber <= 2) {
+                    inst.copy(
+                        status = InstallmentStatus.PAID,
+                        transactionId = "snap-loan-tx-${inst.periodNumber}",
+                        paidAt = inst.dueAt,
+                    )
+                } else {
+                    inst
+                }
+            }
+            return LoanScheduleCalculator.summarize(
+                plan = plan,
+                installments = generated,
+                asOfDate = LocalDate.of(2026, 11, 27),
+                zoneId = zone,
+            )
+        }
+
+        private fun sampleLoanDetailUiState(): LoanDetailUiState {
+            val summary = sampleLoanPlanSummary()
+            val debit = sampleOperationalAccounts.first { it.id == DefaultSeedCatalog.AccountIds.DEBIT_CARD }
+            val interestCat = DefaultSeedCatalog.defaultExpenseCategories(fixedTimestampMs)
+                .first { it.id == DefaultSeedCatalog.AccountIds.EXP_FINANCE_INTEREST_FEE }
+            return LoanDetailUiState(
+                planId = summary.plan.id,
+                summary = summary,
+                loanAccount = sampleLoanAccount(),
+                paymentAccount = debit,
+                interestExpenseAccount = interestCat,
+                loanAccountBalance = -summary.remainingPrincipal,
+                paymentAccounts = listOf(debit),
+                expenseCategories = listOf(interestCat),
                 isLoading = false,
             )
         }
