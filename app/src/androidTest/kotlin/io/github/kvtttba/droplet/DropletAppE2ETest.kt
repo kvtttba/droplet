@@ -21,11 +21,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.FixMethodOrder
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.runners.MethodSorters
 
 @OptIn(ExperimentalTestApi::class)
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @RunWith(AndroidJUnit4::class)
 class DropletAppE2ETest {
 
@@ -33,7 +36,7 @@ class DropletAppE2ETest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun endToEndRecordExpenseFilterTogglePrivacyManageCatalogsAndPersistSecurityPrefs() {
+    fun test01_endToEndRecordExpenseFilterTogglePrivacyManageCatalogsAndPersistSecurityPrefs() {
         // 1. Starts on Ledger screen with seeded Room database
         composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 10_000)
         composeRule.onNodeWithTag("screen_ledger").assertIsDisplayed()
@@ -157,7 +160,7 @@ class DropletAppE2ETest {
     }
 
     @Test
-    fun endToEndInvestmentCreateBuyManualOverrideAndMarketSyncSettings() {
+    fun test02_endToEndInvestmentCreateBuyManualOverrideAndMarketSyncSettings() {
         // 1. Navigate to Assets tab and open Create Investment Asset sheet
         composeRule.waitUntilAtLeastOneExists(hasTestTag("nav_tab_assets"), timeoutMillis = 10_000)
         composeRule.onNodeWithTag("nav_tab_assets").performClick()
@@ -247,7 +250,7 @@ class DropletAppE2ETest {
     }
 
     @Test
-    fun endToEndCreditCardConfigExpenseBillCheckAndOneTapRepayment() {
+    fun test03_endToEndCreditCardConfigExpenseBillCheckAndOneTapRepayment() {
         // 1. Navigate to Assets -> Credit Card Detail
         composeRule.waitUntilAtLeastOneExists(hasTestTag("nav_tab_assets"), timeoutMillis = 10_000)
         composeRule.onNodeWithTag("nav_tab_assets").performClick()
@@ -357,8 +360,14 @@ class DropletAppE2ETest {
         composeRule.onNodeWithTag("settings_entry_credit_card_reminders").performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_credit_card_reminders"), timeoutMillis = 5_000)
         composeRule.onNodeWithTag("credit_card_reminders_list").performScrollToKey("reminder_controls_card")
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("reminder_default_days_5"), timeoutMillis = 5_000)
         composeRule.onNodeWithTag("reminder_default_days_5").performClick()
-        composeRule.onNodeWithTag("reminder_default_days_5").assertIsSelected()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("reminder_default_days_5").assertIsSelected()
+                true
+            }.getOrDefault(false)
+        }
     }
 
     private fun isFlagSecureApplied(): Boolean {
