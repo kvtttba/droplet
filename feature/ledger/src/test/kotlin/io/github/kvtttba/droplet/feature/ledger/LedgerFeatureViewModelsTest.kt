@@ -135,7 +135,9 @@ class LedgerFeatureViewModelsTest {
 
         // 4. Void transaction -> excluded from active summary, visible when includeVoid is toggled
         ledgerVm.voidTransaction(createdItem.id)
-        val stateAfterVoid = ledgerVm.uiState.awaitFirst { it.transactionCount == 0 }
+        val stateAfterVoid = ledgerVm.uiState.awaitFirst {
+            it.transactionCount == 0 && it.monthlyExpense == Money.zero(Currency.CNY)
+        }
         assertEquals(Money.zero(Currency.CNY), stateAfterVoid.monthlyExpense)
 
         ledgerVm.onToggleIncludeVoid()

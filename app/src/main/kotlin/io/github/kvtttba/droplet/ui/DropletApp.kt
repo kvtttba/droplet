@@ -20,6 +20,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +50,10 @@ import io.github.kvtttba.droplet.feature.aicapture.QuickCaptureMode
 import io.github.kvtttba.droplet.feature.assets.AssetsRoute
 import io.github.kvtttba.droplet.feature.assets.AssetsScreen
 import io.github.kvtttba.droplet.feature.assets.AssetsUiState
+import io.github.kvtttba.droplet.feature.assets.CreditCardDetailRoute
+import io.github.kvtttba.droplet.feature.assets.CreditCardDetailScreen
+import io.github.kvtttba.droplet.feature.assets.CreditCardDetailUiState
+import io.github.kvtttba.droplet.feature.assets.CreditCardDetailViewModel
 import io.github.kvtttba.droplet.feature.assets.InvestmentDetailRoute
 import io.github.kvtttba.droplet.feature.assets.InvestmentDetailScreen
 import io.github.kvtttba.droplet.feature.assets.InvestmentDetailUiState
@@ -59,6 +64,9 @@ import io.github.kvtttba.droplet.feature.ledger.LedgerUiState
 import io.github.kvtttba.droplet.feature.ledger.editor.TransactionEditorRoute
 import io.github.kvtttba.droplet.feature.ledger.manage.AccountManagementRoute
 import io.github.kvtttba.droplet.feature.ledger.manage.CategoryTagManagementRoute
+import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsRoute
+import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsScreen
+import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsRoute
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsUiState
@@ -104,10 +112,12 @@ enum class DropletTab(
 object DropletRoutes {
     const val TRANSACTION_EDITOR_PATTERN = "transaction_editor?transactionId={transactionId}"
     const val INVESTMENT_DETAIL_PATTERN = "investment_detail/{${InvestmentDetailViewModel.NAV_ARG_ASSET_ID}}"
+    const val CREDIT_CARD_DETAIL_PATTERN = "credit_card_detail/{${CreditCardDetailViewModel.NAV_ARG_ACCOUNT_ID}}"
     const val ACCOUNT_MANAGEMENT = "manage_accounts"
     const val CATEGORY_TAG_MANAGEMENT = "manage_categories_tags"
     const val PRIVACY_SECURITY = "privacy_security"
     const val MARKET_SYNC_SETTINGS = "market_sync_settings"
+    const val CREDIT_CARD_REMINDER_SETTINGS = "credit_card_reminder_settings"
 
     fun transactionEditor(transactionId: String? = null): String =
         if (transactionId.isNullOrBlank()) {
@@ -118,6 +128,9 @@ object DropletRoutes {
 
     fun investmentDetail(assetId: String): String =
         "investment_detail/${Uri.encode(assetId)}"
+
+    fun creditCardDetail(accountId: String): String =
+        "credit_card_detail/${Uri.encode(accountId)}"
 }
 
 fun AppThemePreference.toThemeMode(): ThemeMode = when (this) {
@@ -142,6 +155,9 @@ fun DropletApp(
     isPreferencesHydrated: Boolean = true,
     lockState: AppLockState = AppLockState(),
     marketSyncSummary: String = "每 12 小时 · 直连",
+    creditCardReminderSummary: String = "已开启 · 默认提前 3 天提醒",
+    pendingCreditCardAccountId: String? = null,
+    onConsumePendingCreditCardAccountId: () -> Unit = {},
     initialTab: DropletTab = DropletTab.LEDGER,
     initialShowQuickCapture: Boolean = false,
     onThemeModeChange: (ThemeMode) -> Unit = {},
@@ -173,6 +189,9 @@ fun DropletApp(
         biometricLockEnabled = preferences.biometricLockEnabled,
         flagSecureEnabled = preferences.flagSecureEnabled,
         marketSyncSummary = marketSyncSummary,
+        creditCardReminderSummary = creditCardReminderSummary,
+        pendingCreditCardAccountId = pendingCreditCardAccountId,
+        onConsumePendingCreditCardAccountId = onConsumePendingCreditCardAccountId,
         isAppLocked = lockState.isOverlayVisible,
         isAuthenticating = lockState.isAuthenticating,
         lockErrorMessage = lockState.lastErrorMessage,
@@ -191,16 +210,24 @@ fun DropletApp(
                 onShowMessage = onShowMessage,
             )
         },
-        assetsContent = { onToggleHidden, onOpenDetail, onOpenSyncSettings, onShowMessage ->
+        assetsContent = { onToggleHidden, onOpenDetail, onOpenCreditCard, onOpenSyncSettings, onShowMessage ->
             AssetsRoute(
                 onToggleAmountsHidden = onToggleHidden,
                 onOpenInvestmentDetail = onOpenDetail,
+                onOpenCreditCardDetail = onOpenCreditCard,
                 onOpenMarketSyncSettings = onOpenSyncSettings,
                 onShowMessage = onShowMessage,
             )
         },
         investmentDetailContent = { onBack, onToggleHidden, onShowMessage ->
             InvestmentDetailRoute(
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+                onShowMessage = onShowMessage,
+            )
+        },
+        creditCardDetailContent = { onBack, onToggleHidden, onShowMessage ->
+            CreditCardDetailRoute(
                 onNavigateBack = onBack,
                 onToggleAmountsHidden = onToggleHidden,
                 onShowMessage = onShowMessage,
@@ -237,6 +264,13 @@ fun DropletApp(
                 onShowMessage = onShowMessage,
             )
         },
+        creditCardReminderSettingsContent = { onBack, onOpenCardDetail, onShowMessage ->
+            CreditCardReminderSettingsRoute(
+                onNavigateBack = onBack,
+                onOpenCreditCardDetail = onOpenCardDetail,
+                onShowMessage = onShowMessage,
+            )
+        },
     )
 }
 
@@ -257,7 +291,9 @@ fun DropletAppShell(
     ledgerPreviewState: LedgerUiState? = null,
     assetsPreviewState: AssetsUiState? = null,
     investmentDetailPreviewState: InvestmentDetailUiState? = null,
+    creditCardDetailPreviewState: CreditCardDetailUiState? = null,
     marketSyncPreviewState: MarketSyncSettingsUiState? = null,
+    creditCardReminderSettingsPreviewState: CreditCardReminderSettingsUiState? = null,
     ledgerContent: @Composable (
         onToggleAmountsHidden: () -> Unit,
         onCreateTransaction: () -> Unit,
@@ -274,13 +310,15 @@ fun DropletAppShell(
     assetsContent: @Composable (
         onToggleAmountsHidden: () -> Unit,
         onOpenInvestmentDetail: (String) -> Unit,
+        onOpenCreditCardDetail: (String) -> Unit,
         onOpenMarketSyncSettings: () -> Unit,
         onShowMessage: (String) -> Unit,
-    ) -> Unit = { onToggleHidden, onOpenDetail, onOpenSyncSettings, _ ->
+    ) -> Unit = { onToggleHidden, onOpenDetail, onOpenCreditCard, onOpenSyncSettings, _ ->
         AssetsScreen(
             uiState = assetsPreviewState ?: AssetsUiState(isLoading = false),
             onToggleAmountsHidden = onToggleHidden,
             onOpenInvestmentDetail = onOpenDetail,
+            onOpenCreditCardDetail = onOpenCreditCard,
             onOpenMarketSyncSettings = onOpenSyncSettings,
         )
     },
@@ -312,6 +350,9 @@ fun DropletAppShell(
         biometricLockEnabled = biometricLockEnabled,
         flagSecureEnabled = flagSecureEnabled,
         marketSyncSummary = "每 12 小时 · 直连",
+        creditCardReminderSummary = "已开启 · 默认提前 3 天提醒",
+        pendingCreditCardAccountId = null,
+        onConsumePendingCreditCardAccountId = {},
         isAppLocked = isLocked,
         isAuthenticating = false,
         lockErrorMessage = null,
@@ -327,6 +368,13 @@ fun DropletAppShell(
         investmentDetailContent = { onBack, onToggleHidden, _ ->
             InvestmentDetailScreen(
                 uiState = investmentDetailPreviewState ?: InvestmentDetailUiState(isLoading = false),
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+            )
+        },
+        creditCardDetailContent = { onBack, onToggleHidden, _ ->
+            CreditCardDetailScreen(
+                uiState = creditCardDetailPreviewState ?: CreditCardDetailUiState(isLoading = false),
                 onNavigateBack = onBack,
                 onToggleAmountsHidden = onToggleHidden,
             )
@@ -354,6 +402,13 @@ fun DropletAppShell(
                 onNavigateBack = onBack,
             )
         },
+        creditCardReminderSettingsContent = { onBack, onOpenCardDetail, _ ->
+            CreditCardReminderSettingsScreen(
+                uiState = creditCardReminderSettingsPreviewState ?: CreditCardReminderSettingsUiState(),
+                onNavigateBack = onBack,
+                onOpenCreditCardDetail = onOpenCardDetail,
+            )
+        },
     )
 }
 
@@ -366,6 +421,9 @@ private fun DropletAppContent(
     biometricLockEnabled: Boolean,
     flagSecureEnabled: Boolean,
     marketSyncSummary: String,
+    creditCardReminderSummary: String,
+    pendingCreditCardAccountId: String?,
+    onConsumePendingCreditCardAccountId: () -> Unit,
     isAppLocked: Boolean,
     isAuthenticating: Boolean,
     lockErrorMessage: String?,
@@ -385,10 +443,16 @@ private fun DropletAppContent(
     assetsContent: @Composable (
         onToggleAmountsHidden: () -> Unit,
         onOpenInvestmentDetail: (String) -> Unit,
+        onOpenCreditCardDetail: (String) -> Unit,
         onOpenMarketSyncSettings: () -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
     investmentDetailContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onToggleAmountsHidden: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    creditCardDetailContent: @Composable (
         onNavigateBack: () -> Unit,
         onToggleAmountsHidden: () -> Unit,
         onShowMessage: (String) -> Unit,
@@ -411,6 +475,11 @@ private fun DropletAppContent(
     ) -> Unit,
     marketSyncSettingsContent: @Composable (
         onNavigateBack: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    creditCardReminderSettingsContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onOpenCreditCardDetail: (String) -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
 ) {
@@ -437,6 +506,15 @@ private fun DropletAppContent(
         CompositionLocalProvider(LocalAmountsHidden provides amountsHidden) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (hasUnlockedAtLeastOnce) {
+                    LaunchedEffect(pendingCreditCardAccountId, isAppLocked) {
+                        if (!pendingCreditCardAccountId.isNullOrBlank() && !isAppLocked) {
+                            navController.navigate(DropletRoutes.creditCardDetail(pendingCreditCardAccountId)) {
+                                launchSingleTop = true
+                            }
+                            onConsumePendingCreditCardAccountId()
+                        }
+                    }
+
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route ?: initialTab.route
                     val isTopLevelTab = DropletTab.entries.any { it.route == currentRoute }
@@ -511,6 +589,7 @@ private fun DropletAppContent(
                                 assetsContent(
                                     onToggleAmountsHidden,
                                     { assetId -> navController.navigate(DropletRoutes.investmentDetail(assetId)) },
+                                    { accountId -> navController.navigate(DropletRoutes.creditCardDetail(accountId)) },
                                     { navController.navigate(DropletRoutes.MARKET_SYNC_SETTINGS) },
                                     showMessage,
                                 )
@@ -539,9 +618,13 @@ private fun DropletAppContent(
                                     onOpenMarketSyncSettings = {
                                         navController.navigate(DropletRoutes.MARKET_SYNC_SETTINGS)
                                     },
+                                    onOpenCreditCardReminders = {
+                                        navController.navigate(DropletRoutes.CREDIT_CARD_REMINDER_SETTINGS)
+                                    },
                                     biometricLockEnabled = biometricLockEnabled,
                                     flagSecureEnabled = flagSecureEnabled,
                                     marketSyncSummary = marketSyncSummary,
+                                    creditCardReminderSummary = creditCardReminderSummary,
                                     versionLabel = versionLabel,
                                 )
                             }
@@ -554,6 +637,20 @@ private fun DropletAppContent(
                                 ),
                             ) {
                                 investmentDetailContent(
+                                    { navController.popBackStack() },
+                                    onToggleAmountsHidden,
+                                    showMessage,
+                                )
+                            }
+                            composable(
+                                route = DropletRoutes.CREDIT_CARD_DETAIL_PATTERN,
+                                arguments = listOf(
+                                    navArgument(CreditCardDetailViewModel.NAV_ARG_ACCOUNT_ID) {
+                                        type = NavType.StringType
+                                    },
+                                ),
+                            ) {
+                                creditCardDetailContent(
                                     { navController.popBackStack() },
                                     onToggleAmountsHidden,
                                     showMessage,
@@ -598,6 +695,13 @@ private fun DropletAppContent(
                             composable(DropletRoutes.MARKET_SYNC_SETTINGS) {
                                 marketSyncSettingsContent(
                                     { navController.popBackStack() },
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletRoutes.CREDIT_CARD_REMINDER_SETTINGS) {
+                                creditCardReminderSettingsContent(
+                                    { navController.popBackStack() },
+                                    { accountId -> navController.navigate(DropletRoutes.creditCardDetail(accountId)) },
                                     showMessage,
                                 )
                             }

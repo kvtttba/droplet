@@ -6,12 +6,17 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import dagger.hilt.android.HiltAndroidApp
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
+import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.di.ApplicationScope
+import io.github.kvtttba.droplet.notification.CreditCardReminderNotifier
 import io.github.kvtttba.droplet.security.AppLockCoordinator
+import io.github.kvtttba.droplet.worker.CreditCardReminderScheduler
 import io.github.kvtttba.droplet.worker.MarketSyncScheduler
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @HiltAndroidApp
@@ -30,6 +35,15 @@ class DropletApplication : Application() {
     lateinit var marketSyncScheduler: MarketSyncScheduler
 
     @Inject
+    lateinit var creditCardReminderPreferencesRepository: CreditCardReminderPreferencesRepository
+
+    @Inject
+    lateinit var creditCardReminderNotifier: CreditCardReminderNotifier
+
+    @Inject
+    lateinit var creditCardReminderScheduler: CreditCardReminderScheduler
+
+    @Inject
     @ApplicationScope
     lateinit var applicationScope: CoroutineScope
 
@@ -46,6 +60,7 @@ class DropletApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         appLockCoordinator.start()
+        creditCardReminderNotifier.ensureNotificationChannel()
         ProcessLifecycleOwner.get().lifecycle.addObserver(processLifecycleObserver)
         applicationScope.launch {
             ledgerRepository.ensureSeeded()
@@ -54,6 +69,14 @@ class DropletApplication : Application() {
             marketSyncPreferencesRepository.preferences.collect { prefs ->
                 marketSyncScheduler.syncSchedule(prefs)
             }
+        }
+        applicationScope.launch {
+            creditCardReminderPreferencesRepository.preferences
+                .map { it.remindersEnabled }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    creditCardReminderScheduler.syncSchedule(remindersEnabled = enabled)
+                }
         }
     }
 }

@@ -838,6 +838,7 @@ private fun AccountSelectorCard(
         LazyRow(
             state = listState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.testTag("editor_account_row"),
         ) {
             items(accounts, key = { it.id }) { account ->
                 val selected = account.id == selectedAccountId

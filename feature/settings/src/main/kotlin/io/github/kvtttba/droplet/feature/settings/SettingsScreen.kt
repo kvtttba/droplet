@@ -51,10 +51,12 @@ fun SettingsScreen(
     onOpenCategoryTagManagement: () -> Unit = {},
     onOpenPrivacySecurity: () -> Unit = {},
     onOpenMarketSyncSettings: () -> Unit = {},
+    onOpenCreditCardReminders: () -> Unit = {},
     biometricLockEnabled: Boolean = false,
     flagSecureEnabled: Boolean = false,
     marketSyncSummary: String = "后台自动刷新 · 可选 HTTP/SOCKS 代理",
-    versionLabel: String = "v0.1.0-m2.3",
+    creditCardReminderSummary: String = "已开启 · 默认提前 3 天提醒",
+    versionLabel: String = "v0.1.0-m3.1",
     modifier: Modifier = Modifier,
 ) {
     val amountsHidden = LocalAmountsHidden.current
@@ -226,6 +228,17 @@ fun SettingsScreen(
                     subtitle = marketSyncSummary,
                     onClick = onOpenMarketSyncSettings,
                     modifier = Modifier.testTag("settings_entry_market_sync"),
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 48.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                )
+                SettingsItemRow(
+                    icon = DropletIcons.CreditCard,
+                    title = "信用卡还款提醒",
+                    subtitle = creditCardReminderSummary,
+                    onClick = onOpenCreditCardReminders,
+                    modifier = Modifier.testTag("settings_entry_credit_card_reminders"),
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 48.dp),

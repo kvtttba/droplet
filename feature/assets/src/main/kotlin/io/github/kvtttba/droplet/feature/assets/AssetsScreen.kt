@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
@@ -53,6 +54,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementStatus
+import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
 import io.github.kvtttba.droplet.core.domain.investment.AccountValuation
 import io.github.kvtttba.droplet.core.domain.investment.AssetOverviewGroup
 import io.github.kvtttba.droplet.core.domain.investment.CurrencyDistribution
@@ -80,6 +83,7 @@ import java.math.RoundingMode
 fun AssetsRoute(
     onToggleAmountsHidden: () -> Unit,
     onOpenInvestmentDetail: (String) -> Unit,
+    onOpenCreditCardDetail: (String) -> Unit = {},
     onOpenMarketSyncSettings: () -> Unit = {},
     onShowMessage: (String) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -104,6 +108,7 @@ fun AssetsRoute(
         onSelectDisplayCurrency = viewModel::selectDisplayCurrency,
         onManualRefresh = viewModel::refreshNow,
         onOpenInvestmentDetail = onOpenInvestmentDetail,
+        onOpenCreditCardDetail = onOpenCreditCardDetail,
         onOpenMarketSyncSettings = onOpenMarketSyncSettings,
         onToggleExcludedExpanded = viewModel::toggleExcludedExpanded,
         onDismissRefreshNotice = viewModel::dismissRefreshNotice,
@@ -124,6 +129,7 @@ fun AssetsScreen(
     onSelectDisplayCurrency: (Currency) -> Unit = {},
     onManualRefresh: () -> Unit = {},
     onOpenInvestmentDetail: (String) -> Unit = {},
+    onOpenCreditCardDetail: (String) -> Unit = {},
     onOpenMarketSyncSettings: () -> Unit = {},
     onToggleExcludedExpanded: () -> Unit = {},
     onDismissRefreshNotice: () -> Unit = {},
@@ -345,7 +351,43 @@ fun AssetsScreen(
                 }
             }
 
-            // 1. Investment Holdings Section
+            // 1. Credit Accounts Section (high-priority repayment countdown & credit limit status)
+            if (creditAccounts.isNotEmpty()) {
+                item(key = "section_credit") {
+                    val creditGroup = summary.groupSummaries
+                        .firstOrNull { it.group == AssetOverviewGroup.CREDIT }
+                    DropletCard {
+                        AssetHeaderRow(
+                            icon = DropletIcons.CreditCard,
+                            title = "信用账户",
+                            subtitle = "${creditAccounts.size} 个信用账户 · 点击查看账单与还款",
+                            amount = creditGroup?.netBase ?: Money.zero(uiState.displayCurrency),
+                            amountColor = if ((creditGroup?.netBase?.isNegative) == true) {
+                                semantic.expense
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        creditAccounts.forEachIndexed { index, valuation ->
+                            CreditAccountRow(
+                                valuation = valuation,
+                                statementSummary = uiState.creditCardSummariesById[valuation.account.id],
+                                displayCurrency = uiState.displayCurrency,
+                                onClick = { onOpenCreditCardDetail(valuation.account.id) },
+                            )
+                            if (index != creditAccounts.lastIndex) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Investment Holdings Section
             item(key = "section_investments_header") {
                 Row(
                     modifier = Modifier
@@ -567,40 +609,6 @@ fun AssetsScreen(
                 }
             }
 
-            // 3. Credit Accounts Section
-            if (creditAccounts.isNotEmpty()) {
-                item(key = "section_credit") {
-                    val creditGroup = summary.groupSummaries
-                        .firstOrNull { it.group == AssetOverviewGroup.CREDIT }
-                    DropletCard {
-                        AssetHeaderRow(
-                            icon = DropletIcons.CreditCard,
-                            title = "信用账户",
-                            subtitle = "${creditAccounts.size} 个信用账户",
-                            amount = creditGroup?.netBase ?: Money.zero(uiState.displayCurrency),
-                            amountColor = if ((creditGroup?.netBase?.isNegative) == true) {
-                                semantic.expense
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                        creditAccounts.forEachIndexed { index, valuation ->
-                            CreditAccountRow(
-                                valuation = valuation,
-                                displayCurrency = uiState.displayCurrency,
-                            )
-                            if (index != creditAccounts.lastIndex) {
-                                HorizontalDivider(
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
             // 4. Loans & Debt / Reimbursement
             if (loanAccounts.isNotEmpty() || debtReimburseAccounts.isNotEmpty()) {
                 item(key = "section_loan_debt") {
@@ -697,12 +705,19 @@ fun AssetsScreen(
                             summary.excludedAccountValuations.forEachIndexed { index, valuation ->
                                 val linkedPositions = excludedPositionsByAccountId[valuation.account.id].orEmpty()
                                 val primaryLinkedAssetId = linkedPositions.firstOrNull()?.asset?.id
+                                val excludedClick: (() -> Unit)? = when {
+                                    valuation.account.subType == AccountSubType.CREDIT_CARD -> {
+                                        { onOpenCreditCardDetail(valuation.account.id) }
+                                    }
+                                    primaryLinkedAssetId != null -> {
+                                        { onOpenInvestmentDetail(primaryLinkedAssetId) }
+                                    }
+                                    else -> null
+                                }
                                 AccountValuationRow(
                                     valuation = valuation,
                                     displayCurrency = uiState.displayCurrency,
-                                    onClick = primaryLinkedAssetId?.let { id ->
-                                        { onOpenInvestmentDetail(id) }
-                                    },
+                                    onClick = excludedClick,
                                 )
                                 if (index != summary.excludedAccountValuations.lastIndex) {
                                     HorizontalDivider(
@@ -973,49 +988,148 @@ private fun AccountValuationRow(
 @Composable
 private fun CreditAccountRow(
     valuation: AccountValuation,
+    statementSummary: CreditCardStatementSummary?,
     displayCurrency: Currency,
+    onClick: () -> Unit,
 ) {
     val semantic = DropletTheme.semanticColors
     val account = valuation.account
-    val usedMinor = if (valuation.originalBalance.amountMinor < 0L) {
-        Math.negateExact(valuation.originalBalance.amountMinor)
-    } else {
-        0L
+    val accent = DropletIconRegistry.parseColor(account.color, MaterialTheme.colorScheme.primary)
+    val usedMoney = statementSummary?.usedLimit ?: Money(
+        if (valuation.originalBalance.amountMinor < 0L) Math.negateExact(valuation.originalBalance.amountMinor) else 0L,
+        account.currency,
+    )
+    val overpayment = statementSummary?.overpayment ?: Money(
+        if (valuation.originalBalance.amountMinor > 0L) valuation.originalBalance.amountMinor else 0L,
+        account.currency,
+    )
+    val limitMoney = statementSummary?.creditLimit ?: account.creditLimit
+    val availableMoney = statementSummary?.availableCredit ?: limitMoney?.let { limit ->
+        Money(Math.addExact(limit.amountMinor, valuation.originalBalance.amountMinor).coerceAtLeast(0L), account.currency)
     }
-    val limitMinor = account.creditLimitMinor
+
+    val (statusLabel, statusContainer, statusContent) = when (statementSummary?.status) {
+        CreditCardStatementStatus.OVERDUE -> Triple(
+            "已逾期 ${statementSummary.overdueDays} 天",
+            MaterialTheme.colorScheme.errorContainer,
+            MaterialTheme.colorScheme.onErrorContainer,
+        )
+        CreditCardStatementStatus.DUE_SOON -> Triple(
+            if (statementSummary.isDueToday) "今日还款" else "${statementSummary.daysUntilCurrentDue}天后还款",
+            semantic.warningContainer,
+            semantic.warning,
+        )
+        CreditCardStatementStatus.PENDING -> Triple(
+            statementSummary.daysUntilCurrentDue?.let { "${it}天后还款" } ?: "待还款",
+            MaterialTheme.colorScheme.secondaryContainer,
+            MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+        CreditCardStatementStatus.PAID_OFF -> Triple(
+            "本期已还清",
+            semantic.incomeContainer,
+            semantic.income,
+        )
+        CreditCardStatementStatus.UNCONFIGURED, null -> Triple(
+            "点此设账单日",
+            MaterialTheme.colorScheme.surfaceContainerHigh,
+            MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    val countdownMeta = buildList {
+        if (statementSummary != null && statementSummary.lastStatementDate != null) {
+            val billPart = when {
+                statementSummary.isBillingDayToday -> "今日出账"
+                statementSummary.daysUntilNextBilling != null -> "${statementSummary.daysUntilNextBilling}天后出账"
+                else -> account.billingDay?.let { "账单日 ${it}日" }.orEmpty()
+            }
+            if (billPart.isNotEmpty()) add(billPart)
+        } else {
+            account.billingDay?.let { add("账单日 ${it}日") }
+        }
+
+        if (statementSummary != null && statementSummary.currentStatementDueDate != null) {
+            val duePart = when {
+                statementSummary.status == CreditCardStatementStatus.OVERDUE ->
+                    "还款日 ${account.dueDay}日 · 已逾期${statementSummary.overdueDays}天"
+                statementSummary.isDueToday ->
+                    "今日到期还款"
+                statementSummary.daysUntilDisplayDue != null ->
+                    "还款日 ${account.dueDay}日 · ${statementSummary.daysUntilDisplayDue}天后"
+                else -> "还款日 ${account.dueDay}日"
+            }
+            add(duePart)
+        } else {
+            account.dueDay?.let { add("还款日 ${it}日") }
+        }
+    }.joinToString(" · ")
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 10.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp)
+            .testTag("assets_credit_card_${account.name}"),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = account.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(accent.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = DropletIconRegistry.resolve(account.icon),
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(20.dp),
                 )
-                val billingMeta = buildList {
-                    account.billingDay?.let { add("账单日 ${it}日") }
-                    account.dueDay?.let { add("还款日 ${it}日") }
-                }.joinToString(" · ")
-                if (billingMeta.isNotEmpty()) {
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     Text(
-                        text = billingMeta,
-                        style = MaterialTheme.typography.labelSmall,
+                        text = account.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    DropletPillBadge(
+                        text = statusLabel,
+                        containerColor = statusContainer,
+                        contentColor = statusContent,
+                    )
+                }
+                if (countdownMeta.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = countdownMeta,
+                        style = MaterialTheme.typography.labelSmall.tabularNums(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
+            Spacer(modifier = Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
                 PrivacyAmountText(
                     money = valuation.originalBalance,
                     style = MaterialTheme.typography.titleSmall,
-                    color = if (valuation.originalBalance.isNegative) semantic.expense else MaterialTheme.colorScheme.onSurface,
+                    color = when {
+                        valuation.originalBalance.isNegative -> semantic.expense
+                        valuation.originalBalance.isPositive -> semantic.income
+                        else -> MaterialTheme.colorScheme.onSurface
+                    },
                 )
                 if (account.currency != displayCurrency) {
                     PrivacyAmountText(
@@ -1025,16 +1139,81 @@ private fun CreditAccountRow(
                     )
                 }
             }
+            Spacer(modifier = Modifier.width(2.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = "查看信用卡账单",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
         }
-        if (limitMinor != null && limitMinor > 0L) {
-            val usedRatio = BigDecimal.valueOf(usedMinor)
-                .divide(BigDecimal.valueOf(limitMinor), 4, RoundingMode.HALF_UP)
+
+        if (statementSummary != null && statementSummary.remainingStatementDue.isPositive) {
+            Spacer(modifier = Modifier.height(8.dp))
+            val dueBg = when (statementSummary.status) {
+                CreditCardStatementStatus.OVERDUE -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                CreditCardStatementStatus.DUE_SOON -> semantic.warningContainer.copy(alpha = 0.75f)
+                else -> MaterialTheme.colorScheme.surfaceContainerLow
+            }
+            val dueTextColor = when (statementSummary.status) {
+                CreditCardStatementStatus.OVERDUE -> MaterialTheme.colorScheme.onErrorContainer
+                CreditCardStatementStatus.DUE_SOON -> semantic.warning
+                else -> MaterialTheme.colorScheme.onSurface
+            }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                color = dueBg,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (statementSummary.status == CreditCardStatementStatus.OVERDUE) {
+                            "本期账单剩余应还（已逾期）"
+                        } else {
+                            "本期账单剩余应还"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = dueTextColor,
+                    )
+                    PrivacyAmountText(
+                        money = statementSummary.remainingStatementDue,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = dueTextColor,
+                    )
+                }
+            }
+        } else if (overpayment.isPositive) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "含溢缴款",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = semantic.income,
+                )
+                PrivacyAmountText(
+                    money = overpayment,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = semantic.income,
+                    showPositiveSign = true,
+                )
+            }
+        }
+
+        if (limitMoney != null && limitMoney.isPositive && availableMoney != null) {
+            val usedRatio = BigDecimal.valueOf(usedMoney.amountMinor)
+                .divide(BigDecimal.valueOf(limitMoney.amountMinor), 4, RoundingMode.HALF_UP)
             val progress = usedRatio.toFloat().coerceIn(0f, 1f)
-            val usedPctInt = usedRatio.multiply(BigDecimal("100"))
-                .setScale(0, RoundingMode.HALF_UP)
-                .toInt()
-                .coerceAtLeast(0)
-            val available = Money((limitMinor - usedMinor).coerceAtLeast(0L), account.currency)
+            val usedPctLabel = statementSummary?.utilizationPctDecimal?.let { "$it%" }
+                ?: "${usedRatio.multiply(BigDecimal("100")).setScale(0, RoundingMode.HALF_UP).toPlainString()}%"
 
             Spacer(modifier = Modifier.height(8.dp))
             LinearProgressIndicator(
@@ -1043,7 +1222,11 @@ private fun CreditAccountRow(
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(RoundedCornerShape(999.dp)),
-                color = if (progress > 0.8f) semantic.expense else MaterialTheme.colorScheme.primary,
+                color = when {
+                    progress >= 0.8f -> semantic.expense
+                    progress >= 0.6f -> semantic.warning
+                    else -> MaterialTheme.colorScheme.primary
+                },
                 trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                 strokeCap = StrokeCap.Round,
             )
@@ -1051,23 +1234,39 @@ private fun CreditAccountRow(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "已用额度 $usedPctInt%",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "可用额度",
+                        text = "已用",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     PrivacyAmountText(
-                        money = available,
+                        money = usedMoney,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = "($usedPctLabel)",
+                        style = MaterialTheme.typography.labelSmall.tabularNums(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "可用",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    PrivacyAmountText(
+                        money = availableMoney,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

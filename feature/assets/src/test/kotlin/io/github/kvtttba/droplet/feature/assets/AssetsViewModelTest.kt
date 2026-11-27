@@ -4,6 +4,9 @@ import io.github.kvtttba.droplet.core.database.dao.AccountCurrencyBalanceRow
 import io.github.kvtttba.droplet.core.database.dao.PeriodSummaryRow
 import io.github.kvtttba.droplet.core.database.dao.TransactionFilter
 import io.github.kvtttba.droplet.core.database.repository.CreateInvestmentAssetRequest
+import io.github.kvtttba.droplet.core.database.repository.CreditCardDetailSnapshot
+import io.github.kvtttba.droplet.core.database.repository.CreditCardRepaymentRequest
+import io.github.kvtttba.droplet.core.database.repository.CreditCardRepository
 import io.github.kvtttba.droplet.core.database.repository.FixedDepositInterestPayoutRequest
 import io.github.kvtttba.droplet.core.database.repository.FixedDepositOpenResult
 import io.github.kvtttba.droplet.core.database.repository.FixedDepositSettlementRequest
@@ -20,7 +23,10 @@ import io.github.kvtttba.droplet.core.database.repository.MarketSyncReport
 import io.github.kvtttba.droplet.core.database.repository.MarketSyncStatus
 import io.github.kvtttba.droplet.core.database.repository.OpenFixedDepositRequest
 import io.github.kvtttba.droplet.core.database.repository.QuoteRefreshSummary
+import io.github.kvtttba.droplet.core.database.repository.UpdateCreditCardParametersRequest
 import io.github.kvtttba.droplet.core.database.seed.SeedResult
+import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementCalculator
+import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
 import io.github.kvtttba.droplet.core.domain.investment.BankWealthManualValuationResult
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioPositionValuation
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioSummary
@@ -45,6 +51,9 @@ import io.github.kvtttba.droplet.core.model.TransactionStatus
 import io.github.kvtttba.droplet.core.model.UnitPrice
 import io.github.kvtttba.droplet.core.network.NetworkClock
 import io.github.kvtttba.droplet.core.network.quote.QuoteItemOutcome
+import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferences
+import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -292,6 +301,71 @@ class AssetsViewModelTest {
         override suspend fun upsertExchangeRate(rate: CachedExchangeRate) = Unit
     }
 
+    private class FakeCreditCardRepository : CreditCardRepository {
+        val sampleCard = Account(
+            id = "acct:cc",
+            name = "招行信用卡",
+            type = AccountType.LIABILITY,
+            subType = AccountSubType.CREDIT_CARD,
+            currency = Currency.CNY,
+            creditLimitMinor = Money.fromDecimalString("50000.00", Currency.CNY).amountMinor,
+            billingDay = 5,
+            dueDay = 25,
+            remindDaysBefore = 3,
+        )
+        val summariesFlow = MutableStateFlow(
+            listOf(
+                CreditCardStatementCalculator.calculate(
+                    account = sampleCard,
+                    transactions = emptyList(),
+                    asOfDate = LocalDate.of(2026, 11, 23),
+                ),
+            ),
+        )
+
+        override fun observeCreditCardSummaries(
+            includeArchived: Boolean,
+            defaultRemindDaysBefore: Int,
+            asOfEpochMs: Long?,
+        ): Flow<List<CreditCardStatementSummary>> = summariesFlow
+
+        override fun observeCreditCardDetail(
+            accountId: String,
+            defaultRemindDaysBefore: Int,
+            asOfEpochMs: Long?,
+        ): Flow<CreditCardDetailSnapshot?> = MutableStateFlow(null)
+
+        override fun observeAccountTransactions(
+            accountId: String,
+            status: TransactionStatus,
+        ): Flow<List<LedgerTransactionRecord>> = MutableStateFlow(emptyList())
+
+        override suspend fun getCreditCardSummariesSnapshot(
+            includeArchived: Boolean,
+            defaultRemindDaysBefore: Int,
+            asOfEpochMs: Long?,
+        ): List<CreditCardStatementSummary> = summariesFlow.value
+
+        override suspend fun recordRepayment(request: CreditCardRepaymentRequest): Transaction = error("unused")
+        override suspend fun updateCreditCardParameters(request: UpdateCreditCardParametersRequest): Account = error("unused")
+    }
+
+    private class FakeReminderPrefsRepository : CreditCardReminderPreferencesRepository {
+        private val flow = MutableStateFlow(CreditCardReminderPreferences())
+        override val preferences: Flow<CreditCardReminderPreferences> = flow
+        override suspend fun currentPreferences(): CreditCardReminderPreferences = flow.value
+        override suspend fun setRemindersEnabled(enabled: Boolean) {
+            flow.value = flow.value.copy(remindersEnabled = enabled)
+        }
+
+        override suspend fun setDefaultRemindDaysBefore(days: Int) {
+            flow.value = flow.value.copy(defaultRemindDaysBefore = days)
+        }
+
+        override suspend fun markNotifiedOnDate(accountIds: Collection<String>, localDateIso: String) = Unit
+        override suspend fun clearNotificationHistory(accountId: String?) = Unit
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -305,9 +379,18 @@ class AssetsViewModelTest {
     @Test
     fun switchesDisplayCurrencyAndHandlesThrottledVsForcedRefresh() = runTest(testDispatcher) {
         val investRepo = FakeInvestmentRepository()
+        val creditRepo = FakeCreditCardRepository()
+        val reminderPrefs = FakeReminderPrefsRepository()
         val marketRepo = FakeMarketDataRepository()
         val ledgerRepo = FakeLedgerRepository()
-        val vm = AssetsViewModel(investRepo, marketRepo, ledgerRepo, NetworkClock { 1_764_216_000_000L })
+        val vm = AssetsViewModel(
+            investmentRepository = investRepo,
+            creditCardRepository = creditRepo,
+            creditCardReminderPreferencesRepository = reminderPrefs,
+            marketDataRepository = marketRepo,
+            ledgerRepository = ledgerRepo,
+            clock = NetworkClock { 1_764_216_000_000L },
+        )
 
         val collector = backgroundScope.launch { vm.uiState.collect {} }
         advanceUntilIdle()
@@ -315,6 +398,7 @@ class AssetsViewModelTest {
         assertEquals(Currency.CNY, vm.uiState.value.displayCurrency)
         assertEquals(Money.fromDecimalString("10000.00", Currency.CNY), vm.uiState.value.summary.netWorthBase)
         assertEquals(1_764_216_000_000L, vm.uiState.value.lastUpdatedAtEpochMs)
+        assertTrue("acct:cc" in vm.uiState.value.creditCardSummariesById)
 
         // Entry refresh uses throttled mode (forceRefresh = false) and stays quiet when throttled
         vm.onScreenEntered()
@@ -348,9 +432,18 @@ class AssetsViewModelTest {
     @Test
     fun createsStandardAssetAndOpensFixedDepositWithCanonicalDecimalRate() = runTest(testDispatcher) {
         val investRepo = FakeInvestmentRepository()
+        val creditRepo = FakeCreditCardRepository()
+        val reminderPrefs = FakeReminderPrefsRepository()
         val marketRepo = FakeMarketDataRepository()
         val ledgerRepo = FakeLedgerRepository()
-        val vm = AssetsViewModel(investRepo, marketRepo, ledgerRepo, NetworkClock { 1_764_216_000_000L })
+        val vm = AssetsViewModel(
+            investmentRepository = investRepo,
+            creditCardRepository = creditRepo,
+            creditCardReminderPreferencesRepository = reminderPrefs,
+            marketDataRepository = marketRepo,
+            ledgerRepository = ledgerRepo,
+            clock = NetworkClock { 1_764_216_000_000L },
+        )
 
         val collector = backgroundScope.launch { vm.uiState.collect {} }
         advanceUntilIdle()

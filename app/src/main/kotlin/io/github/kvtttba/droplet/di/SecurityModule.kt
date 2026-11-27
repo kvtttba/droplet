@@ -16,6 +16,8 @@ import io.github.kvtttba.droplet.core.security.AndroidBiometricAuthenticator
 import io.github.kvtttba.droplet.core.security.AndroidKeystoreSecretKeyProvider
 import io.github.kvtttba.droplet.core.security.AppLockStateMachine
 import io.github.kvtttba.droplet.core.security.BiometricAuthenticator
+import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
+import io.github.kvtttba.droplet.core.security.DataStoreCreditCardReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreMarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreNetworkProxyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStorePrivacyPreferencesRepository
@@ -38,6 +40,10 @@ annotation class NetworkProxyDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class MarketSyncDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class CreditCardReminderDataStore
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -104,6 +110,26 @@ object SecurityModule {
     fun provideMarketSyncPreferencesRepository(
         @MarketSyncDataStore dataStore: DataStore<Preferences>,
     ): MarketSyncPreferencesRepository = DataStoreMarketSyncPreferencesRepository(dataStore)
+
+    @Provides
+    @Singleton
+    @CreditCardReminderDataStore
+    fun provideCreditCardReminderPreferencesDataStore(
+        @ApplicationContext context: Context,
+        @ApplicationScope applicationScope: CoroutineScope,
+    ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        scope = applicationScope,
+        produceFile = {
+            context.preferencesDataStoreFile(SecurityContract.CREDIT_CARD_REMINDER_PREFERENCES_FILE)
+        },
+    )
+
+    @Provides
+    @Singleton
+    fun provideCreditCardReminderPreferencesRepository(
+        @CreditCardReminderDataStore dataStore: DataStore<Preferences>,
+    ): CreditCardReminderPreferencesRepository =
+        DataStoreCreditCardReminderPreferencesRepository(dataStore)
 
     @Provides
     @Singleton
