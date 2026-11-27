@@ -19,11 +19,25 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
     implementation(projects.core.model)
     implementation(libs.androidx.core.ktx)
+    api(libs.androidx.biometric)
+    api(libs.androidx.fragment.ktx)
+    api(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
+
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.androidx.test.ext.junit)
 }
