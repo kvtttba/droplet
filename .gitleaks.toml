@@ -1,0 +1,11 @@
+title = "Droplet Public Repository Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allow benign build/test metadata and binary assets that never carry credentials"
+paths = [
+    '''(^|/)gradle/wrapper/gradle-wrapper\.properties$''',
+    '''(^|/)src/test/snapshots/.*\.png$''',
+]
