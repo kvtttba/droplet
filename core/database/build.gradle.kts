@@ -41,8 +41,8 @@ ksp {
 }
 
 dependencies {
-    implementation(projects.core.model)
-    implementation(projects.core.domain)
+    api(projects.core.model)
+    api(projects.core.domain)
     api(projects.core.network)
     api(libs.room.runtime)
     api(libs.room.ktx)

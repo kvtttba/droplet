@@ -34,6 +34,12 @@ interface InvestmentAssetDao {
     @Query("SELECT * FROM investment_assets WHERE asset_class = :assetClass ORDER BY symbol ASC, id ASC")
     fun observeByAssetClass(assetClass: AssetClass): Flow<List<InvestmentAssetEntity>>
 
+    @Query("SELECT COUNT(*) FROM investment_assets WHERE account_id = :accountId")
+    suspend fun countByAccountId(accountId: String): Int
+
+    @Query("SELECT * FROM investment_assets WHERE account_id = :accountId ORDER BY symbol ASC, id ASC")
+    suspend fun getByAccountId(accountId: String): List<InvestmentAssetEntity>
+
     @Query("DELETE FROM investment_assets WHERE id = :assetId")
     suspend fun deleteById(assetId: String)
 }

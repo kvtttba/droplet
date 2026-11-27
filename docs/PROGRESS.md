@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-- **当前阶段**：`M2.1`（免费公开汇率与全品类行情 Provider 链）已完成验收并合入 `main`。
-- **下一个待执行切片**：**`M2.2`**（投资持仓引擎与定存/理财计算）
-- **最新已合入提交**：`feat/m2-1-market-fx-providers` 合入 `main`（CI `#46005286947` 全线绿灯，详见 `git log`）
+- **当前阶段**：`M2.2`（投资持仓引擎与定存/理财计算）已完成验收并合入 `main`。
+- **下一个待执行切片**：**`M2.3`**（资产总览页、持仓详情与后台定时刷新）
+- **最新已合入提交**：`feat/m2-2-investment-portfolio-engine` 合入 `main`（CI `#46010205871` 全线绿灯，详见 `git log`）
 
 ---
 
@@ -35,8 +35,8 @@
 | `M1.3` | 明细首页、账户/标签管理与记账表单 | ✅ 已完成 | `:app` Hilt DI + 启动幂等预置、`:core:database` `LedgerRepository`、明细首页实时 Room Flow 月度汇总/多维筛选（多标签 ANY/ALL）/按日分组与详情编辑/作废/恢复/删除、一木式直观记账 + 跨币种反推汇率 + 一键展开专业多拆分录、账户（含期初余额）/二级分类/多标签 CRUD + 125 项测试 & 13 张 Roborazzi 截图 + API 31 实账 E2E + 13 MB Debug APK 全绿 | `feat/m1-3-ledger-ui-and-forms` 已验收合入（CI `#45976954090`） |
 | `M1.4` | 生物识别隐私锁、重锁与金额隐藏 | ✅ 已完成 | `:core:security` DataStore 隐私偏好持久化、`AppLockStateMachine`（单调时钟 5 档超时重锁）、Android 12+ `BiometricPrompt`（含设备锁屏兜底）、Keystore AES-256-GCM 凭据加密器；`MainActivity` 升级 `FragmentActivity` 接入动态 `FLAG_SECURE`、`ProcessLifecycleOwner` 与全屏 `AppLockOverlay`；`PrivacySecurityScreen` 落地与全局隐身/主题持久化 + 156 项测试 & 16 张 Roborazzi 截图 + API 31 持久化 E2E + 14 MB Debug APK 全绿 | `feat/m1-4-biometric-privacy-lock` 已验收合入（CI `#45999836880`） |
 | `M2.1` | 免费公开汇率与全品类行情 Provider 链 | ✅ 已完成 | 纯 JVM `:core:network` 代理配置与 OkHttp 工厂、CNY/USD/HKD 3 级主备汇率链（东方财富→Frankfurter→Open ER API）、9 类资产国内直连优先+备用源降级+单标的失败隔离行情链、5 分钟节流；`:core:security` 代理 DataStore 持久化；`:core:database` `MarketDataRepository` 缓存降级与手动覆写单价/清除；`:app` `NetworkModule` + `MarketDataEntryPoint`；185 项离线单测 & 16 张 Roborazzi 截图 + API 31 E2E + 15 MB Debug APK 全绿 | `feat/m2-1-market-fx-providers` 已验收合入（CI `#46005286947`） |
-| `M2.2` | 投资持仓引擎与定存/理财计算 | ⬜ 待开始 | 买/卖/定投/分红、加权成本与浮盈、定期存款自动计息、银行理财手动更新 | 下一切片 |
-| `M2.3` | 资产总览页、持仓详情与后台定时刷新 | ⬜ 待开始 | 资产页总览与币种分布、持仓行情与手动覆写价、WorkManager 定时刷新、截图 + APK | — |
+| `M2.2` | 投资持仓引擎与定存/理财计算 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点投资引擎（`PortfolioPositionEngine` 加权平均成本/定投/部分卖出结转/清仓零残差再买/分红/防超卖/8 位加密小数/跨币种行情折算、`FixedDepositCalculator` ACT/365 三模式计息与到期/提前支取分录辅助、`BankWealthValuationHelper` 公开净值与手动净值/收益金额反推、`PortfolioSummaryAggregator` 全账户与持仓净资产/三币种分布及 `includeInNetWorth` 过滤）；`:core:database` `InvestmentRepository` / `LocalInvestmentRepository` 原子复式写入与实时 Flow 持仓/总览聚合；`:app` `InvestmentModule` + `InvestmentEntryPoint`；206 项测试 & 16 张 Roborazzi 截图 + API 31 E2E + 15 MB Debug APK 全绿 | `feat/m2-2-investment-portfolio-engine` 已验收合入（CI `#46010205871`） |
+| `M2.3` | 资产总览页、持仓详情与后台定时刷新 | ⬜ 待开始 | 资产页总览与币种分布、持仓行情与手动覆写价、WorkManager 定时刷新、截图 + APK | 下一切片 |
 | `M3.1` | 信用卡额度、账单日与还款本地提醒 | ⬜ 待开始 | 信用额度进度条、出账/还款倒计时、到期前本地通知提醒 | — |
 | `M3.2` | 分期贷款引擎与到期自动还款分录 | ⬜ 待开始 | 等额本息/等额本金/固定手续费计划表、到期自动拆本息分录与通知 | — |
 | `M3.3` | 往来借贷、待报销冲抵与多次退款 | ⬜ 待开始 | 往来人借入/借出/分次还/利息/坏账核销、待报销冲抵与差额转支出、多次关联退款 | — |
@@ -101,27 +101,39 @@
    - `:core:database` 新增 `MarketDataRepository` / `LocalMarketDataRepository`（衔接 Room `ExchangeRateDao` / `MarketQuoteDao` / `InvestmentAssetDao`，支持 5 分钟单标的/汇率节流、原子事务写入、失败完整保留旧缓存与 `fetchedAt`、`manualOverrideQuote` / `clearManualOverride` 及手动覆写保护策略）；
    - `:app` 新增 `NetworkModule` 与 `MarketDataEntryPoint`、`AndroidManifest.xml` 补齐 `INTERNET` 与 `ACCESS_NETWORK_STATE` 权限，并在 `SecurityModule` 绑定 `@NetworkProxyDataStore`。
 
-### M2.2 启动入口契约（投资持仓引擎与定存/理财计算）
-1. 从 `main` 切出分支 `feat/m2-2-investment-portfolio-engine`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m2.2"`。
-2. **纯 JVM 投资持仓与定存/理财计算引擎 (`:core:domain`)**：
-   - 新增 `io.github.kvtttba.droplet.core.domain.investment`（严禁浮点，份额/单价/汇率全量 `BigDecimal` 8 位精度、法币金额 `Money` 4 位定点 `Long`）：
-     - `PortfolioPositionEngine`：按时间顺序回放某 `InvestmentAsset` 的已入账（`POSTED`）`INVEST` 分录（复用 `LedgerEngine.buildInvestmentBuy` / `buildInvestmentSell` / `buildInvestmentDividend`），维护：
-       - **持仓份额（`Quantity`，支持加密货币 8 位小数）**、**加权平均成本价（`UnitPrice`）**、**剩余持仓成本（原币种 `Money`）**、**累计已实现盈亏（卖出结转成本差额）**、**累计现金分红**、**累计交易手续费**；
-       - 结合 `MarketQuote`（支持行情币种 `priceCurrency` 与持仓币种不一致时通过 `ExchangeRateTable` 自动换算）计算：**最新单价/净值、原币种当前市值、本位币当前市值、当日涨跌额/涨跌幅、累计浮动盈亏与收益率、总回报（含已实现盈亏与分红）**；
-       - 覆盖买入、追加定投（DCA）、部分卖出（按当前加权平均成本按比例结转 `costBasis`）、清仓再买入（成本归零重算）、分红、防超卖（卖超持仓校验）与空持仓边界。
-     - `FixedDepositCalculator`：针对 `AssetClass.FIXED_DEPOSIT`（读取 `InvestmentAsset` 的 `depositRateAnnualDecimal`、`depositStartAt`、`depositMaturityAt`、`depositInterestMode`：`SIMPLE_AT_MATURITY` / `COMPOUND_ANNUAL` / `MONTHLY_PAYOUT`）与当前本金，本地按天（Actual/365 或明确约定日计基准，文档注明）自动计算：**已计息天数、剩余天数、是否已到期、当前应计利息、到期预期总利息、当前参考总值（本金 + 应计利息）与到期预期本息**，并提供到期结息/提前支取分录构造辅助（利息计入 `Income:投资理财:利息收入`，本金返还资金账户）。
-     - `BankWealthValuationHelper`：针对 `AssetClass.BANK_WEALTH` 支持两种估值路径：① 公开净值代码走标准份额 × 最新净值；② 非标准化产品支持按**手动覆写最新净值**或**直接录入最新收益金额（反推最新净值/当前市值并保留审计时间戳）**。
-     - `PortfolioSummaryAggregator`：汇总全部投资持仓与现金/负债/信用/借贷/待报销账户（遵循 `account.includeInNetWorth` 开关），结合 `ExchangeRateTable` 计算**总净资产、总资产、总负债、按 CNY/USD/HKD 币种分布及投资总浮盈/当日总盈亏**，为 M2.3 资产总览页直接提供纯领域输出模型。
-3. **投资业务仓储与复式联动 (`:core:database` & `:app`)**：
-   - 在 `:core:database` 新增 `InvestmentRepository` / `LocalInvestmentRepository`（衔接 `InvestmentAssetDao`、`MarketQuoteDao`、`AccountDao`、`TransactionDao`、`LedgerTransactionWriter`、`LedgerEngine` 与 `MarketDataRepository`）：
-     - 支持创建/编辑/归档投资标的（自动联动或绑定 `INVEST_HOLDING` 账户）；
-     - 封装 **买入 / 定投 / 卖出（自动带入当前加权平均成本计算 `costBasis` 并结转已实现盈亏）/ 现金分红 / 定存到期结息 / 银行理财手动收益或净值更新** 的原子复式写入；
-     - 提供响应式 `Flow` 观察全量持仓估值列表与资产总览汇总（基于 Room 实时流水 + `market_quotes` + `exchange_rates`）。
-   - 在 `:app` 补齐 `InvestmentRepository` 等 Hilt DI 绑定（若暂未被 UI 注入，同步在 `@EntryPoint` 暴露确保编译期校验）。
-4. **测试与门禁**：
-   - 在 `:core:domain` 配齐全套 L1 纯 JVM 单元测试：加权成本多笔买入/定投/部分卖出/清仓再买/超卖拦截/8 位加密小数精度/跨币种行情折算/分红汇总、定存 3 种计息模式（起息前/存续中/到期日/超期/零利率/闰年边界）、银行理财双模式估值、资产汇总 `includeInNetWorth` 排除与三币种折算；
-   - 在 `:core:database` 配齐 L2 Room/Robolectric 测试：验证买入→定投→部分卖出→分红→定存结息→银行理财手动更新全链路复式平衡与实时 Flow 持仓估值更新；
-   - 通过本地单测（`ANDROID_HOME=/data/home/android-sdk ./gradlew --max-workers=2 ...`）、`verifyRoborazziDebug`、`assembleDebug`、`gitleaks` 与 GitHub Actions 全线 CI 绿灯。
+### M2.2 已落地的核心约定
+1. **纯 JVM 投资持仓与定存/理财计算引擎 (`:core:domain`)**：
+   - 新增 `io.github.kvtttba.droplet.core.domain.investment`（严守零浮点，全量 `Money` 4 位定点 `Long` + `BigDecimal` 8 位规范小数）：
+     - `PortfolioPositionEngine`：按 `(occurredAt, createdAt, id)` 确定性回放 `POSTED` `INVEST` 流水，维护持仓份额（支持加密货币 8 位小数）、加权平均成本价、剩余成本、累计已实现盈亏、累计现金分红与交易/税费，防超卖抛出 `OversellPositionException`，并支持行情币种 `priceCurrency` 与持仓币种不一致时通过 `ExchangeRateProvider` 自动换算及缺行情成本价回退；
+     - `FixedDepositCalculator`：基于 **Actual/365** 日计基准与全 `BigDecimal` 运算支持 `SIMPLE_AT_MATURITY`、`COMPOUND_ANNUAL`（整年复利 + 残余天数线性计息）与 `MONTHLY_PAYOUT`（按月付息扣除已付利息防双计），提供到期结息、部分/全额提前支取（含违约金）与按期付息双分录构造辅助；
+     - `BankWealthValuationHelper`：支持公开净值（`PUBLIC_NAV`）、手动覆写净值、最新收益金额（含破净负收益）与最新总市值反推 8 位规范净值并保留审计时间戳 `fetchedAt`；
+     - `PortfolioSummaryAggregator`：汇总全部资产/负债/信用（含溢缴款）/贷款/往来/系统待报销账户与投资持仓，自动以实时/应计市值替代 `INVEST_HOLDING` 账面成本杜绝双计，严格遵循 `account.includeInNetWorth` 开关，输出 `CNY / USD / HKD` 三币种分布、5 大资产分组与投资组合总盈亏，保证 `netWorth == totalAssets - totalLiabilities` 且分币种加总零误差对齐。
+2. **投资业务仓储、DAO 与 Hilt DI (`:core:database` & `:app`)**：
+   - `TransactionDao` 与 `InvestmentAssetDao` 补充按投资标的索引的 `INVEST` 流水查询与计数（Room Schema `v1` 零变更）；`core/database/build.gradle.kts` 将 `:core:model` 与 `:core:domain` 升级为 `api` 以向业务模块透出仓储领域返回模型；
+   - 新增 `InvestmentRepository` / `LocalInvestmentRepository`，封装标的新建（自动联动或绑定 `INVEST_HOLDING` 账户）/编辑/归档/安全删除，买/定投/卖（自动结转加权成本并将收益路由至 `投资收益`、亏损路由至 `投资亏损`，含回溯时间线防超卖校验）/现金分红/定存开立与结息/按期付息/银行理财手动净值或收益更新的原子复式写入，以及响应式 `Flow` 持仓与资产总览查询（离线无缓存汇率时通过 `FallbackExchangeRateProvider` 回退参考汇率）；
+   - `:app` 新增 `InvestmentModule` 与 `InvestmentEntryPoint` 完成单例绑定与编译期依赖图校验。
+
+### M2.3 启动入口契约（资产总览页、持仓详情与后台定时刷新）
+1. 从 `main` 切出分支 `feat/m2-3-assets-ui-and-market-sync`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m2.3"`。
+2. **资产总览页与投资持仓交互闭环 (`:feature:assets` & `:app`)**：
+   - 为 `:feature:assets` 接入 Hilt、`projects.core.database`、`projects.core.security`、`projects.core.network`，保留 Stateless Screen + Hilt Route 分层（`DropletAppShell` 继续支持无 Hilt 预览槽位供 Roborazzi 截图测试）；
+   - 升级 `AssetsScreen` / 新增 `AssetsRoute` & `AssetsViewModel`：
+     - 订阅 `InvestmentRepository.observePortfolioSummary(baseCurrency)` 与 `MarketDataRepository.observeMarketQuotes()`，渲染真实总净资产 / 总资产 / 总负债卡、CNY / USD / HKD 显示币种切换、真实三币种占比进度条、全局隐私隐身（`LocalAmountsHidden` / `PrivacyAmountText`）；
+     - 进资产页按 5 分钟节流自动刷新行情与汇率，顶部提供一键/下拉强制刷新按钮与「上次更新时间」及失败降级提示；
+     - 完整呈现分组卡片：日常资金、信用账户、投资持仓列表（最新单价/净值、原币种+本位币市值、当日涨跌、累计浮盈与收益率、定存计息进度/银行理财手动估值徽章）、分期贷款/借贷与待报销、以及「不计入总资产」折叠分区；
+     - 提供新建投资标的表单（支持 9 类 `AssetClass`、定存利率/起息/到期/计息模式与首笔本金开立、银行理财、自动创建或选择 `INVEST_HOLDING` 账户）。
+   - 新增持仓详情页 `InvestmentDetailScreen` / `InvestmentDetailRoute` / `InvestmentDetailViewModel`：
+     - 展示持仓份额（加密支持 8 位小数）、加权平均成本价、剩余成本、最新单价（支持手动覆写单价/清除覆写；银行理财支持按最新净值或最新收益金额一键更新）、当日涨跌、累计浮盈/已实现盈亏/分红/手续费/总回报与按标的历史流水列表；
+     - 内置买入、定投、卖出（实时预览加权成本结转与预估已实现盈亏 + 超卖拦截提示）、现金分红、定存到期结息/提前支取/按期付息表单，全部直连 `InvestmentRepository` 原子入账。
+3. **WorkManager 后台定时行情刷新与同步/代理设置 (`:core:security` & `:feature:settings` & `:app`)**：
+   - 在 `:core:security` 新增 `MarketSyncPreferencesRepository`（DataStore 持久化自动更新频率 `MANUAL_ONLY` / `HOURS_6` / `HOURS_12` / `DAILY` 与 `wifiOnly` 开关）；
+   - 在 `:app` 落地 `MarketRefreshWorker`（`CoroutineWorker` 通过 `EntryPointAccessors` 读取 `MarketDataEntryPoint.marketDataRepository()` 执行 `refreshAll(forceRefresh = false)`，确保后台定时刷新与 5 分钟节流一致且避免引入额外重依赖）与 `MarketSyncScheduler`（统一调度 `PeriodicWorkRequest` 与 `NetworkType.UNMETERED` / `CONNECTED` 约束，在 `DropletApplication.onCreate()` 及设置变更时生效）；
+   - 在 `:feature:settings` 新增「行情同步与代理」设置页（配置自动刷新周期、仅 Wi-Fi 开关、立即手动刷新、以及接入 M2.1 已落地的 `NetworkProxyPreferencesRepository` 配置 NONE / HTTP / SOCKS 代理与 host/port）。
+4. **测试、截图与门禁**：
+   - 补齐 ViewModel / `MarketRefreshWorker`（`TestListenableWorkerBuilder`）与 `MarketSyncPreferencesRepository` 单测；
+   - 更新 `assets_light.png` / `assets_dark.png` 并新增 `investment_detail_light.png` / `market_sync_settings_light.png` Roborazzi 基线截图（固定 `Asia/Shanghai` 时区）；
+   - 扩充 API 31 模拟器 `DropletAppE2ETest`（覆盖新建投资标的 → 买入 → 手动覆写净值 → 资产总览净资产与浮盈实时刷新）；
+   - 通过本地单测（`ANDROID_HOME=/data/home/android-sdk ./gradlew --max-workers=1 -Dorg.gradle.jvmargs="-Xmx2048m -Dfile.encoding=UTF-8" ...`）、`verifyRoborazziDebug`、`assembleDebug`、`gitleaks` 与 GitHub Actions 全线 CI 绿灯。
 
 ---
 
@@ -139,3 +151,4 @@
 - **[M1.4] `BiometricPrompt` 设备锁屏兜底 & `AUTHENTICATING` 态切后台保活**：允许 `DEVICE_CREDENTIAL` 时严禁同时调用 `setNegativeButtonText`（否则抛出 `IllegalArgumentException`）；唤起系统 PIN/密码验证页会触发 `ProcessLifecycleOwner.ON_STOP`，`AppLockStateMachine` 在 `AUTHENTICATING` 态收到 `onAppBackgrounded()` 时须保持认证中状态，避免解锁成功回调被误重锁。
 - **[M1.4] `AppLockOverlay` 触摸拦截与 Roborazzi 语义树 / DataStore 单测隔离 / gitleaks 熵检**：全屏遮罩拦截底层触摸应使用 `Modifier.pointerInput` 消费事件而非 `Modifier.clickable`（避免 `mergeDescendants = true` 合并子语义节点并干扰 TalkBack 与测试断言）；DataStore 单测须通过 `PreferenceDataStoreFactory.create` 绑定独立临时文件并在 `finally` 中 `cancelAndJoin()` 防止多实例冲突；公开仓测试样例字符串须避免高熵值紧邻 `secret`/`token` 变量名以防误触 `gitleaks` 的 `generic-api-key` 规则。
 - **[M2.1] Hilt 未引用绑定校验与行情接口编码/零浮点**：在 UI 尚未注入的新底层 `@Module`（如 `NetworkModule`）上同步声明 `@EntryPoint`（`MarketDataEntryPoint`），可促使 Dagger/Hilt 在编译期即校验全部依赖绑定而非跳过未引用图；腾讯/新浪公开行情接口响应可能采用 GBK/GB18030 且新浪要求 `Referer` 头，解析 JSON 数值时统一从 `JsonPrimitive.content` 直接构建 `BigDecimal` 彻底杜绝浮点精度漂移；国内 SGE 黄金（CNY/克）与国际现货 XAU（USD/盎司）须按标的区分备用源，避免跨单位错配。
+- **[M2.2] KSP2 跨模块新增接口缓存、8G 无 Swap 内存控制与防双计规则**：向 `:core:database` 新增被 `:app` Hilt `@Module` 引用的接口时，若复用历史长驻 Gradle Daemon 偶发 KSP2 `NoIsolationWorkerFactory` 读取旧 jar 索引报错，执行 `./gradlew --no-build-cache :core:database:clean :app:clean :app:kspDebugKotlin` 或重启 Daemon 即可刷新；本机 8 GB 无 Swap 环境下并行运行单测 + Roborazzi + `assembleDebug` 易触发 OOM Killer，建议分步执行并加 `--max-workers=1 -Dorg.gradle.jvmargs="-Xmx2048m -Dfile.encoding=UTF-8"`；总净资产汇总须用持仓实时/应计市值替换 `INVEST_HOLDING` 账面成本避免双计，定存仅在 `MONTHLY_PAYOUT` 模式下从当前应计利息扣除 `alreadyPaidInterest`，避免 `SIMPLE_AT_MATURITY` 部分提前支取的已结利息冲减剩余本金的正常计息。
