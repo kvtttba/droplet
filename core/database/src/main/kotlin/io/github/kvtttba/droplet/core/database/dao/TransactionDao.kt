@@ -563,6 +563,60 @@ interface TransactionDao {
     @Query("SELECT COUNT(*) FROM postings WHERE account_id = :accountId")
     suspend fun countPostingsForAccount(accountId: String): Int
 
+    @Query("SELECT COUNT(*) FROM postings WHERE investment_asset_id = :assetId")
+    suspend fun countPostingsForInvestmentAsset(assetId: String): Int
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE status = :status
+          AND display_type = 'INVEST'
+        ORDER BY occurred_at ASC, created_at ASC, id ASC
+        """,
+    )
+    fun observeInvestmentTransactions(
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): Flow<List<TransactionWithDetails>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM transactions t
+        WHERE t.status = :status
+          AND t.display_type = 'INVEST'
+          AND EXISTS (
+              SELECT 1 FROM postings p
+              WHERE p.transaction_id = t.id
+                AND p.investment_asset_id = :assetId
+          )
+        ORDER BY t.occurred_at ASC, t.created_at ASC, t.id ASC
+        """,
+    )
+    fun observeInvestmentTransactionsForAsset(
+        assetId: String,
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): Flow<List<TransactionWithDetails>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM transactions t
+        WHERE t.status = :status
+          AND t.display_type = 'INVEST'
+          AND EXISTS (
+              SELECT 1 FROM postings p
+              WHERE p.transaction_id = t.id
+                AND p.investment_asset_id = :assetId
+          )
+        ORDER BY t.occurred_at ASC, t.created_at ASC, t.id ASC
+        """,
+    )
+    suspend fun getInvestmentTransactionsForAsset(
+        assetId: String,
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): List<TransactionWithDetails>
+
     @Query("SELECT COUNT(*) FROM transaction_tags")
     suspend fun countTransactionTags(): Int
 }
