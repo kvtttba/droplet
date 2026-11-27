@@ -30,7 +30,7 @@ data class Money(
 
     operator fun unaryMinus(): Money = Money(Math.negateExact(amountMinor), currency)
 
-    fun abs(): Money = Money(kotlin.math.abs(amountMinor), currency)
+    fun abs(): Money = if (amountMinor < 0L) -this else this
 
     val isZero: Boolean get() = amountMinor == 0L
     val isPositive: Boolean get() = amountMinor > 0L
@@ -38,6 +38,8 @@ data class Money(
 
     fun toBigDecimal(): BigDecimal =
         BigDecimal.valueOf(amountMinor, SCALE)
+
+    fun toPlainDecimalString(): String = toBigDecimal().toPlainString()
 
     override fun compareTo(other: Money): Int {
         require(currency == other.currency) {
@@ -55,13 +57,35 @@ data class Money(
         fun ofMinor(amountMinor: Long, currency: Currency = Currency.CNY): Money =
             Money(amountMinor, currency)
 
-        fun fromDecimalString(decimal: String, currency: Currency = Currency.CNY): Money {
+        fun fromBigDecimal(
+            value: BigDecimal,
+            currency: Currency = Currency.CNY,
+            roundingMode: RoundingMode = RoundingMode.HALF_UP,
+        ): Money {
+            val scaled = value.setScale(SCALE, roundingMode)
+            val minor = scaled.movePointRight(SCALE).longValueExact()
+            return Money(minor, currency)
+        }
+
+        fun fromDecimalString(
+            decimal: String,
+            currency: Currency = Currency.CNY,
+            roundingMode: RoundingMode = RoundingMode.HALF_UP,
+        ): Money {
             val trimmed = decimal.trim()
             require(trimmed.isNotEmpty()) { "Decimal amount string must not be blank" }
-            val bd = BigDecimal(trimmed)
-                .setScale(SCALE, RoundingMode.HALF_UP)
-            val minor = bd.movePointRight(SCALE).longValueExact()
-            return Money(minor, currency)
+            return fromBigDecimal(BigDecimal(trimmed), currency, roundingMode)
+        }
+
+        fun sumOf(amounts: Iterable<Money>, currency: Currency): Money {
+            var total = 0L
+            for (money in amounts) {
+                require(money.currency == currency) {
+                    "Currency mismatch: expected ${currency.code} but got ${money.currency.code}"
+                }
+                total = Math.addExact(total, money.amountMinor)
+            }
+            return Money(total, currency)
         }
     }
 }

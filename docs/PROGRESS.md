@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-- **当前阶段**：`M0`（工程骨架 + Material 3 主题与 4 Tab 占位壳 + Roborazzi 截图测试 + gitleaks + GitHub Actions API 31 模拟器 CI）已完成验收并合入 `main`。
-- **下一个待执行切片**：**`M1.1`**（复式记账引擎与三币种 Trading 对冲）
-- **最新已合入提交**：`feat/m0-scaffold-ci` 合入 `main`（CI 全线绿灯，详见 `git log`）
+- **当前阶段**：`M1.1`（复式记账引擎与三币种 Trading 对冲）已完成验收并合入 `main`。
+- **下一个待执行切片**：**`M1.2`**（Room Schema、DAO 与预置分类/账户）
+- **最新已合入提交**：`feat/m1-1-ledger-engine` 合入 `main`（CI 全线绿灯，详见 `git log`）
 
 ---
 
@@ -30,8 +30,8 @@
 | --- | --- | --- | --- | --- |
 | `DOCS` | 需求澄清与架构定稿 | ✅ 已完成 | `PRD.md`、`ARCHITECTURE.md`、`AGENTS.md`、`PROGRESS.md`、`.gitignore` | 初始文档提交 (`4a6eb00`) |
 | `M0` | 工程骨架与 CI 跑通 | ✅ 已完成 | 14 模块 Gradle 结构、Material 3 主题与 4 Tab 占位壳、`gitleaks`、GitHub Actions（L1 单测 + Roborazzi 8 张截图 + API 31 KVM 模拟器 E2E + 12 MB Debug APK）全绿 | `feat/m0-scaffold-ci` 已验收合入（CI `#45964751721`） |
-| `M1.1` | 复式记账引擎与三币种 Trading 对冲 | ⬜ 待开始 | `core:model` + `core:domain` 复式校验、定点数/BigDecimal、跨币种对冲、L1 高覆盖单测 | 下一切片 |
-| `M1.2` | Room Schema、DAO 与预置分类/账户 | ⬜ 待开始 | `core:database` 全量表结构、预置二级分类/系统科目、L2 Robolectric + Room 测试 | — |
+| `M1.1` | 复式记账引擎与三币种 Trading 对冲 | ✅ 已完成 | `core:model` 全套复式模型 + `core:domain` 平衡校验/三币种 Trading 自动对冲/反推汇率/历史快照锁定/18 类分录 Builder + 85 项 L1 单测全绿 | `feat/m1-1-ledger-engine` 已验收合入（CI `#45968558544`） |
+| `M1.2` | Room Schema、DAO 与预置分类/账户 | ⬜ 待开始 | `core:database` 全量表结构、预置二级分类/系统科目、L2 Robolectric + Room 测试 | 下一切片 |
 | `M1.3` | 明细首页、账户/标签管理与记账表单 | ⬜ 待开始 | 首页流水与筛选、账户与分类/标签 CRUD、一木式表单 + 专业分录展开、Roborazzi 截图 + APK | — |
 | `M1.4` | 生物识别隐私锁、重锁与金额隐藏 | ⬜ 待开始 | `BiometricPrompt`、切后台超时重锁、`FLAG_SECURE`、首页/资产一键隐身 | — |
 | `M2.1` | 免费公开汇率与全品类行情 Provider 链 | ⬜ 待开始 | CNY/USD/HKD 汇率 + 9 类资产公开源适配、降级缓存、可选代理、Mock 测试 | — |
@@ -55,15 +55,22 @@
 2. **金额与隐私组件**：`core:model` 已提供 `Currency`、`AccountType`、`Money`（`scale = 4` 严格定点 `Long`）；`core:domain` 提供 `PrivacyAmountFormatter`；`core:ui` 提供 `DropletTheme`、`DropletIcons`、`LocalAmountsHidden`、`PrivacyAmountText` 与 `PrivacyToggleIconButton`。
 3. **CI 门禁**：`.github/workflows/android-ci.yml` 在 `main` / `feat/**` / `fix/**` 推送与 PR 时自动运行 3 个 Job（`security-scan`、`unit-and-ui-snapshot`、`build-and-emulator-e2e`）。
 
-### M1.1 启动入口契约（复式记账引擎与三币种 Trading 对冲）
-1. 从 `main` 切出分支 `feat/m1-1-ledger-engine`，在纯 JVM 模块 `:core:model` 与 `:core:domain` 中完成全部实现与高覆盖 L1 单元测试。
-2. `:core:model` 补齐领域模型：`Account`（含 5 大 `AccountType` 与 `AccountSubType`、信用账户字段）、`Transaction`、`Posting`、`ExchangeRateSnapshot`、`Quantity`（`BigDecimal` 规范字符串，支持 8 位精度）及业务枚举（`TransactionDisplayType`、`TransactionStatus`、`TransactionSource`、`ReimburseState`）。
-3. `:core:domain` 实现复式记账核心引擎与生成器：
-   - **借贷平衡校验器**：单币种 `SUM(amount_minor) == 0`；多币种按币种分组各自 `SUM(amount_minor) == 0`；禁止零行或单行分录。
-   - **三币种（CNY / USD / HKD）隐式 `Equity:Trading:{CCY}` 自动对冲器**：跨币种消费/转账/换汇时自动补齐对应 `isSystemBalancing = true` 的 Trading 平衡行，并支持按实付+实收金额反推成交汇率。
-   - **历史本位币快照锁定**：为每条 `Posting` 依据交易时汇率快照计算并锁定 `baseAmountMinor` 与 `exchangeRateSnapshot`，后续汇率变化不漂移。
-   - **典型业务场景分录 Builder**：普通支出（含优惠/手续费）、收入、同币种与跨币种转账/还款、部分/多次关联退款、待报销垫付与差额冲抵、借出/借入与分次还款含息/坏账核销、分期贷款拆本息还款、投资买入/卖出/分红、专业多拆分录直通校验。
-4. 配齐高覆盖 L1 边界单测（舍入精度、大额溢出防护、跨币种反推汇率、负金额/零金额拒绝、所有典型业务场景代数和归零不变量），确保 `./gradlew :core:model:test :core:domain:test` 与 GitHub Actions 全绿。
+### M1.1 已落地的核心约定
+1. **领域模型 (`:core:model`)**：已补齐 `Account`（5 大 `AccountType` + 13 种 `AccountSubType` 合法配对校验 + 信用账户字段校验）、`SystemAccounts`（确定性系统权益科目 ID：`system:equity:trading:{CCY}`、`system:equity:opening:{CCY}`）、`Transaction`、`Posting`、`ExchangeRateSnapshot`（含 `ExchangeRateSource`、`convert`、`inverse`、`impliedFromAmounts`）、`Quantity`（有符号 8 位规范 `BigDecimal` 文本）、`UnitPrice`（非负 8 位单价）及业务枚举（`TransactionDisplayType`、`TransactionStatus`、`TransactionSource`、`ReimburseState`）；`Money` 补齐 `Long.MIN_VALUE` 防溢出与 `fromBigDecimal` / `sumOf`。
+2. **复式引擎 (`:core:domain`)**：位于 `io.github.kvtttba.droplet.core.domain.ledger`，包含 `LedgerValidator`（单/多币种零和校验、溢出检测、单币种禁混 Trading、投资份额与账户注册表校验）、`TradingAutoHedger`（CNY/USD/HKD 二/三币种自动补齐 `Equity:Trading:{CCY}`、实付/实收反推汇率、零舍入残差锁定、幂等重平衡）、`ExchangeRateTable`（直查/取倒/三币种高精度三角换算/覆写）、`LedgerEngine`（覆盖全部典型业务场景的 18 类 Builder + 专业多拆分录直通）与 `LedgerAggregator`（历史本位币锁定汇总、实时估值、多次退款净支出重算）。
+
+### M1.2 启动入口契约（Room Schema、DAO 与预置分类/账户）
+1. 从 `main` 切出分支 `feat/m1-2-room-database`，在 `:core:database` 完成全量 Room 数据库、DAO、原子写入封装、预置初始化与高覆盖 L2 Robolectric + Room 测试（如有共用实体如 `Tag`、`Attachment` 等需跨模块复用，可补齐至 `:core:model`）。
+2. 严格按 `docs/ARCHITECTURE.md` 第 3 节落齐 Room Entities、索引、外键级联约束与 TypeConverters，沿用 `DropletDatabaseContract`（`DATABASE_NAME = "droplet_ledger.db"`，`SCHEMA_VERSION = 1`）并配置 Room `exportSchema = true`（导出 JSON Schema）：
+   - 核心账本：`accounts`、`transactions`、`postings`（`ON DELETE CASCADE`）、`tags`、`transaction_tags`（复合主键 + 反向索引）、`attachments`；
+   - 投资/行情/汇率：`investment_assets`、`market_quotes`、`exchange_rates`；
+   - 贷款/借贷/工具：`loan_plans`、`loan_installments`、`debt_profiles`、`budgets`、`recurring_rules`、`templates`、`ai_drafts`。
+3. 落齐核心 DAO 与事务性写入封装：
+   - 交易写入必须在 Room `@Transaction` 内先经 `LedgerValidator.requireValid(...)` 校验后再原子写入 `transactions` + `postings` + `transaction_tags`，杜绝绕过复式不变量的脏数据；
+   - 提供 Flow 响应式查询：按月份/日期区间/多标签/账户/分类/关键词筛选流水、按账户聚合原币种余额与历史锁定本位币汇总、关联退款与待报销查询；
+   - 提供 `PRAGMA wal_checkpoint(TRUNCATE)` / `VACUUM INTO` 一致性快照导出能力，为 M5.3 WebDAV 备份预留接口。
+4. 实现幂等预置初始化（`DefaultLedgerSeeder`）：必须复用 `:core:model` 的 `SystemAccounts` 确定性 ID 预置全部 `Equity:Trading:{CCY}` 与 `Equity:OpeningBalance:{CCY}` 系统科目，同时预置常用默认账户、一木风格常用支出/收入**二级分类**（大类 + 小类）与常用标签。
+5. 配齐高覆盖 L2 Robolectric + Room 单测（全表 CRUD、外键级联、非法不平衡交易事务回滚、多标签交并筛选与历史本位币聚合、预置初始化幂等、WAL 快照一致性导出），确保本地单测、`gitleaks` 与 GitHub Actions 全线 CI 绿灯。
 
 ---
 
@@ -74,3 +81,4 @@
 - **[M0] Debug APK 体积控制**：`material-icons-extended` 会让未混淆 Debug APK 膨胀至 59 MB；改用 `core:ui` 精选矢量 `DropletIcons` + `packaging.dex.useLegacyPackaging = true` 后 Debug APK 降至 ~12 MB，便于飞书直接交付与真机快速安装。
 - **[M0] Roborazzi + Hilt 兼容性**：纯 Compose 截图测试使用 `@Config(application = Application::class, sdk = [35], qualifiers = "w412dp-h915dp-xxhdpi")` 跳过 `DropletApplication` 的 `@HiltAndroidApp` 初始化，配合 `RoborazziOptions.CompareOptions(changeThreshold = 0.015f)` 在本地 Debian 与 GitHub Actions `ubuntu-latest` 之间稳定通过。
 - **[M0] 本机 GitHub PAT 权限**：本机 `gh` PAT 具备 `contents: write` 与 `workflows: write` 权限，未开 `pull_requests: write`，可通过 `feat/**` 分支推送直接触发 CI 验证，验收后合入 `main`。
+- **[M1.1] 非交互 Shell 本地跑 Android Gradle 任务**：本机 Android SDK 位于 `/data/home/android-sdk`，非交互 Shell 需显式传 `ANDROID_HOME=/data/home/android-sdk`（切勿创建/提交 `local.properties`）。
