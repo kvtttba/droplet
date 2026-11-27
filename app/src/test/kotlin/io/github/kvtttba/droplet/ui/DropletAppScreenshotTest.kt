@@ -12,18 +12,40 @@ import androidx.compose.ui.test.performScrollToKey
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
+import io.github.kvtttba.droplet.core.domain.investment.PortfolioPositionEngine
+import io.github.kvtttba.droplet.core.domain.investment.PortfolioSummaryAggregator
+import io.github.kvtttba.droplet.core.domain.investment.PositionLedgerState
+import io.github.kvtttba.droplet.core.domain.ledger.ExchangeRateTable
 import io.github.kvtttba.droplet.core.model.Account
 import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AccountType
+import io.github.kvtttba.droplet.core.model.AssetClass
 import io.github.kvtttba.droplet.core.model.Currency
+import io.github.kvtttba.droplet.core.model.DepositInterestMode
+import io.github.kvtttba.droplet.core.model.ExchangeRateSnapshot
+import io.github.kvtttba.droplet.core.model.ExchangeRateSource
+import io.github.kvtttba.droplet.core.model.InvestmentAsset
+import io.github.kvtttba.droplet.core.model.MarketQuote
 import io.github.kvtttba.droplet.core.model.Money
+import io.github.kvtttba.droplet.core.model.Quantity
 import io.github.kvtttba.droplet.core.model.TransactionDisplayType
 import io.github.kvtttba.droplet.core.model.TransactionStatus
+import io.github.kvtttba.droplet.core.model.UnitPrice
+import io.github.kvtttba.droplet.core.network.NetworkProxyConfig
+import io.github.kvtttba.droplet.core.network.NetworkProxyType
 import io.github.kvtttba.droplet.core.security.BiometricCapability
+import io.github.kvtttba.droplet.core.security.MarketSyncInterval
 import io.github.kvtttba.droplet.core.security.RelockTimeout
 import io.github.kvtttba.droplet.core.ui.theme.DropletTheme
 import io.github.kvtttba.droplet.core.ui.theme.ThemeMode
 import io.github.kvtttba.droplet.feature.aicapture.QuickCaptureSheetContent
+import io.github.kvtttba.droplet.feature.assets.AssetsUiState
+import io.github.kvtttba.droplet.feature.assets.InvestmentDetailScreen
+import io.github.kvtttba.droplet.feature.assets.InvestmentDetailUiState
+import io.github.kvtttba.droplet.feature.assets.InvestmentHistoryKind
+import io.github.kvtttba.droplet.feature.assets.InvestmentTransactionItem
+import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsScreen
+import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityScreen
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityUiState
 import io.github.kvtttba.droplet.feature.ledger.LedgerAmountTone
@@ -219,6 +241,7 @@ class DropletAppScreenshotTest {
                 initialThemeMode = ThemeMode.LIGHT,
                 initialDynamicColor = false,
                 ledgerPreviewState = sampleLedgerUiState(),
+                assetsPreviewState = sampleAssetsUiState(),
             )
         }
         composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
@@ -236,11 +259,41 @@ class DropletAppScreenshotTest {
                 initialThemeMode = ThemeMode.DARK,
                 initialDynamicColor = false,
                 ledgerPreviewState = sampleLedgerUiState(),
+                assetsPreviewState = sampleAssetsUiState(),
             )
         }
         composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
         composeRule.onRoot().captureRoboImage(
             filePath = "src/test/snapshots/assets_dark.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun captureInvestmentDetailLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                InvestmentDetailScreen(uiState = sampleInvestmentDetailUiState())
+            }
+        }
+        composeRule.onNodeWithTag("screen_investment_detail").assertIsDisplayed()
+        composeRule.onNodeWithTag("detail_holding_quantity").assertTextContains("0.12345678", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/investment_detail_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun captureMarketSyncSettingsLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                MarketSyncSettingsScreen(uiState = sampleMarketSyncSettingsUiState())
+            }
+        }
+        composeRule.onNodeWithTag("screen_market_sync_settings").assertIsDisplayed()
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/market_sync_settings_light.png",
             roborazziOptions = roborazziOptions,
         )
     }
@@ -412,6 +465,29 @@ class DropletAppScreenshotTest {
 
         composeRule.onNodeWithTag("fab_quick_add").performClick()
         composeRule.onNodeWithTag("quick_capture_sheet").assertIsDisplayed()
+    }
+
+    @Test
+    fun interactiveShell_assetsDetailAndMarketSyncNavigationWork() {
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.ASSETS,
+                initialThemeMode = ThemeMode.LIGHT,
+                initialDynamicColor = false,
+                assetsPreviewState = sampleAssetsUiState(),
+                investmentDetailPreviewState = sampleInvestmentDetailUiState(),
+                marketSyncPreviewState = sampleMarketSyncSettingsUiState(),
+            )
+        }
+
+        composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
+        composeRule.onNodeWithTag("assets_position_snap-asset-btc").performClick()
+        composeRule.onNodeWithTag("screen_investment_detail").assertIsDisplayed()
+        composeRule.onNodeWithTag("investment_detail_back").performClick()
+
+        composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
+        composeRule.onNodeWithTag("assets_sync_settings_button").performClick()
+        composeRule.onNodeWithTag("screen_market_sync_settings").assertIsDisplayed()
     }
 
     companion object {
@@ -712,5 +788,367 @@ class DropletAppScreenshotTest {
                 incomeGroups = sampleIncomeGroups,
                 tags = sampleTags,
             )
+
+        private fun sampleMarketRates(): ExchangeRateTable = ExchangeRateTable.of(
+            ExchangeRateSnapshot.of(Currency.USD, Currency.CNY, "7.20", ExchangeRateSource.MARKET_CACHE, fixedTimestampMs),
+            ExchangeRateSnapshot.of(Currency.HKD, Currency.CNY, "0.92", ExchangeRateSource.MARKET_CACHE, fixedTimestampMs),
+        )
+
+        private fun sampleBtcPosition() = PortfolioPositionEngine.evaluatePositionFromState(
+            asset = InvestmentAsset(
+                id = "snap-asset-btc",
+                accountId = "holding:snap-asset-btc",
+                assetClass = AssetClass.CRYPTO,
+                symbol = "BTC",
+                name = "Bitcoin",
+                currency = Currency.USD,
+            ),
+            ledgerState = PositionLedgerState(
+                assetId = "snap-asset-btc",
+                currency = Currency.USD,
+                holdingQuantity = Quantity.of("0.12345678"),
+                remainingCostBasis = Money.fromDecimalString("8850.00", Currency.USD),
+                averageCostPrice = UnitPrice.of("71684.99696817"),
+                realizedPnL = Money.fromDecimalString("620.00", Currency.USD),
+                totalDividends = Money.zero(Currency.USD),
+                totalDividendTax = Money.zero(Currency.USD),
+                totalTradeFees = Money.fromDecimalString("18.50", Currency.USD),
+                totalFees = Money.fromDecimalString("18.50", Currency.USD),
+                cumulativeBuyCost = Money.fromDecimalString("10450.00", Currency.USD),
+                cumulativeSellProceeds = Money.fromDecimalString("2220.00", Currency.USD),
+                buyCount = 3,
+                sellCount = 1,
+                dividendCount = 0,
+                lastTransactionAt = fixedTimestampMs,
+            ),
+            marketQuote = MarketQuote(
+                assetId = "snap-asset-btc",
+                latestPrice = UnitPrice.of("92800.00"),
+                prevClose = UnitPrice.of("90500.00"),
+                dailyChangePctDecimal = "2.5414",
+                priceCurrency = Currency.USD,
+                sourceProvider = "okx",
+                isManualOverride = false,
+                fetchedAt = fixedTimestampMs,
+            ),
+            baseCurrency = Currency.CNY,
+            exchangeRateProvider = sampleMarketRates(),
+            asOfEpochMs = fixedTimestampMs,
+        )
+
+        private fun sampleAssetsUiState(): AssetsUiState {
+            val rates = sampleMarketRates()
+            val etfHolding = Account(
+                id = "holding:snap-asset-etf",
+                name = "沪深300ETF 持仓",
+                type = AccountType.ASSET,
+                subType = AccountSubType.INVEST_HOLDING,
+                currency = Currency.CNY,
+                includeInNetWorth = true,
+            )
+            val btcHolding = Account(
+                id = "holding:snap-asset-btc",
+                name = "Bitcoin 持仓",
+                type = AccountType.ASSET,
+                subType = AccountSubType.INVEST_HOLDING,
+                currency = Currency.USD,
+                includeInNetWorth = true,
+            )
+            val hkHolding = Account(
+                id = "holding:snap-asset-hk",
+                name = "腾讯控股 持仓",
+                type = AccountType.ASSET,
+                subType = AccountSubType.INVEST_HOLDING,
+                currency = Currency.HKD,
+                includeInNetWorth = true,
+            )
+            val fdHolding = Account(
+                id = "holding:snap-asset-fd",
+                name = "招行一年定期 持仓",
+                type = AccountType.ASSET,
+                subType = AccountSubType.INVEST_HOLDING,
+                currency = Currency.CNY,
+                includeInNetWorth = true,
+            )
+            val wealthHolding = Account(
+                id = "holding:snap-asset-wealth",
+                name = "稳健日开理财 持仓",
+                type = AccountType.ASSET,
+                subType = AccountSubType.INVEST_HOLDING,
+                currency = Currency.CNY,
+                includeInNetWorth = true,
+            )
+            val housingFund = Account(
+                id = "sample:housing_fund",
+                name = "住房公积金",
+                type = AccountType.ASSET,
+                subType = AccountSubType.STORED_VALUE,
+                currency = Currency.CNY,
+                icon = "savings",
+                color = "#546E7A",
+                includeInNetWorth = false,
+            )
+            val creditCard = sampleOperationalAccounts
+                .first { it.id == DefaultSeedCatalog.AccountIds.CREDIT_CARD }
+                .copy(
+                    creditLimitMinor = Money.fromDecimalString("50000.00", Currency.CNY).amountMinor,
+                    billingDay = 5,
+                    dueDay = 25,
+                )
+            val debitCard = sampleOperationalAccounts
+                .first { it.id == DefaultSeedCatalog.AccountIds.DEBIT_CARD }
+            val usdCash = sampleOperationalAccounts
+                .first { it.id == "sample:usd_cash" }
+
+            val etfPos = PortfolioPositionEngine.evaluatePositionFromState(
+                asset = InvestmentAsset(
+                    id = "snap-asset-etf",
+                    accountId = etfHolding.id,
+                    assetClass = AssetClass.ETF,
+                    symbol = "510300",
+                    name = "沪深300ETF",
+                    currency = Currency.CNY,
+                ),
+                ledgerState = PositionLedgerState(
+                    assetId = "snap-asset-etf",
+                    currency = Currency.CNY,
+                    holdingQuantity = Quantity.of("15000"),
+                    remainingCostBasis = Money.fromDecimalString("58500.00", Currency.CNY),
+                    averageCostPrice = UnitPrice.of("3.90"),
+                    realizedPnL = Money.zero(Currency.CNY),
+                    totalDividends = Money.fromDecimalString("850.00", Currency.CNY),
+                    totalDividendTax = Money.zero(Currency.CNY),
+                    totalTradeFees = Money.fromDecimalString("15.00", Currency.CNY),
+                    totalFees = Money.fromDecimalString("15.00", Currency.CNY),
+                    cumulativeBuyCost = Money.fromDecimalString("58500.00", Currency.CNY),
+                    cumulativeSellProceeds = Money.zero(Currency.CNY),
+                    buyCount = 2,
+                    sellCount = 0,
+                    dividendCount = 1,
+                ),
+                marketQuote = MarketQuote(
+                    assetId = "snap-asset-etf",
+                    latestPrice = UnitPrice.of("4.22"),
+                    prevClose = UnitPrice.of("4.16"),
+                    dailyChangePctDecimal = "1.4423",
+                    priceCurrency = Currency.CNY,
+                    sourceProvider = "eastmoney",
+                    fetchedAt = fixedTimestampMs,
+                ),
+                baseCurrency = Currency.CNY,
+                exchangeRateProvider = rates,
+                asOfEpochMs = fixedTimestampMs,
+            )
+
+            val btcPos = sampleBtcPosition()
+
+            val hkPos = PortfolioPositionEngine.evaluatePositionFromState(
+                asset = InvestmentAsset(
+                    id = "snap-asset-hk",
+                    accountId = hkHolding.id,
+                    assetClass = AssetClass.HK_STOCK,
+                    symbol = "00700",
+                    name = "腾讯控股",
+                    currency = Currency.HKD,
+                ),
+                ledgerState = PositionLedgerState(
+                    assetId = "snap-asset-hk",
+                    currency = Currency.HKD,
+                    holdingQuantity = Quantity.of("100"),
+                    remainingCostBasis = Money.fromDecimalString("36000.00", Currency.HKD),
+                    averageCostPrice = UnitPrice.of("360"),
+                    realizedPnL = Money.zero(Currency.HKD),
+                    totalDividends = Money.zero(Currency.HKD),
+                    totalDividendTax = Money.zero(Currency.HKD),
+                    totalTradeFees = Money.zero(Currency.HKD),
+                    totalFees = Money.zero(Currency.HKD),
+                    cumulativeBuyCost = Money.fromDecimalString("36000.00", Currency.HKD),
+                    cumulativeSellProceeds = Money.zero(Currency.HKD),
+                    buyCount = 1,
+                    sellCount = 0,
+                    dividendCount = 0,
+                ),
+                marketQuote = MarketQuote(
+                    assetId = "snap-asset-hk",
+                    latestPrice = UnitPrice.of("418.00"),
+                    prevClose = UnitPrice.of("412.00"),
+                    dailyChangePctDecimal = "1.4563",
+                    priceCurrency = Currency.HKD,
+                    sourceProvider = "eastmoney",
+                    fetchedAt = fixedTimestampMs,
+                ),
+                baseCurrency = Currency.CNY,
+                exchangeRateProvider = rates,
+                asOfEpochMs = fixedTimestampMs,
+            )
+
+            val fdStartMs = LocalDate.of(2026, 5, 1).atStartOfDay(ZoneOffset.ofHours(8)).toInstant().toEpochMilli()
+            val fdMaturityMs = LocalDate.of(2027, 5, 1).atStartOfDay(ZoneOffset.ofHours(8)).toInstant().toEpochMilli()
+            val fdPos = PortfolioPositionEngine.evaluatePositionFromState(
+                asset = InvestmentAsset(
+                    id = "snap-asset-fd",
+                    accountId = fdHolding.id,
+                    assetClass = AssetClass.FIXED_DEPOSIT,
+                    symbol = "CMB-1Y",
+                    name = "招行一年定期",
+                    currency = Currency.CNY,
+                    depositRateAnnualDecimal = "0.0245",
+                    depositStartAt = fdStartMs,
+                    depositMaturityAt = fdMaturityMs,
+                    depositInterestMode = DepositInterestMode.SIMPLE_AT_MATURITY,
+                ),
+                ledgerState = PositionLedgerState(
+                    assetId = "snap-asset-fd",
+                    currency = Currency.CNY,
+                    holdingQuantity = Quantity.of("50000"),
+                    remainingCostBasis = Money.fromDecimalString("50000.00", Currency.CNY),
+                    averageCostPrice = UnitPrice.of("1"),
+                    realizedPnL = Money.zero(Currency.CNY),
+                    totalDividends = Money.zero(Currency.CNY),
+                    totalDividendTax = Money.zero(Currency.CNY),
+                    totalTradeFees = Money.zero(Currency.CNY),
+                    totalFees = Money.zero(Currency.CNY),
+                    cumulativeBuyCost = Money.fromDecimalString("50000.00", Currency.CNY),
+                    cumulativeSellProceeds = Money.zero(Currency.CNY),
+                    buyCount = 1,
+                    sellCount = 0,
+                    dividendCount = 0,
+                ),
+                baseCurrency = Currency.CNY,
+                exchangeRateProvider = rates,
+                asOfEpochMs = fixedTimestampMs,
+            )
+
+            val wealthPos = PortfolioPositionEngine.evaluatePositionFromState(
+                asset = InvestmentAsset(
+                    id = "snap-asset-wealth",
+                    accountId = wealthHolding.id,
+                    assetClass = AssetClass.BANK_WEALTH,
+                    symbol = "BW-01",
+                    name = "稳健日开理财",
+                    currency = Currency.CNY,
+                ),
+                ledgerState = PositionLedgerState(
+                    assetId = "snap-asset-wealth",
+                    currency = Currency.CNY,
+                    holdingQuantity = Quantity.of("20000"),
+                    remainingCostBasis = Money.fromDecimalString("20000.00", Currency.CNY),
+                    averageCostPrice = UnitPrice.of("1"),
+                    realizedPnL = Money.zero(Currency.CNY),
+                    totalDividends = Money.zero(Currency.CNY),
+                    totalDividendTax = Money.zero(Currency.CNY),
+                    totalTradeFees = Money.zero(Currency.CNY),
+                    totalFees = Money.zero(Currency.CNY),
+                    cumulativeBuyCost = Money.fromDecimalString("20000.00", Currency.CNY),
+                    cumulativeSellProceeds = Money.zero(Currency.CNY),
+                    buyCount = 1,
+                    sellCount = 0,
+                    dividendCount = 0,
+                ),
+                marketQuote = MarketQuote(
+                    assetId = "snap-asset-wealth",
+                    latestPrice = UnitPrice.of("1.0285"),
+                    priceCurrency = Currency.CNY,
+                    sourceProvider = "manual",
+                    isManualOverride = true,
+                    fetchedAt = fixedTimestampMs,
+                ),
+                baseCurrency = Currency.CNY,
+                exchangeRateProvider = rates,
+                asOfEpochMs = fixedTimestampMs,
+            )
+
+            val summary = PortfolioSummaryAggregator.aggregate(
+                accounts = listOf(
+                    debitCard,
+                    creditCard,
+                    usdCash,
+                    etfHolding,
+                    btcHolding,
+                    hkHolding,
+                    fdHolding,
+                    wealthHolding,
+                    housingFund,
+                ),
+                accountBalancesById = mapOf(
+                    debitCard.id to Money.fromDecimalString("42800.00", Currency.CNY),
+                    creditCard.id to Money.fromDecimalString("-12500.00", Currency.CNY),
+                    usdCash.id to Money.fromDecimalString("1500.00", Currency.USD),
+                    housingFund.id to Money.fromDecimalString("68400.00", Currency.CNY),
+                ),
+                positions = listOf(etfPos, btcPos, hkPos, fdPos, wealthPos),
+                baseCurrency = Currency.CNY,
+                exchangeRateProvider = rates,
+            )
+
+            return AssetsUiState(
+                displayCurrency = Currency.CNY,
+                summary = summary,
+                lastUpdatedAtEpochMs = fixedTimestampMs,
+                isLoading = false,
+            )
+        }
+
+        private fun sampleInvestmentDetailUiState(): InvestmentDetailUiState = InvestmentDetailUiState(
+            assetId = "snap-asset-btc",
+            position = sampleBtcPosition(),
+            transactions = listOf(
+                InvestmentTransactionItem(
+                    id = "hist-1",
+                    occurredAt = fixedTimestampMs,
+                    dateTimeLabel = "2026-11-27 12:30",
+                    kind = InvestmentHistoryKind.DCA,
+                    quantity = Quantity.of("0.02345678"),
+                    unitPrice = UnitPrice.of("89500.00"),
+                    amount = Money.fromDecimalString("2099.38", Currency.USD),
+                    fee = Money.fromDecimalString("2.10", Currency.USD),
+                    cashAccountName = "美元资金户",
+                    note = "周定投自动买入",
+                ),
+                InvestmentTransactionItem(
+                    id = "hist-2",
+                    occurredAt = fixedTimestampMs - 7 * 86_400_000L,
+                    dateTimeLabel = "2026-11-20 12:30",
+                    kind = InvestmentHistoryKind.SELL,
+                    quantity = Quantity.of("0.03000000"),
+                    unitPrice = UnitPrice.of("74000.00"),
+                    amount = Money.fromDecimalString("2220.00", Currency.USD),
+                    fee = Money.fromDecimalString("4.40", Currency.USD),
+                    cashAccountName = "美元资金户",
+                    note = "止盈部分减仓",
+                ),
+                InvestmentTransactionItem(
+                    id = "hist-3",
+                    occurredAt = fixedTimestampMs - 30 * 86_400_000L,
+                    dateTimeLabel = "2026-10-28 12:30",
+                    kind = InvestmentHistoryKind.BUY,
+                    quantity = Quantity.of("0.13000000"),
+                    unitPrice = UnitPrice.of("64235.54"),
+                    amount = Money.fromDecimalString("8350.62", Currency.USD),
+                    fee = Money.fromDecimalString("12.00", Currency.USD),
+                    cashAccountName = "美元资金户",
+                    note = "建仓买入",
+                ),
+            ),
+            matchingCashAccounts = listOf(sampleOperationalAccounts.first { it.id == "sample:usd_cash" }),
+            isLoading = false,
+        )
+
+        private fun sampleMarketSyncSettingsUiState(): MarketSyncSettingsUiState = MarketSyncSettingsUiState(
+            refreshInterval = MarketSyncInterval.HOURS_12,
+            wifiOnly = true,
+            savedProxyConfig = NetworkProxyConfig(
+                type = NetworkProxyType.HTTP,
+                host = "127.0.0.1",
+                port = 7890,
+            ),
+            draftProxyType = NetworkProxyType.HTTP,
+            draftProxyHost = "127.0.0.1",
+            draftProxyPortText = "7890",
+            lastUpdatedAtEpochMs = fixedTimestampMs,
+            cachedRateCount = 6,
+            cachedQuoteCount = 5,
+            lastRefreshSummary = "汇率已更新 · 更新 4 项行情",
+        )
     }
 }

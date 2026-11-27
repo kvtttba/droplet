@@ -50,9 +50,11 @@ fun SettingsScreen(
     onOpenAccountManagement: () -> Unit = {},
     onOpenCategoryTagManagement: () -> Unit = {},
     onOpenPrivacySecurity: () -> Unit = {},
+    onOpenMarketSyncSettings: () -> Unit = {},
     biometricLockEnabled: Boolean = false,
     flagSecureEnabled: Boolean = false,
-    versionLabel: String = "v0.1.0-m1.4",
+    marketSyncSummary: String = "后台自动刷新 · 可选 HTTP/SOCKS 代理",
+    versionLabel: String = "v0.1.0-m2.3",
     modifier: Modifier = Modifier,
 ) {
     val amountsHidden = LocalAmountsHidden.current
@@ -213,6 +215,17 @@ fun SettingsScreen(
                     subtitle = privacyStatusSummary,
                     onClick = onOpenPrivacySecurity,
                     modifier = Modifier.testTag("settings_entry_privacy_security"),
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 48.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                )
+                SettingsItemRow(
+                    icon = DropletIcons.CandlestickChart,
+                    title = "行情同步与网络代理",
+                    subtitle = marketSyncSummary,
+                    onClick = onOpenMarketSyncSettings,
+                    modifier = Modifier.testTag("settings_entry_market_sync"),
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 48.dp),

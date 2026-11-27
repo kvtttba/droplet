@@ -1,9 +1,12 @@
 package io.github.kvtttba.droplet.di
 
+import android.content.Context
+import androidx.work.WorkManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.github.kvtttba.droplet.core.database.DropletDatabase
 import io.github.kvtttba.droplet.core.database.repository.LocalMarketDataRepository
@@ -16,7 +19,9 @@ import io.github.kvtttba.droplet.core.network.NetworkProxyConfigProvider
 import io.github.kvtttba.droplet.core.network.RefreshThrottlePolicy
 import io.github.kvtttba.droplet.core.network.fx.ExchangeRateProviderChain
 import io.github.kvtttba.droplet.core.network.quote.MarketQuoteProviderChain
+import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.NetworkProxyPreferencesRepository
+import io.github.kvtttba.droplet.worker.MarketSyncScheduler
 import javax.inject.Singleton
 
 /**
@@ -28,6 +33,8 @@ import javax.inject.Singleton
 interface MarketDataEntryPoint {
     fun marketDataRepository(): MarketDataRepository
     fun networkProxyPreferencesRepository(): NetworkProxyPreferencesRepository
+    fun marketSyncPreferencesRepository(): MarketSyncPreferencesRepository
+    fun marketSyncScheduler(): MarketSyncScheduler
     fun dropletHttpClientFactory(): DropletHttpClientFactory
     fun exchangeRateProviderChain(): ExchangeRateProviderChain
     fun marketQuoteProviderChain(): MarketQuoteProviderChain
@@ -98,4 +105,16 @@ object NetworkModule {
         throttlePolicy = throttlePolicy,
         clock = clock,
     )
+
+    @Provides
+    @Singleton
+    fun provideWorkManager(
+        @ApplicationContext context: Context,
+    ): WorkManager = WorkManager.getInstance(context)
+
+    @Provides
+    @Singleton
+    fun provideMarketSyncScheduler(
+        workManager: WorkManager,
+    ): MarketSyncScheduler = MarketSyncScheduler(workManager)
 }

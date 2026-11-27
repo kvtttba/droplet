@@ -12,6 +12,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToKey
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
@@ -153,6 +154,86 @@ class DropletAppE2ETest {
 
         composeRule.onNodeWithTag("privacy_switch_amounts_hidden").performClick()
         composeRule.onNodeWithTag("privacy_switch_amounts_hidden").assertIsOff()
+    }
+
+    @Test
+    fun endToEndInvestmentCreateBuyManualOverrideAndMarketSyncSettings() {
+        // 1. Navigate to Assets tab and open Create Investment Asset sheet
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("nav_tab_assets"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("nav_tab_assets").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 10_000)
+
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_investments_header")
+        composeRule.onNodeWithTag("assets_add_investment_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("create_asset_sheet"), timeoutMillis = 5_000)
+
+        // 2. Create a new CNY ETF investment asset
+        composeRule.onNodeWithTag("create_asset_class_ETF").performClick()
+        composeRule.onNodeWithTag("create_asset_name_input").performTextReplacement("沪深300测试ETF")
+        composeRule.onNodeWithTag("create_asset_symbol_input").performTextReplacement("510300")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("create_asset_submit_button").performScrollTo().performClick()
+
+        // 3. Open the newly created holding detail screen from Assets overview
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("investments_card")
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("assets_position_title_510300"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("assets_position_title_510300").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_investment_detail"), timeoutMillis = 5_000)
+
+        // 4. Record a buy transaction: 100 units @ ¥10.00 = ¥1,000.00
+        composeRule.onNodeWithTag("investment_detail_list").performScrollToKey("detail_actions_card")
+        composeRule.onNodeWithTag("detail_action_buy").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("buy_sheet"), timeoutMillis = 5_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("cash_account_储蓄卡"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("cash_account_储蓄卡").performClick()
+        composeRule.onNodeWithTag("buy_quantity_input").performTextReplacement("100")
+        composeRule.onNodeWithTag("buy_price_input").performTextReplacement("10.00")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("buy_submit_button").performScrollTo().performClick()
+
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("detail_market_value"), timeoutMillis = 5_000)
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("detail_market_value").assertTextContains("1,000.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // 5. Apply manual quote override to ¥12.50 -> market value ¥1,250.00, unrealized P&L +¥250.00
+        composeRule.onNodeWithTag("investment_detail_list").performScrollToKey("detail_actions_card")
+        composeRule.onNodeWithTag("detail_action_manual_override").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("manual_override_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("override_price_input").performTextReplacement("12.50")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("override_submit_button").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("detail_market_value").assertTextContains("1,250.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("investment_detail_list").performScrollToKey("detail_return_breakdown")
+        composeRule.onNodeWithTag("detail_unrealized_pnl").assertTextContains("+¥250.00", substring = true)
+
+        // 6. Return to Assets overview and verify real-time total assets & unrealized P&L update
+        composeRule.onNodeWithTag("investment_detail_back").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("assets_hero_card")
+        composeRule.onNodeWithTag("assets_total_assets").assertTextContains("1,250.00", substring = true)
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("investments_card")
+        composeRule.onNodeWithTag("assets_investment_unrealized_pnl").assertTextContains("+¥250.00", substring = true)
+
+        // 7. Open Market Sync & Proxy Settings and verify schedule & Wi-Fi toggle persist
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("assets_header")
+        composeRule.onNodeWithTag("assets_sync_settings_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_market_sync_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("market_sync_settings_list").performScrollToKey("sync_schedule_card")
+        composeRule.onNodeWithTag("market_sync_interval_HOURS_6").performClick()
+        composeRule.onNodeWithTag("market_sync_interval_HOURS_6").assertIsSelected()
+        composeRule.onNodeWithTag("market_sync_switch_wifi_only").performClick()
+        composeRule.onNodeWithTag("market_sync_switch_wifi_only").assertIsOn()
     }
 
     private fun isFlagSecureApplied(): Boolean {

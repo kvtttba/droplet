@@ -46,13 +46,22 @@ import io.github.kvtttba.droplet.core.ui.theme.DropletTheme
 import io.github.kvtttba.droplet.core.ui.theme.ThemeMode
 import io.github.kvtttba.droplet.feature.aicapture.QuickCaptureModalSheet
 import io.github.kvtttba.droplet.feature.aicapture.QuickCaptureMode
+import io.github.kvtttba.droplet.feature.assets.AssetsRoute
 import io.github.kvtttba.droplet.feature.assets.AssetsScreen
+import io.github.kvtttba.droplet.feature.assets.AssetsUiState
+import io.github.kvtttba.droplet.feature.assets.InvestmentDetailRoute
+import io.github.kvtttba.droplet.feature.assets.InvestmentDetailScreen
+import io.github.kvtttba.droplet.feature.assets.InvestmentDetailUiState
+import io.github.kvtttba.droplet.feature.assets.InvestmentDetailViewModel
 import io.github.kvtttba.droplet.feature.ledger.LedgerRoute
 import io.github.kvtttba.droplet.feature.ledger.LedgerScreen
 import io.github.kvtttba.droplet.feature.ledger.LedgerUiState
 import io.github.kvtttba.droplet.feature.ledger.editor.TransactionEditorRoute
 import io.github.kvtttba.droplet.feature.ledger.manage.AccountManagementRoute
 import io.github.kvtttba.droplet.feature.ledger.manage.CategoryTagManagementRoute
+import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsRoute
+import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsScreen
+import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityRoute
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityScreen
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityUiState
@@ -94,9 +103,11 @@ enum class DropletTab(
 
 object DropletRoutes {
     const val TRANSACTION_EDITOR_PATTERN = "transaction_editor?transactionId={transactionId}"
+    const val INVESTMENT_DETAIL_PATTERN = "investment_detail/{${InvestmentDetailViewModel.NAV_ARG_ASSET_ID}}"
     const val ACCOUNT_MANAGEMENT = "manage_accounts"
     const val CATEGORY_TAG_MANAGEMENT = "manage_categories_tags"
     const val PRIVACY_SECURITY = "privacy_security"
+    const val MARKET_SYNC_SETTINGS = "market_sync_settings"
 
     fun transactionEditor(transactionId: String? = null): String =
         if (transactionId.isNullOrBlank()) {
@@ -104,6 +115,9 @@ object DropletRoutes {
         } else {
             "transaction_editor?transactionId=${Uri.encode(transactionId)}"
         }
+
+    fun investmentDetail(assetId: String): String =
+        "investment_detail/${Uri.encode(assetId)}"
 }
 
 fun AppThemePreference.toThemeMode(): ThemeMode = when (this) {
@@ -120,13 +134,14 @@ fun ThemeMode.toAppThemePreference(): AppThemePreference = when (this) {
 
 /**
  * Production runtime application root wired to Hilt ViewModels, Room database,
- * DataStore privacy preferences, and biometric lock overlay.
+ * DataStore privacy/sync preferences, and biometric lock overlay.
  */
 @Composable
 fun DropletApp(
     preferences: PrivacyPreferences = PrivacyPreferences(),
     isPreferencesHydrated: Boolean = true,
     lockState: AppLockState = AppLockState(),
+    marketSyncSummary: String = "每 12 小时 · 直连",
     initialTab: DropletTab = DropletTab.LEDGER,
     initialShowQuickCapture: Boolean = false,
     onThemeModeChange: (ThemeMode) -> Unit = {},
@@ -157,6 +172,7 @@ fun DropletApp(
         amountsHidden = preferences.amountsHidden,
         biometricLockEnabled = preferences.biometricLockEnabled,
         flagSecureEnabled = preferences.flagSecureEnabled,
+        marketSyncSummary = marketSyncSummary,
         isAppLocked = lockState.isOverlayVisible,
         isAuthenticating = lockState.isAuthenticating,
         lockErrorMessage = lockState.lastErrorMessage,
@@ -172,6 +188,21 @@ fun DropletApp(
                 onToggleAmountsHidden = onToggleHidden,
                 onCreateTransaction = onCreateTx,
                 onEditTransaction = onEditTx,
+                onShowMessage = onShowMessage,
+            )
+        },
+        assetsContent = { onToggleHidden, onOpenDetail, onOpenSyncSettings, onShowMessage ->
+            AssetsRoute(
+                onToggleAmountsHidden = onToggleHidden,
+                onOpenInvestmentDetail = onOpenDetail,
+                onOpenMarketSyncSettings = onOpenSyncSettings,
+                onShowMessage = onShowMessage,
+            )
+        },
+        investmentDetailContent = { onBack, onToggleHidden, onShowMessage ->
+            InvestmentDetailRoute(
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
                 onShowMessage = onShowMessage,
             )
         },
@@ -200,6 +231,12 @@ fun DropletApp(
                 onShowMessage = onShowMessage,
             )
         },
+        marketSyncSettingsContent = { onBack, onShowMessage ->
+            MarketSyncSettingsRoute(
+                onNavigateBack = onBack,
+                onShowMessage = onShowMessage,
+            )
+        },
     )
 }
 
@@ -218,6 +255,9 @@ fun DropletAppShell(
     initialIsLocked: Boolean = false,
     initialShowQuickCapture: Boolean = false,
     ledgerPreviewState: LedgerUiState? = null,
+    assetsPreviewState: AssetsUiState? = null,
+    investmentDetailPreviewState: InvestmentDetailUiState? = null,
+    marketSyncPreviewState: MarketSyncSettingsUiState? = null,
     ledgerContent: @Composable (
         onToggleAmountsHidden: () -> Unit,
         onCreateTransaction: () -> Unit,
@@ -229,6 +269,19 @@ fun DropletAppShell(
             onToggleAmountsHidden = onToggleHidden,
             onCreateTransaction = onCreateTx,
             onEditTransaction = onEditTx,
+        )
+    },
+    assetsContent: @Composable (
+        onToggleAmountsHidden: () -> Unit,
+        onOpenInvestmentDetail: (String) -> Unit,
+        onOpenMarketSyncSettings: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit = { onToggleHidden, onOpenDetail, onOpenSyncSettings, _ ->
+        AssetsScreen(
+            uiState = assetsPreviewState ?: AssetsUiState(isLoading = false),
+            onToggleAmountsHidden = onToggleHidden,
+            onOpenInvestmentDetail = onOpenDetail,
+            onOpenMarketSyncSettings = onOpenSyncSettings,
         )
     },
     editorContent: @Composable (
@@ -258,6 +311,7 @@ fun DropletAppShell(
         amountsHidden = amountsHidden,
         biometricLockEnabled = biometricLockEnabled,
         flagSecureEnabled = flagSecureEnabled,
+        marketSyncSummary = "每 12 小时 · 直连",
         isAppLocked = isLocked,
         isAuthenticating = false,
         lockErrorMessage = null,
@@ -269,6 +323,14 @@ fun DropletAppShell(
         onRequestUnlock = { isLocked = false },
         onLockOverlayBackPressed = {},
         ledgerContent = ledgerContent,
+        assetsContent = assetsContent,
+        investmentDetailContent = { onBack, onToggleHidden, _ ->
+            InvestmentDetailScreen(
+                uiState = investmentDetailPreviewState ?: InvestmentDetailUiState(isLoading = false),
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+            )
+        },
         editorContent = editorContent,
         accountManageContent = accountManageContent,
         categoryTagManageContent = categoryTagManageContent,
@@ -286,6 +348,12 @@ fun DropletAppShell(
                 onLockNow = { isLocked = true },
             )
         },
+        marketSyncSettingsContent = { onBack, _ ->
+            MarketSyncSettingsScreen(
+                uiState = marketSyncPreviewState ?: MarketSyncSettingsUiState(),
+                onNavigateBack = onBack,
+            )
+        },
     )
 }
 
@@ -297,6 +365,7 @@ private fun DropletAppContent(
     amountsHidden: Boolean,
     biometricLockEnabled: Boolean,
     flagSecureEnabled: Boolean,
+    marketSyncSummary: String,
     isAppLocked: Boolean,
     isAuthenticating: Boolean,
     lockErrorMessage: String?,
@@ -313,6 +382,17 @@ private fun DropletAppContent(
         onEditTransaction: (String) -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
+    assetsContent: @Composable (
+        onToggleAmountsHidden: () -> Unit,
+        onOpenInvestmentDetail: (String) -> Unit,
+        onOpenMarketSyncSettings: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    investmentDetailContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onToggleAmountsHidden: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
     editorContent: @Composable (
         onNavigateBack: () -> Unit,
         onSaved: (String) -> Unit,
@@ -326,6 +406,10 @@ private fun DropletAppContent(
         onShowMessage: (String) -> Unit,
     ) -> Unit,
     privacySecurityContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    marketSyncSettingsContent: @Composable (
         onNavigateBack: () -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
@@ -353,162 +437,189 @@ private fun DropletAppContent(
         CompositionLocalProvider(LocalAmountsHidden provides amountsHidden) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (hasUnlockedAtLeastOnce) {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute = navBackStackEntry?.destination?.route ?: initialTab.route
-                val isTopLevelTab = DropletTab.entries.any { it.route == currentRoute }
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route ?: initialTab.route
+                    val isTopLevelTab = DropletTab.entries.any { it.route == currentRoute }
 
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    containerColor = MaterialTheme.colorScheme.background,
-                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-                    bottomBar = {
-                        if (isTopLevelTab) {
-                            NavigationBar(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                            ) {
-                                DropletTab.entries.forEach { tab ->
-                                    val selected = currentRoute == tab.route
-                                    NavigationBarItem(
-                                        selected = selected,
-                                        onClick = {
-                                            navController.navigate(tab.route) {
-                                                popUpTo(navController.graph.findStartDestination().id) {
-                                                    saveState = true
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize(),
+                        containerColor = MaterialTheme.colorScheme.background,
+                        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+                        bottomBar = {
+                            if (isTopLevelTab) {
+                                NavigationBar(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                                ) {
+                                    DropletTab.entries.forEach { tab ->
+                                        val selected = currentRoute == tab.route
+                                        NavigationBarItem(
+                                            selected = selected,
+                                            onClick = {
+                                                navController.navigate(tab.route) {
+                                                    popUpTo(navController.graph.findStartDestination().id) {
+                                                        saveState = true
+                                                    }
+                                                    launchSingleTop = true
+                                                    restoreState = true
                                                 }
-                                                launchSingleTop = true
-                                                restoreState = true
-                                            }
-                                        },
-                                        icon = {
-                                            Icon(
-                                                imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
-                                                contentDescription = tab.label,
-                                            )
-                                        },
-                                        label = { Text(text = tab.label) },
-                                        modifier = Modifier.testTag("nav_tab_${tab.route}"),
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    floatingActionButton = {
-                        if (isTopLevelTab) {
-                            FloatingActionButton(
-                                onClick = { showQuickCaptureSheet = true },
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.testTag("fab_quick_add"),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Add,
-                                    contentDescription = "快捷记账",
-                                )
-                            }
-                        }
-                    },
-                ) { innerPadding ->
-                    NavHost(
-                        navController = navController,
-                        startDestination = initialTab.route,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                    ) {
-                        composable(DropletTab.LEDGER.route) {
-                            ledgerContent(
-                                onToggleAmountsHidden,
-                                { navController.navigate(DropletRoutes.transactionEditor()) },
-                                { txId -> navController.navigate(DropletRoutes.transactionEditor(txId)) },
-                                showMessage,
-                            )
-                        }
-                        composable(DropletTab.ASSETS.route) {
-                            AssetsScreen(
-                                onToggleAmountsHidden = onToggleAmountsHidden,
-                            )
-                        }
-                        composable(DropletTab.STATS.route) {
-                            StatsScreen(
-                                onToggleAmountsHidden = onToggleAmountsHidden,
-                            )
-                        }
-                        composable(DropletTab.SETTINGS.route) {
-                            SettingsScreen(
-                                themeMode = themeMode,
-                                dynamicColor = dynamicColor,
-                                onThemeModeChange = onThemeModeChange,
-                                onDynamicColorChange = onDynamicColorChange,
-                                onToggleAmountsHidden = onToggleAmountsHidden,
-                                onOpenAccountManagement = {
-                                    navController.navigate(DropletRoutes.ACCOUNT_MANAGEMENT)
-                                },
-                                onOpenCategoryTagManagement = {
-                                    navController.navigate(DropletRoutes.CATEGORY_TAG_MANAGEMENT)
-                                },
-                                onOpenPrivacySecurity = {
-                                    navController.navigate(DropletRoutes.PRIVACY_SECURITY)
-                                },
-                                biometricLockEnabled = biometricLockEnabled,
-                                flagSecureEnabled = flagSecureEnabled,
-                                versionLabel = versionLabel,
-                            )
-                        }
-                        composable(
-                            route = DropletRoutes.TRANSACTION_EDITOR_PATTERN,
-                            arguments = listOf(
-                                navArgument("transactionId") {
-                                    type = NavType.StringType
-                                    nullable = true
-                                    defaultValue = null
-                                },
-                            ),
-                        ) {
-                            editorContent(
-                                { navController.popBackStack() },
-                                { message ->
-                                    navController.popBackStack()
-                                    showMessage(message)
-                                },
-                            )
-                        }
-                        composable(DropletRoutes.ACCOUNT_MANAGEMENT) {
-                            accountManageContent(
-                                { navController.popBackStack() },
-                                showMessage,
-                            )
-                        }
-                        composable(DropletRoutes.CATEGORY_TAG_MANAGEMENT) {
-                            categoryTagManageContent(
-                                { navController.popBackStack() },
-                                showMessage,
-                            )
-                        }
-                        composable(DropletRoutes.PRIVACY_SECURITY) {
-                            privacySecurityContent(
-                                { navController.popBackStack() },
-                                showMessage,
-                            )
-                        }
-                    }
-                }
-
-                if (showQuickCaptureSheet && !isAppLocked) {
-                    QuickCaptureModalSheet(
-                        onSelectMode = { mode ->
-                            showQuickCaptureSheet = false
-                            when (mode) {
-                                QuickCaptureMode.MANUAL -> {
-                                    navController.navigate(DropletRoutes.transactionEditor())
-                                }
-                                else -> {
-                                    showMessage("${mode.title} 将在 ${mode.milestoneTag} 切片接入")
+                                            },
+                                            icon = {
+                                                Icon(
+                                                    imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+                                                    contentDescription = tab.label,
+                                                )
+                                            },
+                                            label = { Text(text = tab.label) },
+                                            modifier = Modifier.testTag("nav_tab_${tab.route}"),
+                                        )
+                                    }
                                 }
                             }
                         },
-                        onDismissRequest = { showQuickCaptureSheet = false },
-                    )
-                }
+                        floatingActionButton = {
+                            if (isTopLevelTab) {
+                                FloatingActionButton(
+                                    onClick = { showQuickCaptureSheet = true },
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.testTag("fab_quick_add"),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Add,
+                                        contentDescription = "快捷记账",
+                                    )
+                                }
+                            }
+                        },
+                    ) { innerPadding ->
+                        NavHost(
+                            navController = navController,
+                            startDestination = initialTab.route,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding),
+                        ) {
+                            composable(DropletTab.LEDGER.route) {
+                                ledgerContent(
+                                    onToggleAmountsHidden,
+                                    { navController.navigate(DropletRoutes.transactionEditor()) },
+                                    { txId -> navController.navigate(DropletRoutes.transactionEditor(txId)) },
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletTab.ASSETS.route) {
+                                assetsContent(
+                                    onToggleAmountsHidden,
+                                    { assetId -> navController.navigate(DropletRoutes.investmentDetail(assetId)) },
+                                    { navController.navigate(DropletRoutes.MARKET_SYNC_SETTINGS) },
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletTab.STATS.route) {
+                                StatsScreen(
+                                    onToggleAmountsHidden = onToggleAmountsHidden,
+                                )
+                            }
+                            composable(DropletTab.SETTINGS.route) {
+                                SettingsScreen(
+                                    themeMode = themeMode,
+                                    dynamicColor = dynamicColor,
+                                    onThemeModeChange = onThemeModeChange,
+                                    onDynamicColorChange = onDynamicColorChange,
+                                    onToggleAmountsHidden = onToggleAmountsHidden,
+                                    onOpenAccountManagement = {
+                                        navController.navigate(DropletRoutes.ACCOUNT_MANAGEMENT)
+                                    },
+                                    onOpenCategoryTagManagement = {
+                                        navController.navigate(DropletRoutes.CATEGORY_TAG_MANAGEMENT)
+                                    },
+                                    onOpenPrivacySecurity = {
+                                        navController.navigate(DropletRoutes.PRIVACY_SECURITY)
+                                    },
+                                    onOpenMarketSyncSettings = {
+                                        navController.navigate(DropletRoutes.MARKET_SYNC_SETTINGS)
+                                    },
+                                    biometricLockEnabled = biometricLockEnabled,
+                                    flagSecureEnabled = flagSecureEnabled,
+                                    marketSyncSummary = marketSyncSummary,
+                                    versionLabel = versionLabel,
+                                )
+                            }
+                            composable(
+                                route = DropletRoutes.INVESTMENT_DETAIL_PATTERN,
+                                arguments = listOf(
+                                    navArgument(InvestmentDetailViewModel.NAV_ARG_ASSET_ID) {
+                                        type = NavType.StringType
+                                    },
+                                ),
+                            ) {
+                                investmentDetailContent(
+                                    { navController.popBackStack() },
+                                    onToggleAmountsHidden,
+                                    showMessage,
+                                )
+                            }
+                            composable(
+                                route = DropletRoutes.TRANSACTION_EDITOR_PATTERN,
+                                arguments = listOf(
+                                    navArgument("transactionId") {
+                                        type = NavType.StringType
+                                        nullable = true
+                                        defaultValue = null
+                                    },
+                                ),
+                            ) {
+                                editorContent(
+                                    { navController.popBackStack() },
+                                    { message ->
+                                        navController.popBackStack()
+                                        showMessage(message)
+                                    },
+                                )
+                            }
+                            composable(DropletRoutes.ACCOUNT_MANAGEMENT) {
+                                accountManageContent(
+                                    { navController.popBackStack() },
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletRoutes.CATEGORY_TAG_MANAGEMENT) {
+                                categoryTagManageContent(
+                                    { navController.popBackStack() },
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletRoutes.PRIVACY_SECURITY) {
+                                privacySecurityContent(
+                                    { navController.popBackStack() },
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletRoutes.MARKET_SYNC_SETTINGS) {
+                                marketSyncSettingsContent(
+                                    { navController.popBackStack() },
+                                    showMessage,
+                                )
+                            }
+                        }
+                    }
+
+                    if (showQuickCaptureSheet && !isAppLocked) {
+                        QuickCaptureModalSheet(
+                            onSelectMode = { mode ->
+                                showQuickCaptureSheet = false
+                                when (mode) {
+                                    QuickCaptureMode.MANUAL -> {
+                                        navController.navigate(DropletRoutes.transactionEditor())
+                                    }
+                                    else -> {
+                                        showMessage("${mode.title} 将在 ${mode.milestoneTag} 切片接入")
+                                    }
+                                }
+                            },
+                            onDismissRequest = { showQuickCaptureSheet = false },
+                        )
+                    }
                 }
 
                 if (isAppLocked) {
