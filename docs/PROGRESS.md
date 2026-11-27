@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-- **当前阶段**：`M1.3`（明细首页、账户/标签管理与记账表单）已完成验收并合入 `main`。
-- **下一个待执行切片**：**`M1.4`**（生物识别隐私锁、重锁与金额隐藏）
-- **最新已合入提交**：`feat/m1-3-ledger-ui-and-forms` 合入 `main`（CI `#45976954090` 全线绿灯，详见 `git log`）
+- **当前阶段**：`M1.4`（生物识别隐私锁、重锁与金额隐藏）已完成验收并合入 `main`（**M1 复式核心与日常记账闭环**全量收官）。
+- **下一个待执行切片**：**`M2.1`**（免费公开汇率与全品类行情 Provider 链）
+- **最新已合入提交**：`feat/m1-4-biometric-privacy-lock` 合入 `main`（CI `#45999836880` 全线绿灯，详见 `git log`）
 
 ---
 
@@ -14,7 +14,7 @@
 
 - **应用定位**：Droplet 记账，Android 单端（`minSdk = 31` / Android 12+），个人自用，无登录、本地优先，纯净无广告。
 - **包名与工程标识**：`applicationId = "io.github.kvtttba.droplet"`，Debug APK 输出名 `droplet-debug.apk`。
-- **技术栈与已锁定版本基线**：Gradle 8.11.1 + Kotlin DSL + `gradle/libs.versions.toml`；AGP 8.9.3、Kotlin 2.1.21、KSP 2.1.21-2.0.1、Hilt 2.56.2、Compose BOM 2025.05.01、Navigation Compose 2.8.9、Room 2.7.1、WorkManager 2.10.1、OkHttp 4.12.0、Kotlinx Serialization 1.8.1、Robolectric 4.14.1、Roborazzi 1.44.0；`compileSdk = 35` / `targetSdk = 35` / `minSdk = 31`，JVM 17 字节码目标（OpenJDK 21 运行环境兼容）。
+- **技术栈与已锁定版本基线**：Gradle 8.11.1 + Kotlin DSL + `gradle/libs.versions.toml`；AGP 8.9.3、Kotlin 2.1.21、KSP 2.1.21-2.0.1、Hilt 2.56.2、Compose BOM 2025.05.01、Navigation Compose 2.8.9、Fragment 1.8.6、Lifecycle Process 2.8.7、Biometric 1.1.0、DataStore Preferences 1.1.4、Room 2.7.1、WorkManager 2.10.1、OkHttp 4.12.0、Kotlinx Serialization 1.8.1、Robolectric 4.14.1、Roborazzi 1.44.0；`compileSdk = 35` / `targetSdk = 35` / `minSdk = 31`，JVM 17 字节码目标（OpenJDK 21 运行环境兼容）。
 - **核心账本**：单账本 + 多标签；底层严格复式（法币 4 位定点 `Long`，投资/加密份额 8 位 `BigDecimal`，跨币种隐式 `Equity:Trading` 对冲）；前端一木式直观表单 + 可展开专业分录模式；支持 **CNY / USD / HKD**（默认本位币 CNY）。
 - **资产与行情**：覆盖 A 股、公募基金、ETF、港股、美股、贵金属/黄金、加密货币、定期存款、银行理财；免费公开行情（国内直连源优先 + 备用源 + 可选代理 + 失败保留缓存并支持手动覆写），进资产页刷新 + 后台定时更新。
 - **信贷/借贷/报销/退款**：信用卡额度/账单日/还款日提醒；等额本息/等额本金/固定手续费分期自动生成还款分录与提醒；往来借贷（分次还/利息/坏账）；待报销冲抵；多次关联退款。
@@ -33,8 +33,8 @@
 | `M1.1` | 复式记账引擎与三币种 Trading 对冲 | ✅ 已完成 | `core:model` 全套复式模型 + `core:domain` 平衡校验/三币种 Trading 自动对冲/反推汇率/历史快照锁定/18 类分录 Builder + 85 项 L1 单测全绿 | `feat/m1-1-ledger-engine` 已验收合入（CI `#45968558544`） |
 | `M1.2` | Room Schema、DAO 与预置分类/账户 | ✅ 已完成 | `:core:model` 跨模块扩展模型 + `:core:database` 全量 16 表 Room Schema/JSON 导出、强一致 `@Transaction` 复式校验写入器、多维 Flow 查询 DAO、WAL `VACUUM INTO` 快照导出、幂等预置初始化 + 18 项 L2 Robolectric/Room 测试（总 115 项测试全绿） | `feat/m1-2-room-database` 已验收合入（CI `#45971965896`） |
 | `M1.3` | 明细首页、账户/标签管理与记账表单 | ✅ 已完成 | `:app` Hilt DI + 启动幂等预置、`:core:database` `LedgerRepository`、明细首页实时 Room Flow 月度汇总/多维筛选（多标签 ANY/ALL）/按日分组与详情编辑/作废/恢复/删除、一木式直观记账 + 跨币种反推汇率 + 一键展开专业多拆分录、账户（含期初余额）/二级分类/多标签 CRUD + 125 项测试 & 13 张 Roborazzi 截图 + API 31 实账 E2E + 13 MB Debug APK 全绿 | `feat/m1-3-ledger-ui-and-forms` 已验收合入（CI `#45976954090`） |
-| `M1.4` | 生物识别隐私锁、重锁与金额隐藏 | ⬜ 待开始 | `BiometricPrompt`（含设备锁屏兜底）、切后台超时重锁、`FLAG_SECURE`、首页/资产/设置隐私持久化与锁屏页截图 + APK | 下一切片 |
-| `M2.1` | 免费公开汇率与全品类行情 Provider 链 | ⬜ 待开始 | CNY/USD/HKD 汇率 + 9 类资产公开源适配、降级缓存、可选代理、Mock 测试 | — |
+| `M1.4` | 生物识别隐私锁、重锁与金额隐藏 | ✅ 已完成 | `:core:security` DataStore 隐私偏好持久化、`AppLockStateMachine`（单调时钟 5 档超时重锁）、Android 12+ `BiometricPrompt`（含设备锁屏兜底）、Keystore AES-256-GCM 凭据加密器；`MainActivity` 升级 `FragmentActivity` 接入动态 `FLAG_SECURE`、`ProcessLifecycleOwner` 与全屏 `AppLockOverlay`；`PrivacySecurityScreen` 落地与全局隐身/主题持久化 + 156 项测试 & 16 张 Roborazzi 截图 + API 31 持久化 E2E + 14 MB Debug APK 全绿 | `feat/m1-4-biometric-privacy-lock` 已验收合入（CI `#45999836880`） |
+| `M2.1` | 免费公开汇率与全品类行情 Provider 链 | ⬜ 待开始 | CNY/USD/HKD 汇率 + 9 类资产公开源适配、降级缓存、可选代理、Mock 测试 | 下一切片 |
 | `M2.2` | 投资持仓引擎与定存/理财计算 | ⬜ 待开始 | 买/卖/定投/分红、加权成本与浮盈、定期存款自动计息、银行理财手动更新 | — |
 | `M2.3` | 资产总览页、持仓详情与后台定时刷新 | ⬜ 待开始 | 资产页总览与币种分布、持仓行情与手动覆写价、WorkManager 定时刷新、截图 + APK | — |
 | `M3.1` | 信用卡额度、账单日与还款本地提醒 | ⬜ 待开始 | 信用额度进度条、出账/还款倒计时、到期前本地通知提醒 | — |
@@ -79,23 +79,40 @@
    - `TransactionEditorScreen` 实现一木式直观表单（支出/收入/转账还款、大类→小类联动、跨币种实付+实收自动调用 `TradingAutoHedger.inferRatePair` 反推汇率、待报销/优惠/手续费）与一键切换专业多拆分录（实时调用 `LedgerValidator.computeCurrencyImbalances` 校验并提供一键补平），并支持已有流水编辑；
    - `AccountManagementScreen` 与 `CategoryTagManagementScreen` 从「我的」页直达，覆盖账户（含期初余额自动平衡入 `Equity:OpeningBalance:{CCY}`、计入总资产开关、信用额度/账单日/还款日/提醒天数）、二级分类与多标签完整 CRUD 及归档/恢复。
 
-### M1.4 启动入口契约（生物识别隐私锁、重锁与金额隐藏）
-1. 从 `main` 切出分支 `feat/m1-4-biometric-privacy-lock`，在 `gradle/libs.versions.toml` 引入 `androidx.biometric:biometric` 与 `androidx.datastore:datastore-preferences`（以及必要的 `androidx.lifecycle:lifecycle-process`），并更新 `versionName = "0.1.0-m1.4"`。
-2. **安全与隐私核心层（`:core:security`）**：
-   - 实现 `PrivacyPreferencesRepository`（基于 Preferences DataStore 持久化）：`biometricLockEnabled`（默认 `false`，确保新装与无生物识别配置的 API 31 模拟器可顺畅启动）、`relockTimeout`（`IMMEDIATE` / `SECONDS_30` / `MINUTE_1` / `MINUTES_5` / `NEVER`，默认 `MINUTE_1`）、`flagSecureEnabled`（防截屏与多任务遮罩，默认 `false` 或可一键开关）、`amountsHidden`（全局一键隐身状态持久化）、`themeMode` 与 `dynamicColor`；
-   - 实现纯逻辑 `AppLockStateMachine`（支持注入单调时钟 `elapsedRealtimeMs`）：处理冷启动锁定、`onAppBackgrounded` / `onAppForegrounded` 超时重锁判定（`IMMEDIATE` 立即重锁、`NEVER` 仅冷启动锁定、超时窗口精准边界判断）、解锁成功与认证取消/失败重试态；
-   - 实现 `BiometricAuthenticator`（封装 Android 12+ `BiometricPrompt`，允许 `BIOMETRIC_STRONG | BIOMETRIC_WEAK | DEVICE_CREDENTIAL` 自动兜底设备 PIN/图案/密码，并提供设备能力检测 `BiometricCapability`）；
-   - 实现 `KeystoreSecretCipher`（基于 Android Keystore `AES/GCM/NoPadding` 256-bit 密钥封装本机敏感凭据加解密，严禁明文打日志，供后续 M4 AI API Key 与 M5 WebDAV 密码复用）。
-3. **宿主集成与设置页（`:app` & `:feature:settings`）**：
-   - 将 `MainActivity` 升级为继承 `FragmentActivity`（满足 `BiometricPrompt` 要求），在 `:app` 补齐 `SecurityModule` Hilt DI 绑定；
-   - 接入 `FLAG_SECURE` 动态切换（`window.addFlags/clearFlags(WindowManager.LayoutParams.FLAG_SECURE)`）与前后台生命周期监听驱动 `AppLockStateMachine`；
-   - 实现 Material 3 全局锁屏遮罩层 `AppLockOverlay`（未解锁时全屏覆盖，不泄露任何账本内容，支持一键唤起生物识别/设备锁屏验证与失败提示）；
-   - 将 `DropletApp` 中的 `amountsHidden`、`themeMode`、`dynamicColor` 接入 `PrivacyPreferencesRepository` 持久化（首页/资产/设置一键隐身跨冷启动保留）；
-   - 在 `SettingsScreen` 打通「生物识别锁与防截屏」入口，新增 `PrivacySecurityScreen`（生物识别锁开关+设备能力提示、切后台重锁超时分段选择、`FLAG_SECURE` 防截屏遮罩开关、默认隐藏金额开关）。
-4. **测试与视觉验收门禁**：
-   - 配齐 `:core:security` L1/L2 测试（`AppLockStateMachine` 全档位边界测试、`PrivacyPreferencesRepository` 持久化读写测试、`KeystoreSecretCipher` 逻辑与防异常测试）；
-   - 更新并新增 `:app` Roborazzi 黄金截图（锁屏解锁页浅/深色、隐私与安全设置页浅色、更新后的「我的」页）；
-   - 扩展 API 31 模拟器 E2E 测试（验证隐私设置页开关、`FLAG_SECURE` 窗口标志生效、一键隐身跨 Tab 与状态持久化，同时保留 M1.3 实账闭环验证），确保本地单测、`verifyRoborazziDebug`、`gitleaks` 与 GitHub Actions 全线 CI 绿灯并输出精简 Debug APK。
+### M1.4 已落地的核心约定
+1. **安全与隐私核心层 (`:core:security`)**：
+   - `PrivacyPreferences` / `RelockTimeout`（`IMMEDIATE` / `SECONDS_30` / `MINUTE_1` / `MINUTES_5` / `NEVER`，默认 `MINUTE_1`）/ `AppThemePreference` + `DataStorePrivacyPreferencesRepository`（通过 `PreferenceDataStoreFactory.create` 持久化，支持 `IOException` 回退与未知枚举安全兜底）；
+   - `AppLockStateMachine`（注入 `MonotonicClock`，覆盖冷启动锁定、切后台 5 档超时边界、系统锁屏兜底 Activity 切后台保活、取消/失败重试与负时长 fail-closed）；
+   - `AndroidBiometricAuthenticator`（封装 Android 12+ `BiometricPrompt`，放行 `BIOMETRIC_STRONG | BIOMETRIC_WEAK | DEVICE_CREDENTIAL` 无负按钮，内置 `BiometricCapability` 含无指纹硬件仅锁屏密码回退检测）；
+   - `KeystoreSecretCipher`（`AES/GCM/NoPadding` 256-bit 随机 IV + AAD 上下文绑定，二进制头 `[v1][ivLen][iv][ciphertext+128bit tag]` Base64 编码，脱敏 `SecretCipherException`，严禁日志打印明文）。
+2. **宿主集成与隐私设置 (`:app` & `:feature:settings`)**：
+   - `MainActivity` 继承 `FragmentActivity`，`:app` 新增 `SecurityModule` 与进程级单例 `AppLockCoordinator`（在 `DropletApplication.onCreate()` 注册 `ProcessLifecycleOwner` 监听前后台切换，配置变更不误锁），并动态响应 `WindowManager.LayoutParams.FLAG_SECURE`；
+   - `DropletApp` 拆分受控 `DropletAppContent` + 生产 `DropletApp`（DataStore 持久化）+ 测试 `DropletAppShell`；冷启动未完成 DataStore 首帧加载前仅渲染底色、未解锁前不挂载账本树，全屏 `AppLockOverlay` 拦截返回键与触摸穿透；
+   - `:feature:settings` 接入 Hilt，新增 `PrivacySecurityRoute` / `PrivacySecurityScreen` / `PrivacySecurityViewModel`（本机鉴权能力检测与系统安全设置直达、开启应用锁前身份校验防误锁、5 档重锁切换、立即锁定、`FLAG_SECURE` 与默认隐身开关）。
+
+### M2.1 启动入口契约（免费公开汇率与全品类行情 Provider 链）
+1. 从 `main` 切出分支 `feat/m2-1-market-fx-providers`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m2.1"`。
+2. **纯 JVM 网络与代理基础设施 (`:core:network`)**：
+   - 保持 `:core:network` 纯 Kotlin/JVM 零 Android 依赖，实现 `NetworkProxyConfig`（`NONE` / `HTTP` / `SOCKS`、`host`、`port`，严禁硬编码真实个人代理地址或凭据）与 `DropletHttpClientFactory`（可切换代理的 OkHttpClient、统一超时与标准浏览器/轻量 User-Agent）；
+   - 实现全品类行情与汇率抽象契约：
+     - `ExchangeRateProvider` 与 `ExchangeRateProviderChain`（拉取 `CNY / USD / HKD` 实时双向汇率，主源 + 备用公开源自动降级，内部统一 `BigDecimal` 8 位精度规范化输出 `CachedExchangeRate`）；
+     - `MarketQuoteProvider` 与 `MarketQuoteProviderChain`（按 `AssetClass` 分发策略链：国内直连优先 → 备用公开源兜底 → 单标的失败隔离不影响其余标的），覆盖：
+       1. A 股 / 场内 ETF（东方财富 / 腾讯财经主源 + 新浪财经备用源）；
+       2. 公募基金（天天基金实时估值/官方净值主源 + 东方财富基金净值备用源）；
+       3. 港股 / 美股（东方财富 / 腾讯财经主源 + Yahoo Finance 备用源）；
+       4. 贵金属 / 黄金（东方财富 / 上金所 AU9999 主源 + 国际现货 XAU 备用源）；
+       5. 加密货币（OKX / Binance 公开 Ticker 主源 + CoinGecko 备用源，天然支持可选 HTTP/SOCKS 代理）；
+       6. 定期存款（`FIXED_DEPOSIT` 不发网络请求，交由本地计息引擎）与无公开代码银行理财（`BANK_WEALTH` 若无代码跳过远程拉取保留手动估值）；
+   - 实现 `RefreshThrottlePolicy`（默认 5 分钟节流窗口 `MarketNetworkContract.DEFAULT_REFRESH_THROTTLE_MINUTES`，支持 `forceRefresh = true` 绕过节流与批量请求并发限流）。
+3. **缓存降级与仓库整合 (`:core:database` / `:app`)**：
+   - 落地 `MarketDataRepository`（或 `MarketSyncRepository`）衔接 `:core:network` Provider 链与 Room `ExchangeRateDao` / `MarketQuoteDao`：
+     - 拉取成功原子写入 `exchange_rates` / `market_quotes`（保留历史手动覆写保护策略：如 `isManualOverride == true` 时仅在用户明确覆盖或显式刷新时更新，且失败时完整保留最近一次有效缓存与 `fetchedAt`）；
+     - 支持 `manualOverrideQuote(assetId, priceDecimal, currency)` 与 `clearManualOverride`；
+   - 在 `:app` 新增 `NetworkModule` Hilt DI 绑定（`DropletHttpClientFactory`、`ExchangeRateProviderChain`、`MarketQuoteProviderChain`、`MarketDataRepository`），并在 `:core:security` 持久化可选代理配置（仅 `proxyType`/`host`/`port` 脱敏保存，严禁日志打印）。
+4. **测试与门禁（全量本地 Mock，严禁依赖外部公网）**：
+   - 在 `:core:network` 使用 `OkHttp MockWebServer` 补齐全套 L1/L2 离线测试：覆盖 9 类资产/三币种汇率正常解析、异常格式容错、主源 500/超时自动降级备用源、全部失败保留错误摘要、代理配置构建、5 分钟节流与强制刷新、数值零浮点 `BigDecimal` 精度断言；
+   - 补齐 `MarketDataRepository` Room/Robolectric 测试（缓存持久化、拉取失败保留旧缓存、手动覆写单价、手动汇率桥接 `ExchangeRateTable`）；
+   - 通过本地单测（`ANDROID_HOME=/data/home/android-sdk ./gradlew --max-workers=2 ...`）、`verifyRoborazziDebug`、`gitleaks`、`assembleDebug` 与 GitHub Actions 全线 CI 绿灯。
 
 ---
 
@@ -103,10 +120,12 @@
 
 - **[M0] OpenJDK 21 下纯 JVM 模块编译目标**：纯 JVM 模块不要写 `kotlin { jvmToolchain(17) }`（会触发下载独立 JDK 17），统一使用 `java.sourceCompatibility/targetCompatibility = JavaVersion.VERSION_17` + `kotlin.compilerOptions.jvmTarget = JvmTarget.JVM_17`。
 - **[M0] 纯 JVM 单测与 Android Release 编译提速**：执行 `./gradlew :core:model:test :core:domain:test :core:network:test testDebugUnitTest`，避免根任务 `./gradlew test` 触发所有 Android 模块的 Release 单测编译。
-- **[M0] Debug APK 体积控制**：`material-icons-extended` 会让未混淆 Debug APK 膨胀至 59 MB；改用 `core:ui` 精选矢量 `DropletIcons` + `packaging.dex.useLegacyPackaging = true` 后 Debug APK 降至 ~12–13 MB，便于飞书直接交付与真机快速安装。
+- **[M0] Debug APK 体积控制**：`material-icons-extended` 会让未混淆 Debug APK 膨胀至 59 MB；改用 `core:ui` 精选矢量 `DropletIcons` + `packaging.dex.useLegacyPackaging = true` 后 Debug APK 降至 ~12–14 MB，便于飞书直接交付与真机快速安装。
 - **[M0] Roborazzi + Hilt 兼容性**：纯 Compose 截图测试使用 `@Config(application = Application::class, sdk = [35], qualifiers = "w412dp-h915dp-xxhdpi")` 跳过 `DropletApplication` 的 `@HiltAndroidApp` 初始化，配合 `RoborazziOptions.CompareOptions(changeThreshold = 0.015f)` 在本地 Debian 与 GitHub Actions `ubuntu-latest` 之间稳定通过。
 - **[M0] 本机 GitHub PAT 权限**：本机 `gh` PAT 具备 `contents: write` 与 `workflows: write` 权限，未开 `pull_requests: write`，可通过 `feat/**` 分支推送直接触发 CI 验证，验收后合入 `main`。
 - **[M1.1] 非交互 Shell 本地跑 Android Gradle 任务**：本机 Android SDK 位于 `/data/home/android-sdk`，非交互 Shell 需显式传 `ANDROID_HOME=/data/home/android-sdk`（切勿创建/提交 `local.properties`）。
 - **[M1.2] Room 主表更新严禁使用 `OnConflictStrategy.REPLACE`**：SQLite 对 `REPLACE` 按 `DELETE + INSERT` 实现，会误触发 `attachments` 的 `ON DELETE CASCADE` 与 `transactions.ref_transaction_id` / `loan_installments.transaction_id` 的 `ON DELETE SET NULL`；主表更新必须统一用 `@Upsert`（`ON CONFLICT DO UPDATE`），仅精准替换子表分录与标签关联。
 - **[M1.3] `:core:database` 对外暴露 `DropletDatabase` 需用 `api(libs.room.runtime)`**：`:app` 的 Hilt DI 模块直接返回 `DropletDatabase` 时，Kotlin 编译器需要解析其超类 `RoomDatabase`，因此在 `core/database/build.gradle.kts` 中应将 `room-runtime`/`room-ktx` 声明为 `api`。
 - **[M1.3] Room Flow 筛选切换防闪烁 & Roborazzi 跨时区确定性**：多查询随筛选条件联动时，须在单个 `flatMapLatest` 内 `combine` 列表流与汇总流，避免旧结果与新筛选条件拼帧；涉及日期文本的 Roborazzi 测试须固定 `TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"))` 并在 `@After` 恢复，确保本机与 UTC CI 像素一致；本机 8 GB 无 Swap 环境并行跑 Robolectric + Roborazzi 时建议加 `--max-workers=2`。
+- **[M1.4] `BiometricPrompt` 设备锁屏兜底 & `AUTHENTICATING` 态切后台保活**：允许 `DEVICE_CREDENTIAL` 时严禁同时调用 `setNegativeButtonText`（否则抛出 `IllegalArgumentException`）；唤起系统 PIN/密码验证页会触发 `ProcessLifecycleOwner.ON_STOP`，`AppLockStateMachine` 在 `AUTHENTICATING` 态收到 `onAppBackgrounded()` 时须保持认证中状态，避免解锁成功回调被误重锁。
+- **[M1.4] `AppLockOverlay` 触摸拦截与 Roborazzi 语义树 / DataStore 单测隔离 / gitleaks 熵检**：全屏遮罩拦截底层触摸应使用 `Modifier.pointerInput` 消费事件而非 `Modifier.clickable`（避免 `mergeDescendants = true` 合并子语义节点并干扰 TalkBack 与测试断言）；DataStore 单测须通过 `PreferenceDataStoreFactory.create` 绑定独立临时文件并在 `finally` 中 `cancelAndJoin()` 防止多实例冲突；公开仓测试样例字符串须避免高熵值紧邻 `secret`/`token` 变量名以防误触 `gitleaks` 的 `generic-api-key` 规则。
