@@ -1,0 +1,59 @@
+# ==============================================================================
+# Droplet 记账 — 严格防泄露与 Android / Gradle 忽略清单
+# ==============================================================================
+
+# --- 绝对禁止入库的密钥、凭据与本地环境配置 ---
+local.properties
+secrets.properties
+signing.properties
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.crt
+*.cer
+.env
+.env.*
+google-services.json
+firebase-debug.log*
+service-account*.json
+
+# --- 个人真实财务数据与临时测试票据 ---
+real-data/
+private-fixtures/
+*.drp
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# --- Gradle / Android 构建产物 ---
+.gradle/
+build/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+*.log
+
+# --- IDE / 编辑器 ---
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- 操作系统垃圾文件 ---
+.DS_Store
+Thumbs.db
+Desktop.ini
