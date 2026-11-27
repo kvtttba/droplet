@@ -481,7 +481,7 @@ class DropletAppScreenshotTest {
         }
 
         composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
-        composeRule.onNodeWithTag("assets_position_snap-asset-btc").performClick()
+        composeRule.onNodeWithTag("assets_position_BTC").performClick()
         composeRule.onNodeWithTag("screen_investment_detail").assertIsDisplayed()
         composeRule.onNodeWithTag("investment_detail_back").performClick()
 

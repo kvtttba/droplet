@@ -831,6 +831,7 @@ internal fun ManualQuoteOverrideBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 28.dp)
                 .testTag("manual_override_sheet"),
@@ -912,6 +913,7 @@ internal fun BankWealthValuationBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 28.dp)
                 .testTag("bank_wealth_valuation_sheet"),

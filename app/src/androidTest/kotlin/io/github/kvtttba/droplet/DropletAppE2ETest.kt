@@ -175,10 +175,13 @@ class DropletAppE2ETest {
         composeRule.onNodeWithTag("create_asset_submit_button").performScrollTo().performClick()
 
         // 3. Open the newly created holding detail screen from Assets overview
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("create_asset_sheet")).fetchSemanticsNodes().isEmpty()
+        }
         composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 10_000)
         composeRule.onNodeWithTag("screen_assets").performScrollToKey("investments_card")
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("assets_position_title_510300"), timeoutMillis = 10_000)
-        composeRule.onNodeWithTag("assets_position_title_510300").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("assets_position_510300"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("assets_position_510300").performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_investment_detail"), timeoutMillis = 5_000)
 
         // 4. Record a buy transaction: 100 units @ ¥10.00 = ¥1,000.00
@@ -192,7 +195,10 @@ class DropletAppE2ETest {
         Espresso.closeSoftKeyboard()
         composeRule.onNodeWithTag("buy_submit_button").performScrollTo().performClick()
 
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("detail_market_value"), timeoutMillis = 5_000)
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("buy_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("investment_detail_list").performScrollToKey("detail_hero_card")
         composeRule.waitUntil(timeoutMillis = 10_000) {
             runCatching {
                 composeRule.onNodeWithTag("detail_market_value").assertTextContains("1,000.00", substring = true)
@@ -206,8 +212,12 @@ class DropletAppE2ETest {
         composeRule.waitUntilAtLeastOneExists(hasTestTag("manual_override_sheet"), timeoutMillis = 5_000)
         composeRule.onNodeWithTag("override_price_input").performTextReplacement("12.50")
         Espresso.closeSoftKeyboard()
-        composeRule.onNodeWithTag("override_submit_button").performClick()
+        composeRule.onNodeWithTag("override_submit_button").performScrollTo().performClick()
 
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("manual_override_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("investment_detail_list").performScrollToKey("detail_hero_card")
         composeRule.waitUntil(timeoutMillis = 10_000) {
             runCatching {
                 composeRule.onNodeWithTag("detail_market_value").assertTextContains("1,250.00", substring = true)

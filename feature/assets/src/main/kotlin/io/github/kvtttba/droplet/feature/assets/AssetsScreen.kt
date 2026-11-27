@@ -754,7 +754,7 @@ private fun InvestmentPositionRow(
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp)
-            .testTag("assets_position_${asset.id}"),
+            .testTag("assets_position_${asset.symbol}"),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -791,7 +791,6 @@ private fun InvestmentPositionRow(
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag("assets_position_title_${asset.symbol}"),
                     )
                     DropletPillBadge(
                         text = AssetsFormatters.assetClassLabel(asset.assetClass),
