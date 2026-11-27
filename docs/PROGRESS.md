@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-- **当前阶段**：`M1.1`（复式记账引擎与三币种 Trading 对冲）已完成验收并合入 `main`。
-- **下一个待执行切片**：**`M1.2`**（Room Schema、DAO 与预置分类/账户）
-- **最新已合入提交**：`feat/m1-1-ledger-engine` 合入 `main`（CI 全线绿灯，详见 `git log`）
+- **当前阶段**：`M1.2`（Room Schema、DAO 与预置分类/账户）已完成验收并合入 `main`。
+- **下一个待执行切片**：**`M1.3`**（明细首页、账户/标签管理与记账表单）
+- **最新已合入提交**：`feat/m1-2-room-database` 合入 `main`（CI 全线绿灯，详见 `git log`）
 
 ---
 
@@ -31,8 +31,8 @@
 | `DOCS` | 需求澄清与架构定稿 | ✅ 已完成 | `PRD.md`、`ARCHITECTURE.md`、`AGENTS.md`、`PROGRESS.md`、`.gitignore` | 初始文档提交 (`4a6eb00`) |
 | `M0` | 工程骨架与 CI 跑通 | ✅ 已完成 | 14 模块 Gradle 结构、Material 3 主题与 4 Tab 占位壳、`gitleaks`、GitHub Actions（L1 单测 + Roborazzi 8 张截图 + API 31 KVM 模拟器 E2E + 12 MB Debug APK）全绿 | `feat/m0-scaffold-ci` 已验收合入（CI `#45964751721`） |
 | `M1.1` | 复式记账引擎与三币种 Trading 对冲 | ✅ 已完成 | `core:model` 全套复式模型 + `core:domain` 平衡校验/三币种 Trading 自动对冲/反推汇率/历史快照锁定/18 类分录 Builder + 85 项 L1 单测全绿 | `feat/m1-1-ledger-engine` 已验收合入（CI `#45968558544`） |
-| `M1.2` | Room Schema、DAO 与预置分类/账户 | ⬜ 待开始 | `core:database` 全量表结构、预置二级分类/系统科目、L2 Robolectric + Room 测试 | 下一切片 |
-| `M1.3` | 明细首页、账户/标签管理与记账表单 | ⬜ 待开始 | 首页流水与筛选、账户与分类/标签 CRUD、一木式表单 + 专业分录展开、Roborazzi 截图 + APK | — |
+| `M1.2` | Room Schema、DAO 与预置分类/账户 | ✅ 已完成 | `:core:model` 跨模块扩展模型 + `:core:database` 全量 16 表 Room Schema/JSON 导出、强一致 `@Transaction` 复式校验写入器、多维 Flow 查询 DAO、WAL `VACUUM INTO` 快照导出、幂等预置初始化 + 18 项 L2 Robolectric/Room 测试（总 115 项测试全绿） | `feat/m1-2-room-database` 已验收合入（CI `#45971965896`） |
+| `M1.3` | 明细首页、账户/标签管理与记账表单 | ⬜ 待开始 | 首页流水与筛选、账户与分类/标签 CRUD、一木式表单 + 专业分录展开、Roborazzi 截图 + APK | 下一切片 |
 | `M1.4` | 生物识别隐私锁、重锁与金额隐藏 | ⬜ 待开始 | `BiometricPrompt`、切后台超时重锁、`FLAG_SECURE`、首页/资产一键隐身 | — |
 | `M2.1` | 免费公开汇率与全品类行情 Provider 链 | ⬜ 待开始 | CNY/USD/HKD 汇率 + 9 类资产公开源适配、降级缓存、可选代理、Mock 测试 | — |
 | `M2.2` | 投资持仓引擎与定存/理财计算 | ⬜ 待开始 | 买/卖/定投/分红、加权成本与浮盈、定期存款自动计息、银行理财手动更新 | — |
@@ -59,18 +59,30 @@
 1. **领域模型 (`:core:model`)**：已补齐 `Account`（5 大 `AccountType` + 13 种 `AccountSubType` 合法配对校验 + 信用账户字段校验）、`SystemAccounts`（确定性系统权益科目 ID：`system:equity:trading:{CCY}`、`system:equity:opening:{CCY}`）、`Transaction`、`Posting`、`ExchangeRateSnapshot`（含 `ExchangeRateSource`、`convert`、`inverse`、`impliedFromAmounts`）、`Quantity`（有符号 8 位规范 `BigDecimal` 文本）、`UnitPrice`（非负 8 位单价）及业务枚举（`TransactionDisplayType`、`TransactionStatus`、`TransactionSource`、`ReimburseState`）；`Money` 补齐 `Long.MIN_VALUE` 防溢出与 `fromBigDecimal` / `sumOf`。
 2. **复式引擎 (`:core:domain`)**：位于 `io.github.kvtttba.droplet.core.domain.ledger`，包含 `LedgerValidator`（单/多币种零和校验、溢出检测、单币种禁混 Trading、投资份额与账户注册表校验）、`TradingAutoHedger`（CNY/USD/HKD 二/三币种自动补齐 `Equity:Trading:{CCY}`、实付/实收反推汇率、零舍入残差锁定、幂等重平衡）、`ExchangeRateTable`（直查/取倒/三币种高精度三角换算/覆写）、`LedgerEngine`（覆盖全部典型业务场景的 18 类 Builder + 专业多拆分录直通）与 `LedgerAggregator`（历史本位币锁定汇总、实时估值、多次退款净支出重算）。
 
-### M1.2 启动入口契约（Room Schema、DAO 与预置分类/账户）
-1. 从 `main` 切出分支 `feat/m1-2-room-database`，在 `:core:database` 完成全量 Room 数据库、DAO、原子写入封装、预置初始化与高覆盖 L2 Robolectric + Room 测试（如有共用实体如 `Tag`、`Attachment` 等需跨模块复用，可补齐至 `:core:model`）。
-2. 严格按 `docs/ARCHITECTURE.md` 第 3 节落齐 Room Entities、索引、外键级联约束与 TypeConverters，沿用 `DropletDatabaseContract`（`DATABASE_NAME = "droplet_ledger.db"`，`SCHEMA_VERSION = 1`）并配置 Room `exportSchema = true`（导出 JSON Schema）：
-   - 核心账本：`accounts`、`transactions`、`postings`（`ON DELETE CASCADE`）、`tags`、`transaction_tags`（复合主键 + 反向索引）、`attachments`；
-   - 投资/行情/汇率：`investment_assets`、`market_quotes`、`exchange_rates`；
-   - 贷款/借贷/工具：`loan_plans`、`loan_installments`、`debt_profiles`、`budgets`、`recurring_rules`、`templates`、`ai_drafts`。
-3. 落齐核心 DAO 与事务性写入封装：
-   - 交易写入必须在 Room `@Transaction` 内先经 `LedgerValidator.requireValid(...)` 校验后再原子写入 `transactions` + `postings` + `transaction_tags`，杜绝绕过复式不变量的脏数据；
-   - 提供 Flow 响应式查询：按月份/日期区间/多标签/账户/分类/关键词筛选流水、按账户聚合原币种余额与历史锁定本位币汇总、关联退款与待报销查询；
-   - 提供 `PRAGMA wal_checkpoint(TRUNCATE)` / `VACUUM INTO` 一致性快照导出能力，为 M5.3 WebDAV 备份预留接口。
-4. 实现幂等预置初始化（`DefaultLedgerSeeder`）：必须复用 `:core:model` 的 `SystemAccounts` 确定性 ID 预置全部 `Equity:Trading:{CCY}` 与 `Equity:OpeningBalance:{CCY}` 系统科目，同时预置常用默认账户、一木风格常用支出/收入**二级分类**（大类 + 小类）与常用标签。
-5. 配齐高覆盖 L2 Robolectric + Room 单测（全表 CRUD、外键级联、非法不平衡交易事务回滚、多标签交并筛选与历史本位币聚合、预置初始化幂等、WAL 快照一致性导出），确保本地单测、`gitleaks` 与 GitHub Actions 全线 CI 绿灯。
+### M1.2 已落地的核心约定
+1. **跨模块扩展模型 (`:core:model`)**：补齐 `Tag`、`Attachment`、`AssetClass`、`DepositInterestMode`、`InvestmentAsset`、`MarketQuote`、`CachedExchangeRate`（含 `toSnapshot()`）、`LoanMethod`、`InstallmentStatus`、`LoanPlan`、`LoanInstallment`、`DebtProfile`、`BudgetPeriod`、`Budget`、`RecurringFrequency`、`RecurringRule`、`TransactionTemplate`、`AiDraftInputType`、`AiDraftStatus`、`AiDraft`，全量遵循无浮点铁律。
+2. **全量 Room 数据库 (`:core:database`)**：`DropletDatabase`（`DATABASE_NAME = "droplet_ledger.db"`，`SCHEMA_VERSION = 1`，默认 WAL 模式，`exportSchema = true` 导出 `core/database/schemas/.../DropletDatabase/1.json`）涵盖全部 16 张表（`accounts`、`transactions`、`postings`、`tags`、`transaction_tags`、`attachments`、`investment_assets`、`market_quotes`、`exchange_rates`、`loan_plans`、`loan_installments`、`debt_profiles`、`budgets`、`recurring_rules`、`templates`、`ai_drafts`）与外键级联/限制/置空、索引及 `DropletTypeConverters`。
+3. **事务写入、Flow 查询、预置与快照**：
+   - `LedgerTransactionWriter` 在 Room 事务内加载实时账户并执行 `LedgerValidator.requireValid(...)`，通过 `@Upsert` 原子写入 `transactions` + `postings` + `transaction_tags`（不触发附件/引用误级联），支持单笔、批量、作废与报销状态更新；
+   - `TransactionDao`（配 `TransactionFilter` / `TagFilterMode.ANY|ALL` / `TransactionFilterSqlBuilder`）提供多维筛选、账户原币种余额、历史锁定本位币汇总、关联退款与待报销 Flow 查询；其余 12 个 DAO 覆盖全部表 CRUD，`ExchangeRateEntity` 列表支持 `.toExchangeRateTable()` 桥接；
+   - `DefaultLedgerSeeder` / `DefaultSeedCatalog` 复用 `SystemAccounts` 确定性 ID 幂等预置 6 个系统权益科目、系统待报销户、5 个日常账户、一木风格 10 大类支出 / 3 大类收入二级分类与 7 个默认标签；
+   - `DatabaseSnapshotExporter` 提供 `PRAGMA wal_checkpoint(TRUNCATE)` + 原子临时文件 `VACUUM INTO` + `PRAGMA integrity_check` + SHA-256 校验导出。
+
+### M1.3 启动入口契约（明细首页、账户/标签管理与记账表单）
+1. 从 `main` 切出分支 `feat/m1-3-ledger-ui-and-forms`，在 `:app` 补齐 Hilt DI 模块，绑定 `DropletDatabase`、各 DAO、`LedgerTransactionWriter`、`DefaultLedgerSeeder`、`LedgerEngine` 与仓储层；App 启动时自动异步幂等执行 `DefaultLedgerSeeder.seedIfNeeded()`。
+2. **明细首页（`:feature:ledger`）**：替换 M0 静态占位列表，接入 Room `Flow` 实时展示：
+   - 顶部月度总支出 / 总收入 / 结余汇总卡（强制接入 `LocalAmountsHidden` 全局隐私隐藏与等宽数字 `tabular-nums`，历史汇总直取 `TransactionDao.observePeriodSummary` / `observeFilteredPeriodSummary` 锁定本位币）；
+   - 多维筛选条（月份切换、多标签交并筛选、账户筛选、父/子分类筛选、关键词搜索）；
+   - 按日期分组的流水列表（分类图标与主题色、商户/备注、标签 Chips、账户、金额及待报销/退款状态角标），点击支持查看/编辑/作废/删除（删除或作废后汇总与列表实时刷新）。
+3. **一木式直观记账表单 + 专业分录展开模式（`:feature:ledger`）**：
+   - 直观模式默认支持「支出」「收入」「转账/还款」三 Tab：单手友好金额输入、一木风格二级分类选择（大类展开小类）、付款/收款账户选择（支持 CNY/USD/HKD 币种及跨币种实付+实收自动反推汇率）、日期时间、多标签选择、商户/备注、可选优惠/手续费与「待报销」开关；
+   - 一键展开/切换「专业多拆分录模式」：自由增减借方/贷方分录行，实时调用 `LedgerValidator.computeCurrencyImbalances(...)` 展示各币种借贷差额，归零后经 `LedgerTransactionWriter.saveTransaction(...)` 原子入账，并支持已有流水的编辑保存。
+4. **账户、二级分类与标签管理（`:feature:ledger` / `:feature:settings`）**：
+   - 账户管理页：支持新增/编辑/归档/恢复账户（支持设置初始余额并通过 `LedgerEngine.buildOpeningBalance` 平衡入 `Equity:OpeningBalance:{CCY}`、配置「是否计入总资产」开关与信用账户基础参数）；
+   - 分类与标签管理页：支持支出/收入二级分类（大类 + 小类）与多标签的增删改、颜色/图标配置与归档。
+5. **测试与视觉验收门禁**：
+   - 配齐 ViewModel / Repository 的 L2 Robolectric 测试（真实入账、编辑、筛选、期初余额、多标签交并、跨币种入账与隐私态）；
+   - 更新并补齐 `:app` Roborazzi 高清黄金截图（明细首页浅/深色与隐身态、一木式记账表单、专业分录展开态、账户/分类/标签管理页）与 API 31 模拟器 E2E 测试（真实记账 → 列表与月度汇总实时更新 → 筛选与隐身验证），确保本地单测、`verifyRoborazziDebug`、`gitleaks` 与 GitHub Actions 全线 CI 绿灯并输出精简 Debug APK。
 
 ---
 
@@ -82,3 +94,4 @@
 - **[M0] Roborazzi + Hilt 兼容性**：纯 Compose 截图测试使用 `@Config(application = Application::class, sdk = [35], qualifiers = "w412dp-h915dp-xxhdpi")` 跳过 `DropletApplication` 的 `@HiltAndroidApp` 初始化，配合 `RoborazziOptions.CompareOptions(changeThreshold = 0.015f)` 在本地 Debian 与 GitHub Actions `ubuntu-latest` 之间稳定通过。
 - **[M0] 本机 GitHub PAT 权限**：本机 `gh` PAT 具备 `contents: write` 与 `workflows: write` 权限，未开 `pull_requests: write`，可通过 `feat/**` 分支推送直接触发 CI 验证，验收后合入 `main`。
 - **[M1.1] 非交互 Shell 本地跑 Android Gradle 任务**：本机 Android SDK 位于 `/data/home/android-sdk`，非交互 Shell 需显式传 `ANDROID_HOME=/data/home/android-sdk`（切勿创建/提交 `local.properties`）。
+- **[M1.2] Room 主表更新严禁使用 `OnConflictStrategy.REPLACE`**：SQLite 对 `REPLACE` 按 `DELETE + INSERT` 实现，会误触发 `attachments` 的 `ON DELETE CASCADE` 与 `transactions.ref_transaction_id` / `loan_installments.transaction_id` 的 `ON DELETE SET NULL`；主表更新必须统一用 `@Upsert`（`ON CONFLICT DO UPDATE`），仅精准替换子表分录与标签关联。
