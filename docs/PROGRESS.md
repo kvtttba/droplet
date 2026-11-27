@@ -4,22 +4,23 @@
 
 ## 当前状态
 
-- **当前阶段**：需求澄清与架构设计已完成（v1.0 定稿），准备开启 **M0**。
-- **下一个待执行切片**：**`M0`**（工程骨架 + Material 3 主题 + GitHub Actions CI 全线跑通）
-- **最新已合入提交**：需求文档初始化提交（见 `git log`）
+- **当前阶段**：`M0`（工程骨架 + Material 3 主题与 4 Tab 占位壳 + Roborazzi 截图测试 + gitleaks + GitHub Actions API 31 模拟器 CI）已完成验收并合入 `main`。
+- **下一个待执行切片**：**`M1.1`**（复式记账引擎与三币种 Trading 对冲）
+- **最新已合入提交**：`feat/m0-scaffold-ci` 合入 `main`（CI 全线绿灯，详见 `git log`）
 
 ---
 
 ## 已锁定基线摘要（勿重复讨论）
 
 - **应用定位**：Droplet 记账，Android 单端（`minSdk = 31` / Android 12+），个人自用，无登录、本地优先，纯净无广告。
-- **技术栈**：Kotlin + Jetpack Compose + Material 3（支持动态配色与暗黑模式）+ Room + WorkManager + OkHttp + Kotlinx Serialization。
+- **包名与工程标识**：`applicationId = "io.github.kvtttba.droplet"`，Debug APK 输出名 `droplet-debug.apk`。
+- **技术栈与已锁定版本基线**：Gradle 8.11.1 + Kotlin DSL + `gradle/libs.versions.toml`；AGP 8.9.3、Kotlin 2.1.21、KSP 2.1.21-2.0.1、Hilt 2.56.2、Compose BOM 2025.05.01、Navigation Compose 2.8.9、Room 2.7.1、WorkManager 2.10.1、OkHttp 4.12.0、Kotlinx Serialization 1.8.1、Robolectric 4.14.1、Roborazzi 1.44.0；`compileSdk = 35` / `targetSdk = 35` / `minSdk = 31`，JVM 17 字节码目标（OpenJDK 21 运行环境兼容）。
 - **核心账本**：单账本 + 多标签；底层严格复式（法币 4 位定点 `Long`，投资/加密份额 8 位 `BigDecimal`，跨币种隐式 `Equity:Trading` 对冲）；前端一木式直观表单 + 可展开专业分录模式；支持 **CNY / USD / HKD**（默认本位币 CNY）。
 - **资产与行情**：覆盖 A 股、公募基金、ETF、港股、美股、贵金属/黄金、加密货币、定期存款、银行理财；免费公开行情（国内直连源优先 + 备用源 + 可选代理 + 失败保留缓存并支持手动覆写），进资产页刷新 + 后台定时更新。
 - **信贷/借贷/报销/退款**：信用卡额度/账单日/还款日提醒；等额本息/等额本金/固定手续费分期自动生成还款分录与提醒；往来借贷（分次还/利息/坏账）；待报销冲抵；多次关联退款。
 - **AI 记账**：不做无障碍/通知栏抓账；支持图片（小票汇总/单张截图/长截图/批量多图/系统分享）、语音（AI 接口 + 系统语音双模式）、一句话文本；OpenAI Compatible 自定义 `BaseURL`/`API Key`/`Model`（视觉/文本/语音可复用或分设）；仅传名称列表不传余额与流水；支持离线草稿与人工确认入账。
 - **同步与隐私**：`BiometricPrompt` + 锁屏兜底 + 切后台重锁 + `FLAG_SECURE` + 一键隐藏金额；WebDAV 单机加密快照备份恢复（AES-256-GCM，防抖自动上传 + 定时 + 历史快照 + 票据图同步开关）。
-- **测试与安全**：Public 公开仓，强制 `.gitignore` + `gitleaks` + GitHub Secret Scanning / Push Protection；GitHub Actions `ubuntu-latest`（4C16G + KVM）跑 L1 单测 / L2 Robolectric+Room / L3 Roborazzi UI 截图 / L4 API 31 模拟器 E2E + 输出 Debug APK。
+- **测试与安全**：Public 公开仓，强制 `.gitignore` + `.gitleaks.toml` + `scripts/pre-commit-secret-check.sh` + GitHub Actions（`permissions: contents: read`）跑 L1 单测 / L2 Robolectric+Room / L3 Roborazzi UI 截图 / L4 KVM API 31 模拟器 E2E + 输出 `droplet-debug.apk`。
 
 ---
 
@@ -27,9 +28,9 @@
 
 | 编号 | 切片名称 | 状态 | 核心交付与验收标准 | PR / 备注 |
 | --- | --- | --- | --- | --- |
-| `DOCS` | 需求澄清与架构定稿 | ✅ 已完成 | `PRD.md`、`ARCHITECTURE.md`、`AGENTS.md`、`PROGRESS.md`、`.gitignore` | 初始文档提交 |
-| `M0` | 工程骨架与 CI 跑通 | ⬜ 待开始 | Gradle 多模块结构、Material 3 主题与 4 Tab 占位壳、`gitleaks`、GitHub Actions（单测 + Roborazzi 截图 + API 31 模拟器 + Debug APK）全绿 | 下一切片 |
-| `M1.1` | 复式记账引擎与三币种 Trading 对冲 | ⬜ 待开始 | `core:model` + `core:domain` 复式校验、定点数/BigDecimal、跨币种对冲、L1 高覆盖单测 | — |
+| `DOCS` | 需求澄清与架构定稿 | ✅ 已完成 | `PRD.md`、`ARCHITECTURE.md`、`AGENTS.md`、`PROGRESS.md`、`.gitignore` | 初始文档提交 (`4a6eb00`) |
+| `M0` | 工程骨架与 CI 跑通 | ✅ 已完成 | 14 模块 Gradle 结构、Material 3 主题与 4 Tab 占位壳、`gitleaks`、GitHub Actions（L1 单测 + Roborazzi 8 张截图 + API 31 KVM 模拟器 E2E + 12 MB Debug APK）全绿 | `feat/m0-scaffold-ci` 已验收合入（CI `#45964751721`） |
+| `M1.1` | 复式记账引擎与三币种 Trading 对冲 | ⬜ 待开始 | `core:model` + `core:domain` 复式校验、定点数/BigDecimal、跨币种对冲、L1 高覆盖单测 | 下一切片 |
 | `M1.2` | Room Schema、DAO 与预置分类/账户 | ⬜ 待开始 | `core:database` 全量表结构、预置二级分类/系统科目、L2 Robolectric + Room 测试 | — |
 | `M1.3` | 明细首页、账户/标签管理与记账表单 | ⬜ 待开始 | 首页流水与筛选、账户与分类/标签 CRUD、一木式表单 + 专业分录展开、Roborazzi 截图 + APK | — |
 | `M1.4` | 生物识别隐私锁、重锁与金额隐藏 | ⬜ 待开始 | `BiometricPrompt`、切后台超时重锁、`FLAG_SECURE`、首页/资产一键隐身 | — |
@@ -49,15 +50,27 @@
 
 ## 关键决策与交接备忘（给下一个切片）
 
-### M0 启动入口契约
-1. 建立 [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) 第 1 节定义的 Gradle 多模块目录结构（采用 Kotlin DSL `*.gradle.kts` + Version Catalog `gradle/libs.versions.toml`）。
-2. 配置 `minSdk = 31`、`targetSdk = 35`、`compileSdk = 35`、Java/Kotlin 目标 JVM 17（Gradle 运行环境 OpenJDK 21 兼容）。
-3. 搭建 Material 3（Android 12+ Dynamic Color + 深浅色模式）主题与底部 4 Tab（明细 / 资产 / 统计 / 我的）+ 悬浮快捷记账按钮的干净 UI 壳，并接入 Roborazzi 截图测试，产出首页/资产页占位渲染图。
-4. 编写 `.github/workflows/android-ci.yml`，串联 `gitleaks` 扫描、`testDebugUnitTest`（含 Roborazzi）、`ubuntu-latest` KVM API 31 模拟器 `connectedDebugAndroidTest` 与 Debug APK 构建产物上传。
-5. 遵守公开仓库安全红线，禁止提交任何本地配置、私钥或敏感信息。
+### M0 已落地的核心约定
+1. **模块分工**：`core:model`、`core:domain`、`core:network` 为纯 Kotlin/JVM 模块（零 Android 依赖，秒级单测）；`core:database`、`core:security`、`core:ai`、`core:sync`、`core:ui` 与 5 个 `feature:*` 模块及 `app` 为 Android 模块；开启 `TYPESAFE_PROJECT_ACCESSORS`。
+2. **金额与隐私组件**：`core:model` 已提供 `Currency`、`AccountType`、`Money`（`scale = 4` 严格定点 `Long`）；`core:domain` 提供 `PrivacyAmountFormatter`；`core:ui` 提供 `DropletTheme`、`DropletIcons`、`LocalAmountsHidden`、`PrivacyAmountText` 与 `PrivacyToggleIconButton`。
+3. **CI 门禁**：`.github/workflows/android-ci.yml` 在 `main` / `feat/**` / `fix/**` 推送与 PR 时自动运行 3 个 Job（`security-scan`、`unit-and-ui-snapshot`、`build-and-emulator-e2e`）。
+
+### M1.1 启动入口契约（复式记账引擎与三币种 Trading 对冲）
+1. 从 `main` 切出分支 `feat/m1-1-ledger-engine`，在纯 JVM 模块 `:core:model` 与 `:core:domain` 中完成全部实现与高覆盖 L1 单元测试。
+2. `:core:model` 补齐领域模型：`Account`（含 5 大 `AccountType` 与 `AccountSubType`、信用账户字段）、`Transaction`、`Posting`、`ExchangeRateSnapshot`、`Quantity`（`BigDecimal` 规范字符串，支持 8 位精度）及业务枚举（`TransactionDisplayType`、`TransactionStatus`、`TransactionSource`、`ReimburseState`）。
+3. `:core:domain` 实现复式记账核心引擎与生成器：
+   - **借贷平衡校验器**：单币种 `SUM(amount_minor) == 0`；多币种按币种分组各自 `SUM(amount_minor) == 0`；禁止零行或单行分录。
+   - **三币种（CNY / USD / HKD）隐式 `Equity:Trading:{CCY}` 自动对冲器**：跨币种消费/转账/换汇时自动补齐对应 `isSystemBalancing = true` 的 Trading 平衡行，并支持按实付+实收金额反推成交汇率。
+   - **历史本位币快照锁定**：为每条 `Posting` 依据交易时汇率快照计算并锁定 `baseAmountMinor` 与 `exchangeRateSnapshot`，后续汇率变化不漂移。
+   - **典型业务场景分录 Builder**：普通支出（含优惠/手续费）、收入、同币种与跨币种转账/还款、部分/多次关联退款、待报销垫付与差额冲抵、借出/借入与分次还款含息/坏账核销、分期贷款拆本息还款、投资买入/卖出/分红、专业多拆分录直通校验。
+4. 配齐高覆盖 L1 边界单测（舍入精度、大额溢出防护、跨币种反推汇率、负金额/零金额拒绝、所有典型业务场景代数和归零不变量），确保 `./gradlew :core:model:test :core:domain:test` 与 GitHub Actions 全绿。
 
 ---
 
 ## 踩坑记录
 
-- （暂无，开发过程中按切片持续补充）
+- **[M0] OpenJDK 21 下纯 JVM 模块编译目标**：纯 JVM 模块不要写 `kotlin { jvmToolchain(17) }`（会触发下载独立 JDK 17），统一使用 `java.sourceCompatibility/targetCompatibility = JavaVersion.VERSION_17` + `kotlin.compilerOptions.jvmTarget = JvmTarget.JVM_17`。
+- **[M0] 纯 JVM 单测与 Android Release 编译提速**：执行 `./gradlew :core:model:test :core:domain:test :core:network:test testDebugUnitTest`，避免根任务 `./gradlew test` 触发所有 Android 模块的 Release 单测编译。
+- **[M0] Debug APK 体积控制**：`material-icons-extended` 会让未混淆 Debug APK 膨胀至 59 MB；改用 `core:ui` 精选矢量 `DropletIcons` + `packaging.dex.useLegacyPackaging = true` 后 Debug APK 降至 ~12 MB，便于飞书直接交付与真机快速安装。
+- **[M0] Roborazzi + Hilt 兼容性**：纯 Compose 截图测试使用 `@Config(application = Application::class, sdk = [35], qualifiers = "w412dp-h915dp-xxhdpi")` 跳过 `DropletApplication` 的 `@HiltAndroidApp` 初始化，配合 `RoborazziOptions.CompareOptions(changeThreshold = 0.015f)` 在本地 Debian 与 GitHub Actions `ubuntu-latest` 之间稳定通过。
+- **[M0] 本机 GitHub PAT 权限**：本机 `gh` PAT 具备 `contents: write` 与 `workflows: write` 权限，未开 `pull_requests: write`，可通过 `feat/**` 分支推送直接触发 CI 验证，验收后合入 `main`。
