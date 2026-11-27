@@ -370,6 +370,70 @@ class DropletAppE2ETest {
         }
     }
 
+    @Test
+    fun test04_endToEndInstallmentLoanCreateScheduleCheckAndFirstRepayment() {
+        // 1. Navigate to Assets tab and open Create Installment Loan sheet
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("nav_tab_assets"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("nav_tab_assets").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 10_000)
+
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_loans_header")
+        composeRule.onNodeWithTag("assets_add_loan_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("create_loan_sheet"), timeoutMillis = 5_000)
+
+        // 2. Fill fixed-fee installment loan: ¥6,000 / 6 periods / ¥30 fee per period -> ¥1,000 principal + ¥30 fee
+        composeRule.onNodeWithTag("create_loan_name_input").performTextReplacement("测试电脑分期")
+        composeRule.onNodeWithTag("create_loan_method_FIXED_FEE").performScrollTo().performClick()
+        composeRule.onNodeWithTag("create_loan_principal_input").performScrollTo().performTextReplacement("6000")
+        composeRule.onNodeWithTag("create_loan_periods_input").performScrollTo().performTextReplacement("6")
+        composeRule.onNodeWithTag("create_loan_fixed_fee_input").performScrollTo().performTextReplacement("30")
+        composeRule.onNodeWithTag("create_loan_payment_储蓄卡").performScrollTo().performClick()
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("create_loan_submit_button").performScrollTo().performClick()
+
+        // 3. Wait for sheet dismissal, scroll to Installment Loans section, and open Loan Detail
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("create_loan_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_loans")
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("assets_loan_测试电脑分期"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("assets_loan_测试电脑分期").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_loan_detail"), timeoutMillis = 5_000)
+
+        // 4. Verify initial remaining principal (¥6,000.00), loan liability (-¥6,000.00), and schedule row 1
+        composeRule.onNodeWithTag("loan_detail_list").performScrollToKey("loan_hero_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("loan_detail_remaining_principal").assertTextContains("6,000.00", substring = true)
+                composeRule.onNodeWithTag("loan_detail_account_balance").assertTextContains("-¥6,000.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("loan_detail_list").performScrollToKey("loan_schedule_card")
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("loan_installment_row_1"), timeoutMillis = 5_000)
+
+        // 5. Confirm period 1 repayment via one-tap action and confirm liability + remaining principal drop to ¥5,000.00
+        composeRule.onNodeWithTag("loan_detail_list").performScrollToKey("loan_actions_card")
+        composeRule.onNodeWithTag("loan_repay_next_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("loan_repay_sheet"), timeoutMillis = 5_000)
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("loan_repay_confirm_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("loan_repay_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("loan_detail_list").performScrollToKey("loan_hero_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("loan_detail_remaining_principal").assertTextContains("5,000.00", substring = true)
+                composeRule.onNodeWithTag("loan_detail_account_balance").assertTextContains("-¥5,000.00", substring = true)
+                composeRule.onNodeWithTag("loan_detail_progress_label").assertTextContains("1/6", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+    }
+
     private fun isFlagSecureApplied(): Boolean {
         var applied = false
         composeRule.activityRule.scenario.onActivity { activity ->

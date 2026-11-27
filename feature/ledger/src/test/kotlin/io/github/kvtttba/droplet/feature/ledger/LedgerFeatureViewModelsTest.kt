@@ -155,7 +155,9 @@ class LedgerFeatureViewModelsTest {
 
         // 6. Delete -> removed permanently
         ledgerVm.deleteTransaction(createdItem.id)
-        val stateAfterDelete = ledgerVm.uiState.awaitFirst { it.transactionCount == 0 }
+        val stateAfterDelete = ledgerVm.uiState.awaitFirst {
+            it.transactionCount == 0 && it.monthlyExpense == Money.zero(Currency.CNY)
+        }
         assertEquals(Money.zero(Currency.CNY), stateAfterDelete.monthlyExpense)
     }
 

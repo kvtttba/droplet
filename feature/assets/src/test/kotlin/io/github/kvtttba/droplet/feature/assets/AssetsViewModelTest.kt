@@ -3,10 +3,14 @@ package io.github.kvtttba.droplet.feature.assets
 import io.github.kvtttba.droplet.core.database.dao.AccountCurrencyBalanceRow
 import io.github.kvtttba.droplet.core.database.dao.PeriodSummaryRow
 import io.github.kvtttba.droplet.core.database.dao.TransactionFilter
+import io.github.kvtttba.droplet.core.database.repository.AutoPostDueInstallmentsReport
 import io.github.kvtttba.droplet.core.database.repository.CreateInvestmentAssetRequest
+import io.github.kvtttba.droplet.core.database.repository.CreateLoanPlanRequest
 import io.github.kvtttba.droplet.core.database.repository.CreditCardDetailSnapshot
 import io.github.kvtttba.droplet.core.database.repository.CreditCardRepaymentRequest
 import io.github.kvtttba.droplet.core.database.repository.CreditCardRepository
+import io.github.kvtttba.droplet.core.database.repository.EarlyPayoffLoanRequest
+import io.github.kvtttba.droplet.core.database.repository.EarlyPayoffLoanResult
 import io.github.kvtttba.droplet.core.database.repository.FixedDepositInterestPayoutRequest
 import io.github.kvtttba.droplet.core.database.repository.FixedDepositOpenResult
 import io.github.kvtttba.droplet.core.database.repository.FixedDepositSettlementRequest
@@ -18,12 +22,17 @@ import io.github.kvtttba.droplet.core.database.repository.InvestmentSellRequest
 import io.github.kvtttba.droplet.core.database.repository.InvestmentSellResult
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
 import io.github.kvtttba.droplet.core.database.repository.LedgerTransactionRecord
+import io.github.kvtttba.droplet.core.database.repository.LoanDetailSnapshot
+import io.github.kvtttba.droplet.core.database.repository.LoanPlanCreatedResult
+import io.github.kvtttba.droplet.core.database.repository.LoanRepository
 import io.github.kvtttba.droplet.core.database.repository.MarketDataRepository
 import io.github.kvtttba.droplet.core.database.repository.MarketSyncReport
 import io.github.kvtttba.droplet.core.database.repository.MarketSyncStatus
 import io.github.kvtttba.droplet.core.database.repository.OpenFixedDepositRequest
 import io.github.kvtttba.droplet.core.database.repository.QuoteRefreshSummary
+import io.github.kvtttba.droplet.core.database.repository.RepayInstallmentRequest
 import io.github.kvtttba.droplet.core.database.repository.UpdateCreditCardParametersRequest
+import io.github.kvtttba.droplet.core.database.repository.UpdateLoanPlanParametersRequest
 import io.github.kvtttba.droplet.core.database.seed.SeedResult
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementCalculator
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
@@ -32,6 +41,8 @@ import io.github.kvtttba.droplet.core.domain.investment.PortfolioPositionValuati
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioSummary
 import io.github.kvtttba.droplet.core.domain.investment.SellCostBasisPreview
 import io.github.kvtttba.droplet.core.domain.ledger.ExchangeRateTable
+import io.github.kvtttba.droplet.core.domain.loan.LoanPlanSummary
+import io.github.kvtttba.droplet.core.domain.loan.LoanScheduleCalculator
 import io.github.kvtttba.droplet.core.model.Account
 import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AccountType
@@ -41,6 +52,8 @@ import io.github.kvtttba.droplet.core.model.Currency
 import io.github.kvtttba.droplet.core.model.DepositInterestMode
 import io.github.kvtttba.droplet.core.model.ExchangeRateSnapshot
 import io.github.kvtttba.droplet.core.model.InvestmentAsset
+import io.github.kvtttba.droplet.core.model.LoanMethod
+import io.github.kvtttba.droplet.core.model.LoanPlan
 import io.github.kvtttba.droplet.core.model.MarketQuote
 import io.github.kvtttba.droplet.core.model.Money
 import io.github.kvtttba.droplet.core.model.Quantity
@@ -366,6 +379,83 @@ class AssetsViewModelTest {
         override suspend fun clearNotificationHistory(accountId: String?) = Unit
     }
 
+    private class FakeLoanRepository : LoanRepository {
+        val samplePlan = LoanPlan(
+            id = "loan:sample",
+            name = "数码分期",
+            method = LoanMethod.FIXED_FEE,
+            currency = Currency.CNY,
+            totalPrincipalMinor = Money.fromDecimalString("6000.00", Currency.CNY).amountMinor,
+            totalPeriods = 6,
+            fixedFeePerPeriodMinor = Money.fromDecimalString("30.00", Currency.CNY).amountMinor,
+            firstDueAt = LocalDate.of(2026, 12, 15).atStartOfDay(LoanScheduleCalculator.DEFAULT_ZONE_ID).toInstant().toEpochMilli(),
+            monthlyRepayDay = 15,
+            loanAccountId = "loan:acct:sample",
+            paymentAccountId = "acct:debit",
+            interestExpenseAccountId = "cat:interest",
+            autoPost = true,
+            remindDaysBefore = 3,
+        )
+        val summariesFlow = MutableStateFlow(
+            listOf(
+                LoanScheduleCalculator.summarize(
+                    plan = samplePlan,
+                    installments = LoanScheduleCalculator.generateSchedule(samplePlan),
+                    asOfDate = LocalDate.of(2026, 11, 27),
+                ),
+            ),
+        )
+        var createdLoanRequest: CreateLoanPlanRequest? = null
+
+        override fun observeLoanSummaries(includeArchived: Boolean, asOfEpochMs: Long?): Flow<List<LoanPlanSummary>> =
+            summariesFlow
+
+        override fun observeLoanDetail(planId: String, asOfEpochMs: Long?): Flow<LoanDetailSnapshot?> =
+            MutableStateFlow(null)
+
+        override suspend fun getLoanSummariesSnapshot(includeArchived: Boolean, asOfEpochMs: Long?): List<LoanPlanSummary> =
+            summariesFlow.value
+
+        override suspend fun createLoanPlan(request: CreateLoanPlanRequest): LoanPlanCreatedResult {
+            createdLoanRequest = request
+            val loanAccount = Account(
+                id = "loan:${request.id}",
+                name = request.name,
+                type = AccountType.LIABILITY,
+                subType = AccountSubType.LOAN,
+                currency = request.currency,
+            )
+            val plan = LoanPlan(
+                id = request.id,
+                name = request.name,
+                method = request.method,
+                currency = request.currency,
+                totalPrincipalMinor = request.totalPrincipalMinor,
+                totalPeriods = request.totalPeriods,
+                annualRateDecimal = request.annualRateDecimal,
+                fixedFeePerPeriodMinor = request.fixedFeePerPeriodMinor,
+                fixedFeeRateDecimal = request.fixedFeeRateDecimal,
+                firstDueAt = request.firstDueAt,
+                monthlyRepayDay = request.monthlyRepayDay,
+                loanAccountId = loanAccount.id,
+                paymentAccountId = request.paymentAccountId,
+                interestExpenseAccountId = request.interestExpenseAccountId,
+                autoPost = request.autoPost,
+                remindDaysBefore = request.remindDaysBefore,
+            )
+            val installments = LoanScheduleCalculator.generateSchedule(plan)
+            return LoanPlanCreatedResult(plan, loanAccount, installments, null)
+        }
+
+        override suspend fun updateLoanPlanParameters(request: UpdateLoanPlanParametersRequest): LoanPlan = error("unused")
+        override suspend fun repayInstallment(request: RepayInstallmentRequest): Transaction = error("unused")
+        override suspend fun autoPostDueInstallments(asOfEpochMs: Long?): AutoPostDueInstallmentsReport =
+            AutoPostDueInstallmentsReport(0, emptyList(), 0, emptyList())
+        override suspend fun earlyPayoffLoan(request: EarlyPayoffLoanRequest): EarlyPayoffLoanResult = error("unused")
+        override suspend fun setLoanPlanArchived(planId: String, archived: Boolean, nowEpochMs: Long?) = Unit
+        override suspend fun deleteLoanPlanIfUnused(planId: String): Result<Unit> = Result.success(Unit)
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -381,12 +471,14 @@ class AssetsViewModelTest {
         val investRepo = FakeInvestmentRepository()
         val creditRepo = FakeCreditCardRepository()
         val reminderPrefs = FakeReminderPrefsRepository()
+        val loanRepo = FakeLoanRepository()
         val marketRepo = FakeMarketDataRepository()
         val ledgerRepo = FakeLedgerRepository()
         val vm = AssetsViewModel(
             investmentRepository = investRepo,
             creditCardRepository = creditRepo,
             creditCardReminderPreferencesRepository = reminderPrefs,
+            loanRepository = loanRepo,
             marketDataRepository = marketRepo,
             ledgerRepository = ledgerRepo,
             clock = NetworkClock { 1_764_216_000_000L },
@@ -399,6 +491,8 @@ class AssetsViewModelTest {
         assertEquals(Money.fromDecimalString("10000.00", Currency.CNY), vm.uiState.value.summary.netWorthBase)
         assertEquals(1_764_216_000_000L, vm.uiState.value.lastUpdatedAtEpochMs)
         assertTrue("acct:cc" in vm.uiState.value.creditCardSummariesById)
+        assertEquals(1, vm.uiState.value.loanSummaries.size)
+        assertEquals("数码分期", vm.uiState.value.loanSummaries.single().plan.name)
 
         // Entry refresh uses throttled mode (forceRefresh = false) and stays quiet when throttled
         vm.onScreenEntered()
@@ -434,12 +528,14 @@ class AssetsViewModelTest {
         val investRepo = FakeInvestmentRepository()
         val creditRepo = FakeCreditCardRepository()
         val reminderPrefs = FakeReminderPrefsRepository()
+        val loanRepo = FakeLoanRepository()
         val marketRepo = FakeMarketDataRepository()
         val ledgerRepo = FakeLedgerRepository()
         val vm = AssetsViewModel(
             investmentRepository = investRepo,
             creditCardRepository = creditRepo,
             creditCardReminderPreferencesRepository = reminderPrefs,
+            loanRepository = loanRepo,
             marketDataRepository = marketRepo,
             ledgerRepository = ledgerRepo,
             clock = NetworkClock { 1_764_216_000_000L },
@@ -487,6 +583,31 @@ class AssetsViewModelTest {
         assertNotNull(investRepo.openedFixedDepositRequest)
         assertEquals("0.0245", investRepo.openedFixedDepositRequest!!.assetRequest.depositRateAnnualDecimal)
         assertEquals(Money.fromDecimalString("50000", Currency.CNY), investRepo.openedFixedDepositRequest!!.principal)
+
+        // Create installment loan plan with canonical annual rate
+        var createdLoanId: String? = null
+        vm.createLoanPlan(
+            CreateLoanPlanFormInput(
+                name = "测试消费贷",
+                method = LoanMethod.EQUAL_INSTALLMENT,
+                currency = Currency.CNY,
+                principalText = "24000",
+                totalPeriodsText = "12",
+                annualRatePercentText = "4.8",
+                firstDueDateIso = "2026-12-20",
+                monthlyRepayDayText = "20",
+                paymentAccountId = "acct:debit",
+                autoPost = true,
+                remindDaysBeforeText = "3",
+            ),
+        ) { result ->
+            createdLoanId = result.getOrNull()
+        }
+        advanceUntilIdle()
+        assertNotNull(createdLoanId)
+        assertEquals("0.048", loanRepo.createdLoanRequest?.annualRateDecimal)
+        assertEquals(Money.fromDecimalString("24000", Currency.CNY).amountMinor, loanRepo.createdLoanRequest?.totalPrincipalMinor)
+        assertTrue(loanRepo.createdLoanRequest?.autoPost == true)
 
         // Toggle excluded foldout
         assertFalse(vm.uiState.value.excludedExpanded)

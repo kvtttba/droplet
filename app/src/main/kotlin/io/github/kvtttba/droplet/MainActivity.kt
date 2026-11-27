@@ -24,6 +24,7 @@ import io.github.kvtttba.droplet.core.security.MarketSyncPreferences
 import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.NetworkProxyPreferencesRepository
 import io.github.kvtttba.droplet.notification.CreditCardReminderNotificationPublisher
+import io.github.kvtttba.droplet.notification.LoanReminderNotificationPublisher
 import io.github.kvtttba.droplet.security.AppLockCoordinator
 import io.github.kvtttba.droplet.ui.DropletApp
 import io.github.kvtttba.droplet.ui.toAppThemePreference
@@ -52,12 +53,13 @@ class MainActivity : FragmentActivity() {
     lateinit var creditCardReminderPreferencesRepository: CreditCardReminderPreferencesRepository
 
     private val pendingCreditCardAccountIdFlow = MutableStateFlow<String?>(null)
+    private val pendingLoanPlanIdFlow = MutableStateFlow<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         appLockCoordinator.start()
-        captureCreditCardDeepLink(intent)
+        captureDeepLinks(intent)
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -81,6 +83,7 @@ class MainActivity : FragmentActivity() {
             val reminderPrefs by creditCardReminderPreferencesRepository.preferences
                 .collectAsStateWithLifecycle(initialValue = CreditCardReminderPreferences())
             val pendingCreditCardAccountId by pendingCreditCardAccountIdFlow.collectAsStateWithLifecycle()
+            val pendingLoanPlanId by pendingLoanPlanIdFlow.collectAsStateWithLifecycle()
 
             val marketSyncSummary = buildString {
                 append(marketSyncPrefs.refreshInterval.label)
@@ -125,6 +128,8 @@ class MainActivity : FragmentActivity() {
                 creditCardReminderSummary = creditCardReminderSummary,
                 pendingCreditCardAccountId = pendingCreditCardAccountId,
                 onConsumePendingCreditCardAccountId = { pendingCreditCardAccountIdFlow.value = null },
+                pendingLoanPlanId = pendingLoanPlanId,
+                onConsumePendingLoanPlanId = { pendingLoanPlanIdFlow.value = null },
                 onThemeModeChange = { mode ->
                     appLockCoordinator.setThemeMode(mode.toAppThemePreference())
                 },
@@ -140,15 +145,21 @@ class MainActivity : FragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        captureCreditCardDeepLink(intent)
+        captureDeepLinks(intent)
     }
 
-    private fun captureCreditCardDeepLink(intent: Intent?) {
+    private fun captureDeepLinks(intent: Intent?) {
         val accountId = intent?.getStringExtra(
             CreditCardReminderNotificationPublisher.EXTRA_CREDIT_CARD_ACCOUNT_ID,
         )?.takeIf { it.isNotBlank() }
         if (accountId != null) {
             pendingCreditCardAccountIdFlow.value = accountId
+        }
+        val loanPlanId = intent?.getStringExtra(
+            LoanReminderNotificationPublisher.EXTRA_LOAN_PLAN_ID,
+        )?.takeIf { it.isNotBlank() }
+        if (loanPlanId != null) {
+            pendingLoanPlanIdFlow.value = loanPlanId
         }
     }
 

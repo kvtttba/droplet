@@ -6,12 +6,15 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import dagger.hilt.android.HiltAndroidApp
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
+import io.github.kvtttba.droplet.core.database.repository.LoanRepository
 import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.di.ApplicationScope
 import io.github.kvtttba.droplet.notification.CreditCardReminderNotifier
+import io.github.kvtttba.droplet.notification.LoanReminderNotifier
 import io.github.kvtttba.droplet.security.AppLockCoordinator
 import io.github.kvtttba.droplet.worker.CreditCardReminderScheduler
+import io.github.kvtttba.droplet.worker.LoanScheduleScheduler
 import io.github.kvtttba.droplet.worker.MarketSyncScheduler
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -44,6 +47,15 @@ class DropletApplication : Application() {
     lateinit var creditCardReminderScheduler: CreditCardReminderScheduler
 
     @Inject
+    lateinit var loanRepository: LoanRepository
+
+    @Inject
+    lateinit var loanReminderNotifier: LoanReminderNotifier
+
+    @Inject
+    lateinit var loanScheduleScheduler: LoanScheduleScheduler
+
+    @Inject
     @ApplicationScope
     lateinit var applicationScope: CoroutineScope
 
@@ -61,6 +73,7 @@ class DropletApplication : Application() {
         super.onCreate()
         appLockCoordinator.start()
         creditCardReminderNotifier.ensureNotificationChannel()
+        loanReminderNotifier.ensureNotificationChannel()
         ProcessLifecycleOwner.get().lifecycle.addObserver(processLifecycleObserver)
         applicationScope.launch {
             ledgerRepository.ensureSeeded()
@@ -76,6 +89,19 @@ class DropletApplication : Application() {
                 .distinctUntilChanged()
                 .collect { enabled ->
                     creditCardReminderScheduler.syncSchedule(remindersEnabled = enabled)
+                }
+        }
+        applicationScope.launch {
+            loanRepository.observeLoanSummaries(includeArchived = false)
+                .map { summaries ->
+                    summaries.any { summary ->
+                        summary.remainingPeriods > 0 &&
+                            (summary.plan.autoPost || summary.plan.remindDaysBefore != null)
+                    }
+                }
+                .distinctUntilChanged()
+                .collect { hasScheduledLoans ->
+                    loanScheduleScheduler.syncSchedule(hasScheduledLoans = hasScheduledLoans)
                 }
         }
     }

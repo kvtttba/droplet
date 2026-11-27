@@ -31,6 +31,9 @@ interface LoanDao {
     @Query("SELECT * FROM loan_plans WHERE id = :planId LIMIT 1")
     suspend fun getPlanById(planId: String): LoanPlanEntity?
 
+    @Query("SELECT * FROM loan_plans WHERE id = :planId LIMIT 1")
+    fun observePlanById(planId: String): Flow<LoanPlanEntity?>
+
     @Query(
         """
         SELECT * FROM loan_plans
@@ -40,8 +43,38 @@ interface LoanDao {
     )
     fun observePlans(includeArchived: Boolean = false): Flow<List<LoanPlanEntity>>
 
+    @Query(
+        """
+        SELECT * FROM loan_plans
+        WHERE (:includeArchived = 1 OR is_archived = 0)
+        ORDER BY first_due_at ASC, id ASC
+        """,
+    )
+    suspend fun getPlans(includeArchived: Boolean = false): List<LoanPlanEntity>
+
+    @Query(
+        """
+        SELECT * FROM loan_plans
+        WHERE auto_post = 1 AND is_archived = 0
+        ORDER BY first_due_at ASC, id ASC
+        """,
+    )
+    suspend fun getActiveAutoPostPlans(): List<LoanPlanEntity>
+
     @Query("SELECT * FROM loan_installments WHERE loan_plan_id = :planId ORDER BY period_number ASC")
     fun observeInstallmentsForPlan(planId: String): Flow<List<LoanInstallmentEntity>>
+
+    @Query("SELECT * FROM loan_installments WHERE loan_plan_id = :planId ORDER BY period_number ASC")
+    suspend fun getInstallmentsForPlan(planId: String): List<LoanInstallmentEntity>
+
+    @Query("SELECT * FROM loan_installments ORDER BY loan_plan_id ASC, period_number ASC")
+    fun observeAllInstallments(): Flow<List<LoanInstallmentEntity>>
+
+    @Query("SELECT * FROM loan_installments ORDER BY loan_plan_id ASC, period_number ASC")
+    suspend fun getAllInstallments(): List<LoanInstallmentEntity>
+
+    @Query("SELECT * FROM loan_installments WHERE id = :installmentId LIMIT 1")
+    suspend fun getInstallmentById(installmentId: String): LoanInstallmentEntity?
 
     @Query(
         """
@@ -57,6 +90,18 @@ interface LoanDao {
 
     @Query(
         """
+        SELECT * FROM loan_installments
+        WHERE status = :status AND transaction_id IS NULL AND due_at <= :dueUpToInclusive
+        ORDER BY due_at ASC, period_number ASC
+        """,
+    )
+    suspend fun getPendingUnpostedInstallmentsUpTo(
+        dueUpToInclusive: Long,
+        status: InstallmentStatus = InstallmentStatus.PENDING,
+    ): List<LoanInstallmentEntity>
+
+    @Query(
+        """
         UPDATE loan_installments
         SET status = :status, transaction_id = :transactionId, paid_at = :paidAt
         WHERE id = :installmentId
@@ -69,11 +114,46 @@ interface LoanDao {
         paidAt: Long?,
     )
 
+    @Query(
+        """
+        UPDATE loan_installments
+        SET status = :paidStatus, transaction_id = :transactionId, paid_at = :paidAt
+        WHERE id = :installmentId
+          AND status = :expectedStatus
+          AND transaction_id IS NULL
+        """,
+    )
+    suspend fun markInstallmentPaidIfPending(
+        installmentId: String,
+        transactionId: String,
+        paidAt: Long,
+        expectedStatus: InstallmentStatus = InstallmentStatus.PENDING,
+        paidStatus: InstallmentStatus = InstallmentStatus.PAID,
+    ): Int
+
+    @Query("UPDATE loan_plans SET is_archived = :archived, updated_at = :updatedAt WHERE id = :planId")
+    suspend fun setPlanArchived(planId: String, archived: Boolean, updatedAt: Long)
+
     @Query("DELETE FROM loan_plans WHERE id = :planId")
     suspend fun deletePlanById(planId: String)
 
     @Query("SELECT COUNT(*) FROM loan_installments WHERE loan_plan_id = :planId")
     suspend fun countInstallmentsForPlan(planId: String): Int
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM loan_installments
+        WHERE loan_plan_id = :planId
+          AND (status = :paidStatus OR transaction_id IS NOT NULL)
+        """,
+    )
+    suspend fun countPaidOrLinkedInstallmentsForPlan(
+        planId: String,
+        paidStatus: InstallmentStatus = InstallmentStatus.PAID,
+    ): Int
+
+    @Query("SELECT COUNT(*) FROM loan_plans WHERE loan_account_id = :loanAccountId")
+    suspend fun countPlansForLoanAccount(loanAccountId: String): Int
 }
 
 @Dao
