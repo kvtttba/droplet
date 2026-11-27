@@ -25,8 +25,33 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE id = :accountId LIMIT 1")
     suspend fun getById(accountId: String): AccountEntity?
 
+    @Query("SELECT * FROM accounts WHERE id = :accountId LIMIT 1")
+    fun observeById(accountId: String): Flow<AccountEntity?>
+
     @Query("SELECT * FROM accounts WHERE id IN (:accountIds)")
     suspend fun getByIds(accountIds: List<String>): List<AccountEntity>
+
+    @Query(
+        """
+        SELECT * FROM accounts
+        WHERE sub_type = 'CREDIT_CARD'
+          AND is_system = 0
+          AND (:includeArchived = 1 OR is_archived = 0)
+        ORDER BY sort_order ASC, created_at ASC, id ASC
+        """,
+    )
+    fun observeCreditCardAccounts(includeArchived: Boolean = false): Flow<List<AccountEntity>>
+
+    @Query(
+        """
+        SELECT * FROM accounts
+        WHERE sub_type = 'CREDIT_CARD'
+          AND is_system = 0
+          AND (:includeArchived = 1 OR is_archived = 0)
+        ORDER BY sort_order ASC, created_at ASC, id ASC
+        """,
+    )
+    suspend fun getCreditCardAccounts(includeArchived: Boolean = false): List<AccountEntity>
 
     @Query(
         """

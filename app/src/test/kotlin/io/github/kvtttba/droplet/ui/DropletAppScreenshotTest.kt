@@ -12,10 +12,14 @@ import androidx.compose.ui.test.performScrollToKey
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
+import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementCalculator
+import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioPositionEngine
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioSummaryAggregator
 import io.github.kvtttba.droplet.core.domain.investment.PositionLedgerState
 import io.github.kvtttba.droplet.core.domain.ledger.ExchangeRateTable
+import io.github.kvtttba.droplet.core.domain.ledger.LedgerEngine
+import io.github.kvtttba.droplet.core.domain.ledger.TransactionMeta
 import io.github.kvtttba.droplet.core.model.Account
 import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AccountType
@@ -40,10 +44,15 @@ import io.github.kvtttba.droplet.core.ui.theme.DropletTheme
 import io.github.kvtttba.droplet.core.ui.theme.ThemeMode
 import io.github.kvtttba.droplet.feature.aicapture.QuickCaptureSheetContent
 import io.github.kvtttba.droplet.feature.assets.AssetsUiState
+import io.github.kvtttba.droplet.feature.assets.CreditCardDetailScreen
+import io.github.kvtttba.droplet.feature.assets.CreditCardDetailUiState
+import io.github.kvtttba.droplet.feature.assets.CreditCardStatementTab
+import io.github.kvtttba.droplet.feature.assets.CreditCardTransactionItem
 import io.github.kvtttba.droplet.feature.assets.InvestmentDetailScreen
 import io.github.kvtttba.droplet.feature.assets.InvestmentDetailUiState
 import io.github.kvtttba.droplet.feature.assets.InvestmentHistoryKind
 import io.github.kvtttba.droplet.feature.assets.InvestmentTransactionItem
+import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityScreen
@@ -285,6 +294,24 @@ class DropletAppScreenshotTest {
     }
 
     @Test
+    fun captureCreditCardDetailLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                CreditCardDetailScreen(
+                    uiState = sampleCreditCardDetailUiState(),
+                    notificationPermissionGranted = true,
+                )
+            }
+        }
+        composeRule.onNodeWithTag("screen_credit_card_detail").assertIsDisplayed()
+        composeRule.onNodeWithTag("credit_card_statement_due").assertTextContains("8,600.00", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/credit_card_detail_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
     fun captureMarketSyncSettingsLight() {
         composeRule.setContent {
             DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
@@ -481,13 +508,44 @@ class DropletAppScreenshotTest {
         }
 
         composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("investments_card")
         composeRule.onNodeWithTag("assets_position_BTC").performClick()
         composeRule.onNodeWithTag("screen_investment_detail").assertIsDisplayed()
         composeRule.onNodeWithTag("investment_detail_back").performClick()
 
         composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("assets_header")
         composeRule.onNodeWithTag("assets_sync_settings_button").performClick()
         composeRule.onNodeWithTag("screen_market_sync_settings").assertIsDisplayed()
+    }
+
+    @Test
+    fun interactiveShell_creditCardDetailAndReminderSettingsNavigationWork() {
+        val sampleDetail = sampleCreditCardDetailUiState()
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.ASSETS,
+                initialThemeMode = ThemeMode.LIGHT,
+                initialDynamicColor = false,
+                assetsPreviewState = sampleAssetsUiState(),
+                creditCardDetailPreviewState = sampleDetail,
+                creditCardReminderSettingsPreviewState = CreditCardReminderSettingsUiState(
+                    remindersEnabled = true,
+                    defaultRemindDaysBefore = 3,
+                    creditCardSummaries = listOfNotNull(sampleDetail.summary),
+                ),
+            )
+        }
+
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_credit")
+        composeRule.onNodeWithTag("assets_credit_card_信用卡").performClick()
+        composeRule.onNodeWithTag("screen_credit_card_detail").assertIsDisplayed()
+        composeRule.onNodeWithTag("credit_card_detail_back").performClick()
+
+        composeRule.onNodeWithTag("nav_tab_settings").performClick()
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.onNodeWithTag("settings_entry_credit_card_reminders").performClick()
+        composeRule.onNodeWithTag("screen_credit_card_reminders").assertIsDisplayed()
     }
 
     companion object {
@@ -888,13 +946,7 @@ class DropletAppScreenshotTest {
                 color = "#546E7A",
                 includeInNetWorth = false,
             )
-            val creditCard = sampleOperationalAccounts
-                .first { it.id == DefaultSeedCatalog.AccountIds.CREDIT_CARD }
-                .copy(
-                    creditLimitMinor = Money.fromDecimalString("50000.00", Currency.CNY).amountMinor,
-                    billingDay = 5,
-                    dueDay = 25,
-                )
+            val creditCard = sampleCreditCardAccount()
             val debitCard = sampleOperationalAccounts
                 .first { it.id == DefaultSeedCatalog.AccountIds.DEBIT_CARD }
             val usdCash = sampleOperationalAccounts
@@ -1081,10 +1133,133 @@ class DropletAppScreenshotTest {
                 exchangeRateProvider = rates,
             )
 
+            val creditCardSummary = sampleCreditCardSummary()
             return AssetsUiState(
                 displayCurrency = Currency.CNY,
                 summary = summary,
+                creditCardSummariesById = mapOf(creditCard.id to creditCardSummary),
                 lastUpdatedAtEpochMs = fixedTimestampMs,
+                isLoading = false,
+            )
+        }
+
+        private fun sampleCreditCardAccount(): Account = sampleOperationalAccounts
+            .first { it.id == DefaultSeedCatalog.AccountIds.CREDIT_CARD }
+            .copy(
+                creditLimitMinor = Money.fromDecimalString("50000.00", Currency.CNY).amountMinor,
+                billingDay = 5,
+                dueDay = 30,
+                remindDaysBefore = 5,
+            )
+
+        private fun sampleCreditCardSummary(): CreditCardStatementSummary {
+            val card = sampleCreditCardAccount()
+            val engine = LedgerEngine(baseCurrency = Currency.CNY, rateProvider = sampleMarketRates())
+            val zone = CreditCardStatementCalculator.DEFAULT_ZONE_ID
+            fun ts(year: Int, month: Int, day: Int, hour: Int = 12): Long =
+                LocalDate.of(year, month, day).atTime(hour, 15).atZone(zone).toInstant().toEpochMilli()
+
+            val txs = listOf(
+                engine.buildExpense(
+                    meta = TransactionMeta(id = "cc-tx-1", occurredAt = ts(2026, 10, 18), payee = "数码旗舰店"),
+                    expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_SHOPPING_DIGITAL,
+                    paymentAccountId = card.id,
+                    amount = Money.fromDecimalString("7800.00", Currency.CNY),
+                ),
+                engine.buildExpense(
+                    meta = TransactionMeta(id = "cc-tx-2", occurredAt = ts(2026, 10, 29), payee = "航空商旅"),
+                    expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_TRANSPORT_LONG_DISTANCE,
+                    paymentAccountId = card.id,
+                    amount = Money.fromDecimalString("3800.00", Currency.CNY),
+                ),
+                engine.buildTransfer(
+                    meta = TransactionMeta(id = "cc-tx-3", occurredAt = ts(2026, 11, 10), payee = "信用卡还款 · 信用卡"),
+                    fromAccountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+                    toAccountId = card.id,
+                    amount = Money.fromDecimalString("3000.00", Currency.CNY),
+                ),
+                engine.buildExpense(
+                    meta = TransactionMeta(id = "cc-tx-4", occurredAt = ts(2026, 11, 21), payee = "精品超市"),
+                    expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_SHOPPING_DAILY,
+                    paymentAccountId = card.id,
+                    amount = Money.fromDecimalString("3900.00", Currency.CNY),
+                ),
+            )
+            return CreditCardStatementCalculator.calculate(
+                account = card,
+                transactions = txs,
+                asOfEpochMs = fixedTimestampMs,
+                zoneId = zone,
+            )
+        }
+
+        private fun sampleCreditCardDetailUiState(): CreditCardDetailUiState {
+            val summary = sampleCreditCardSummary()
+            val billed = listOf(
+                CreditCardTransactionItem(
+                    id = "cc-tx-2",
+                    occurredAt = fixedTimestampMs - 29 * 86_400_000L,
+                    dateTimeLabel = "2026-10-29 12:15",
+                    displayType = TransactionDisplayType.EXPENSE,
+                    title = "交通·高铁机票 · 航空商旅",
+                    subtitle = "出差往返机票",
+                    iconKey = "directions_subway",
+                    colorHex = "#1976D2",
+                    deltaAmount = Money.fromDecimalString("-3800.00", Currency.CNY),
+                    isRepaymentOrRefund = false,
+                ),
+                CreditCardTransactionItem(
+                    id = "cc-tx-1",
+                    occurredAt = fixedTimestampMs - 40 * 86_400_000L,
+                    dateTimeLabel = "2026-10-18 12:15",
+                    displayType = TransactionDisplayType.EXPENSE,
+                    title = "购物·数码家电 · 数码旗舰店",
+                    subtitle = "显示器与外设",
+                    iconKey = "shopping_bag",
+                    colorHex = "#D81B60",
+                    deltaAmount = Money.fromDecimalString("-7800.00", Currency.CNY),
+                    isRepaymentOrRefund = false,
+                ),
+            )
+            val unbilled = listOf(
+                CreditCardTransactionItem(
+                    id = "cc-tx-4",
+                    occurredAt = fixedTimestampMs - 6 * 86_400_000L,
+                    dateTimeLabel = "2026-11-21 12:15",
+                    displayType = TransactionDisplayType.EXPENSE,
+                    title = "购物·日用百货 · 精品超市",
+                    subtitle = "周末采购",
+                    iconKey = "shopping_bag",
+                    colorHex = "#D81B60",
+                    deltaAmount = Money.fromDecimalString("-3900.00", Currency.CNY),
+                    isRepaymentOrRefund = false,
+                ),
+                CreditCardTransactionItem(
+                    id = "cc-tx-3",
+                    occurredAt = fixedTimestampMs - 17 * 86_400_000L,
+                    dateTimeLabel = "2026-11-10 12:15",
+                    displayType = TransactionDisplayType.TRANSFER,
+                    title = "信用卡还款 · 信用卡",
+                    subtitle = "转自 储蓄卡 · 先行部分还款",
+                    iconKey = "swap_horiz",
+                    colorHex = "#127A56",
+                    deltaAmount = Money.fromDecimalString("3000.00", Currency.CNY),
+                    isRepaymentOrRefund = true,
+                ),
+            )
+            return CreditCardDetailUiState(
+                accountId = summary.account.id,
+                summary = summary,
+                selectedTab = CreditCardStatementTab.BILLED,
+                billedTransactions = billed,
+                unbilledTransactions = unbilled,
+                allTransactions = unbilled + billed,
+                paymentAccounts = listOf(
+                    sampleOperationalAccounts.first { it.id == DefaultSeedCatalog.AccountIds.DEBIT_CARD },
+                ),
+                exchangeRateTable = sampleMarketRates(),
+                remindersEnabled = true,
+                globalDefaultRemindDaysBefore = 3,
                 isLoading = false,
             )
         }

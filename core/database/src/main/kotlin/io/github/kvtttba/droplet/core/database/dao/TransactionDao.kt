@@ -619,4 +619,78 @@ interface TransactionDao {
 
     @Query("SELECT COUNT(*) FROM transaction_tags")
     suspend fun countTransactionTags(): Int
+
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM transactions t
+        WHERE t.status = :status
+          AND EXISTS (
+              SELECT 1 FROM postings p
+              WHERE p.transaction_id = t.id
+                AND p.account_id = :accountId
+          )
+        ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC
+        """,
+    )
+    fun observeTransactionsForAccount(
+        accountId: String,
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): Flow<List<TransactionWithDetails>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM transactions t
+        WHERE t.status = :status
+          AND EXISTS (
+              SELECT 1 FROM postings p
+              WHERE p.transaction_id = t.id
+                AND p.account_id = :accountId
+          )
+        ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC
+        """,
+    )
+    suspend fun getTransactionsForAccount(
+        accountId: String,
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): List<TransactionWithDetails>
+
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM transactions t
+        WHERE t.status = :status
+          AND EXISTS (
+              SELECT 1 FROM postings p
+              INNER JOIN accounts a ON a.id = p.account_id
+              WHERE p.transaction_id = t.id
+                AND a.sub_type = 'CREDIT_CARD'
+                AND a.is_system = 0
+          )
+        ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC
+        """,
+    )
+    fun observeTransactionsForCreditCards(
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): Flow<List<TransactionWithDetails>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM transactions t
+        WHERE t.status = :status
+          AND EXISTS (
+              SELECT 1 FROM postings p
+              INNER JOIN accounts a ON a.id = p.account_id
+              WHERE p.transaction_id = t.id
+                AND a.sub_type = 'CREDIT_CARD'
+                AND a.is_system = 0
+          )
+        ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC
+        """,
+    )
+    suspend fun getTransactionsForCreditCards(
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): List<TransactionWithDetails>
 }

@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.kvtttba.droplet.core.database.repository.CreateInvestmentAssetRequest
+import io.github.kvtttba.droplet.core.database.repository.CreditCardRepository
 import io.github.kvtttba.droplet.core.database.repository.InvestmentRepository
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
 import io.github.kvtttba.droplet.core.database.repository.MarketDataRepository
 import io.github.kvtttba.droplet.core.database.repository.MarketSyncReport
 import io.github.kvtttba.droplet.core.database.repository.MarketSyncStatus
 import io.github.kvtttba.droplet.core.database.repository.OpenFixedDepositRequest
+import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
 import io.github.kvtttba.droplet.core.domain.investment.AssetGroupSummary
 import io.github.kvtttba.droplet.core.domain.investment.AssetOverviewGroup
 import io.github.kvtttba.droplet.core.domain.investment.CurrencyDistribution
@@ -23,6 +25,7 @@ import io.github.kvtttba.droplet.core.model.DepositInterestMode
 import io.github.kvtttba.droplet.core.model.MarketQuote
 import io.github.kvtttba.droplet.core.model.Money
 import io.github.kvtttba.droplet.core.network.NetworkClock
+import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -30,7 +33,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -65,6 +70,7 @@ data class CreateInvestmentAssetFormInput(
 data class AssetsUiState(
     val displayCurrency: Currency = Currency.CNY,
     val summary: PortfolioSummary = emptyPortfolioSummary(Currency.CNY),
+    val creditCardSummariesById: Map<String, CreditCardStatementSummary> = emptyMap(),
     val quotesByAssetId: Map<String, MarketQuote> = emptyMap(),
     val availableCashAccounts: List<Account> = emptyList(),
     val availableHoldingAccounts: List<Account> = emptyList(),
@@ -144,6 +150,8 @@ private data class MarketMetadataSnapshot(
 @HiltViewModel
 class AssetsViewModel @Inject constructor(
     private val investmentRepository: InvestmentRepository,
+    private val creditCardRepository: CreditCardRepository,
+    private val creditCardReminderPreferencesRepository: CreditCardReminderPreferencesRepository,
     private val marketDataRepository: MarketDataRepository,
     private val ledgerRepository: LedgerRepository,
     private val clock: NetworkClock,
@@ -155,6 +163,17 @@ class AssetsViewModel @Inject constructor(
     private val portfolioSummaryFlow = displayCurrencyFlow.flatMapLatest { baseCurrency ->
         investmentRepository.observePortfolioSummary(baseCurrency = baseCurrency)
     }
+
+    private val creditCardSummariesFlow = creditCardReminderPreferencesRepository.preferences
+        .map { it.defaultRemindDaysBefore }
+        .distinctUntilChanged()
+        .flatMapLatest { defaultRemindDays ->
+            creditCardRepository.observeCreditCardSummaries(
+                includeArchived = false,
+                defaultRemindDaysBefore = defaultRemindDays,
+            )
+        }
+        .map { summaries -> summaries.associateBy { it.account.id } }
 
     private val marketMetadataFlow = combine(
         marketDataRepository.observeMarketQuotes(),
@@ -168,13 +187,20 @@ class AssetsViewModel @Inject constructor(
         )
     }
 
-    val uiState: StateFlow<AssetsUiState> = combine(
+    private val coreDataFlow = combine(
         displayCurrencyFlow,
         portfolioSummaryFlow,
+        creditCardSummariesFlow,
+    ) { displayCurrency, summary, creditCardSummaries ->
+        Triple(displayCurrency, summary, creditCardSummaries)
+    }
+
+    val uiState: StateFlow<AssetsUiState> = combine(
+        coreDataFlow,
         marketMetadataFlow,
         ledgerRepository.observeOperationalAccounts(includeArchived = false),
         runtimeFlow,
-    ) { displayCurrency, summary, marketMeta, operationalAccounts, runtime ->
+    ) { (displayCurrency, summary, creditCardSummaries), marketMeta, operationalAccounts, runtime ->
         val cashAccounts = operationalAccounts.filter {
             it.subType in FUNDING_CASH_SUB_TYPES
         }
@@ -184,6 +210,7 @@ class AssetsViewModel @Inject constructor(
         AssetsUiState(
             displayCurrency = displayCurrency,
             summary = summary,
+            creditCardSummariesById = creditCardSummaries,
             quotesByAssetId = marketMeta.quotesByAssetId,
             availableCashAccounts = cashAccounts,
             availableHoldingAccounts = holdingAccounts,

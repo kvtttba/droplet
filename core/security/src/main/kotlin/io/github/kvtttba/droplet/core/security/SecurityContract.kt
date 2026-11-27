@@ -10,5 +10,6 @@ object SecurityContract {
     const val PRIVACY_PREFERENCES_FILE: String = "droplet_privacy_preferences.preferences_pb"
     const val NETWORK_PROXY_PREFERENCES_FILE: String = "droplet_network_proxy_preferences.preferences_pb"
     const val MARKET_SYNC_PREFERENCES_FILE: String = "droplet_market_sync_preferences.preferences_pb"
+    const val CREDIT_CARD_REMINDER_PREFERENCES_FILE: String = "droplet_credit_card_reminder_preferences.preferences_pb"
     const val DEFAULT_SECRET_KEY_ALIAS: String = "droplet_local_secret_aes256_gcm_v1"
 }

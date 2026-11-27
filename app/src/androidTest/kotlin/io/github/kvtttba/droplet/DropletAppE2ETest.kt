@@ -246,6 +246,121 @@ class DropletAppE2ETest {
         composeRule.onNodeWithTag("market_sync_switch_wifi_only").assertIsOn()
     }
 
+    @Test
+    fun endToEndCreditCardConfigExpenseBillCheckAndOneTapRepayment() {
+        // 1. Navigate to Assets -> Credit Card Detail
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("nav_tab_assets"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("nav_tab_assets").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 10_000)
+
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_credit")
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("assets_credit_card_信用卡"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("assets_credit_card_信用卡").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_credit_card_detail"), timeoutMillis = 5_000)
+
+        // 2. Configure credit limit (¥20,000), billing day (5), due day (25), remind days (3)
+        composeRule.onNodeWithTag("credit_card_detail_list").performScrollToKey("credit_actions_card")
+        composeRule.onNodeWithTag("credit_card_open_settings_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("credit_card_params_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("credit_params_limit_input").performTextReplacement("20000")
+        composeRule.onNodeWithTag("credit_params_billing_day_input").performTextReplacement("5")
+        composeRule.onNodeWithTag("credit_params_due_day_input").performTextReplacement("25")
+        composeRule.onNodeWithTag("credit_params_remind_days_input").performTextReplacement("3")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("credit_params_save_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("credit_card_params_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("credit_card_detail_list").performScrollToKey("credit_hero_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("credit_card_available_credit").assertTextContains("20,000.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // 3. Return to Ledger and record a ¥320.00 credit card expense
+        composeRule.onNodeWithTag("credit_card_detail_back").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("nav_tab_ledger").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("fab_quick_add").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("quick_capture_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("quick_capture_manual").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_transaction_editor"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("editor_amount_input").performTextInput("320.00")
+
+        composeRule.onNodeWithTag("editor_lazy_column").performScrollToKey("account_picker")
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("editor_account_row"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("editor_account_row")
+            .performScrollToKey(DefaultSeedCatalog.AccountIds.CREDIT_CARD)
+        composeRule.onNodeWithTag("editor_account_信用卡").performClick()
+
+        composeRule.onNodeWithTag("editor_lazy_column").performScrollToKey("metadata_card")
+        composeRule.onNodeWithTag("editor_payee_input").performTextReplacement("测试信用卡消费")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("editor_save_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 10_000)
+
+        // 4. Open Credit Card Detail from Assets and verify used debt (¥320) & available limit (¥19,680)
+        composeRule.onNodeWithTag("nav_tab_assets").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_credit")
+        composeRule.onNodeWithTag("assets_credit_card_信用卡").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_credit_card_detail"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("credit_card_detail_list").performScrollToKey("credit_hero_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("credit_card_current_debt").assertTextContains("320.00", substring = true)
+                composeRule.onNodeWithTag("credit_card_available_credit").assertTextContains("19,680.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // Verify the transaction appears in statement list ("全部流水")
+        composeRule.onNodeWithTag("credit_card_detail_list").performScrollToKey("credit_statement_tabs")
+        composeRule.onNodeWithTag("credit_card_tab_all").performClick()
+        composeRule.onNodeWithTag("credit_card_detail_list").performScrollToKey("credit_statement_transactions_card")
+        composeRule.waitUntilAtLeastOneExists(hasText("测试信用卡消费", substring = true), timeoutMillis = 5_000)
+
+        // 5. Perform one-tap repayment (auto-prefilled ¥320.00) from Debit Card and confirm limit restored
+        composeRule.onNodeWithTag("credit_card_detail_list").performScrollToKey("credit_actions_card")
+        composeRule.onNodeWithTag("credit_card_repay_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("credit_card_repayment_sheet"), timeoutMillis = 5_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("repay_account_储蓄卡"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("repay_account_储蓄卡").performClick()
+        composeRule.onNodeWithTag("repay_amount_input").assertTextContains("320.00", substring = true)
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("repay_submit_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("credit_card_repayment_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("credit_card_detail_list").performScrollToKey("credit_hero_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("credit_card_current_debt").assertTextContains("0.00", substring = true)
+                composeRule.onNodeWithTag("credit_card_available_credit").assertTextContains("20,000.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // 6. Visit Credit Card Reminder Settings from Settings tab and persist advance reminder days
+        composeRule.onNodeWithTag("credit_card_detail_back").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("nav_tab_settings").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.onNodeWithTag("settings_entry_credit_card_reminders").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_credit_card_reminders"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("credit_card_reminders_list").performScrollToKey("reminder_controls_card")
+        composeRule.onNodeWithTag("reminder_default_days_5").performClick()
+        composeRule.onNodeWithTag("reminder_default_days_5").assertIsSelected()
+    }
+
     private fun isFlagSecureApplied(): Boolean {
         var applied = false
         composeRule.activityRule.scenario.onActivity { activity ->
