@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-- **当前阶段**：`M1.4`（生物识别隐私锁、重锁与金额隐藏）已完成验收并合入 `main`（**M1 复式核心与日常记账闭环**全量收官）。
-- **下一个待执行切片**：**`M2.1`**（免费公开汇率与全品类行情 Provider 链）
-- **最新已合入提交**：`feat/m1-4-biometric-privacy-lock` 合入 `main`（CI `#45999836880` 全线绿灯，详见 `git log`）
+- **当前阶段**：`M2.1`（免费公开汇率与全品类行情 Provider 链）已完成验收并合入 `main`。
+- **下一个待执行切片**：**`M2.2`**（投资持仓引擎与定存/理财计算）
+- **最新已合入提交**：`feat/m2-1-market-fx-providers` 合入 `main`（CI `#46005286947` 全线绿灯，详见 `git log`）
 
 ---
 
@@ -34,8 +34,8 @@
 | `M1.2` | Room Schema、DAO 与预置分类/账户 | ✅ 已完成 | `:core:model` 跨模块扩展模型 + `:core:database` 全量 16 表 Room Schema/JSON 导出、强一致 `@Transaction` 复式校验写入器、多维 Flow 查询 DAO、WAL `VACUUM INTO` 快照导出、幂等预置初始化 + 18 项 L2 Robolectric/Room 测试（总 115 项测试全绿） | `feat/m1-2-room-database` 已验收合入（CI `#45971965896`） |
 | `M1.3` | 明细首页、账户/标签管理与记账表单 | ✅ 已完成 | `:app` Hilt DI + 启动幂等预置、`:core:database` `LedgerRepository`、明细首页实时 Room Flow 月度汇总/多维筛选（多标签 ANY/ALL）/按日分组与详情编辑/作废/恢复/删除、一木式直观记账 + 跨币种反推汇率 + 一键展开专业多拆分录、账户（含期初余额）/二级分类/多标签 CRUD + 125 项测试 & 13 张 Roborazzi 截图 + API 31 实账 E2E + 13 MB Debug APK 全绿 | `feat/m1-3-ledger-ui-and-forms` 已验收合入（CI `#45976954090`） |
 | `M1.4` | 生物识别隐私锁、重锁与金额隐藏 | ✅ 已完成 | `:core:security` DataStore 隐私偏好持久化、`AppLockStateMachine`（单调时钟 5 档超时重锁）、Android 12+ `BiometricPrompt`（含设备锁屏兜底）、Keystore AES-256-GCM 凭据加密器；`MainActivity` 升级 `FragmentActivity` 接入动态 `FLAG_SECURE`、`ProcessLifecycleOwner` 与全屏 `AppLockOverlay`；`PrivacySecurityScreen` 落地与全局隐身/主题持久化 + 156 项测试 & 16 张 Roborazzi 截图 + API 31 持久化 E2E + 14 MB Debug APK 全绿 | `feat/m1-4-biometric-privacy-lock` 已验收合入（CI `#45999836880`） |
-| `M2.1` | 免费公开汇率与全品类行情 Provider 链 | ⬜ 待开始 | CNY/USD/HKD 汇率 + 9 类资产公开源适配、降级缓存、可选代理、Mock 测试 | 下一切片 |
-| `M2.2` | 投资持仓引擎与定存/理财计算 | ⬜ 待开始 | 买/卖/定投/分红、加权成本与浮盈、定期存款自动计息、银行理财手动更新 | — |
+| `M2.1` | 免费公开汇率与全品类行情 Provider 链 | ✅ 已完成 | 纯 JVM `:core:network` 代理配置与 OkHttp 工厂、CNY/USD/HKD 3 级主备汇率链（东方财富→Frankfurter→Open ER API）、9 类资产国内直连优先+备用源降级+单标的失败隔离行情链、5 分钟节流；`:core:security` 代理 DataStore 持久化；`:core:database` `MarketDataRepository` 缓存降级与手动覆写单价/清除；`:app` `NetworkModule` + `MarketDataEntryPoint`；185 项离线单测 & 16 张 Roborazzi 截图 + API 31 E2E + 15 MB Debug APK 全绿 | `feat/m2-1-market-fx-providers` 已验收合入（CI `#46005286947`） |
+| `M2.2` | 投资持仓引擎与定存/理财计算 | ⬜ 待开始 | 买/卖/定投/分红、加权成本与浮盈、定期存款自动计息、银行理财手动更新 | 下一切片 |
 | `M2.3` | 资产总览页、持仓详情与后台定时刷新 | ⬜ 待开始 | 资产页总览与币种分布、持仓行情与手动覆写价、WorkManager 定时刷新、截图 + APK | — |
 | `M3.1` | 信用卡额度、账单日与还款本地提醒 | ⬜ 待开始 | 信用额度进度条、出账/还款倒计时、到期前本地通知提醒 | — |
 | `M3.2` | 分期贷款引擎与到期自动还款分录 | ⬜ 待开始 | 等额本息/等额本金/固定手续费计划表、到期自动拆本息分录与通知 | — |
@@ -90,29 +90,38 @@
    - `DropletApp` 拆分受控 `DropletAppContent` + 生产 `DropletApp`（DataStore 持久化）+ 测试 `DropletAppShell`；冷启动未完成 DataStore 首帧加载前仅渲染底色、未解锁前不挂载账本树，全屏 `AppLockOverlay` 拦截返回键与触摸穿透；
    - `:feature:settings` 接入 Hilt，新增 `PrivacySecurityRoute` / `PrivacySecurityScreen` / `PrivacySecurityViewModel`（本机鉴权能力检测与系统安全设置直达、开启应用锁前身份校验防误锁、5 档重锁切换、立即锁定、`FLAG_SECURE` 与默认隐身开关）。
 
-### M2.1 启动入口契约（免费公开汇率与全品类行情 Provider 链）
-1. 从 `main` 切出分支 `feat/m2-1-market-fx-providers`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m2.1"`。
-2. **纯 JVM 网络与代理基础设施 (`:core:network`)**：
-   - 保持 `:core:network` 纯 Kotlin/JVM 零 Android 依赖，实现 `NetworkProxyConfig`（`NONE` / `HTTP` / `SOCKS`、`host`、`port`，严禁硬编码真实个人代理地址或凭据）与 `DropletHttpClientFactory`（可切换代理的 OkHttpClient、统一超时与标准浏览器/轻量 User-Agent）；
-   - 实现全品类行情与汇率抽象契约：
-     - `ExchangeRateProvider` 与 `ExchangeRateProviderChain`（拉取 `CNY / USD / HKD` 实时双向汇率，主源 + 备用公开源自动降级，内部统一 `BigDecimal` 8 位精度规范化输出 `CachedExchangeRate`）；
-     - `MarketQuoteProvider` 与 `MarketQuoteProviderChain`（按 `AssetClass` 分发策略链：国内直连优先 → 备用公开源兜底 → 单标的失败隔离不影响其余标的），覆盖：
-       1. A 股 / 场内 ETF（东方财富 / 腾讯财经主源 + 新浪财经备用源）；
-       2. 公募基金（天天基金实时估值/官方净值主源 + 东方财富基金净值备用源）；
-       3. 港股 / 美股（东方财富 / 腾讯财经主源 + Yahoo Finance 备用源）；
-       4. 贵金属 / 黄金（东方财富 / 上金所 AU9999 主源 + 国际现货 XAU 备用源）；
-       5. 加密货币（OKX / Binance 公开 Ticker 主源 + CoinGecko 备用源，天然支持可选 HTTP/SOCKS 代理）；
-       6. 定期存款（`FIXED_DEPOSIT` 不发网络请求，交由本地计息引擎）与无公开代码银行理财（`BANK_WEALTH` 若无代码跳过远程拉取保留手动估值）；
-   - 实现 `RefreshThrottlePolicy`（默认 5 分钟节流窗口 `MarketNetworkContract.DEFAULT_REFRESH_THROTTLE_MINUTES`，支持 `forceRefresh = true` 绕过节流与批量请求并发限流）。
-3. **缓存降级与仓库整合 (`:core:database` / `:app`)**：
-   - 落地 `MarketDataRepository`（或 `MarketSyncRepository`）衔接 `:core:network` Provider 链与 Room `ExchangeRateDao` / `MarketQuoteDao`：
-     - 拉取成功原子写入 `exchange_rates` / `market_quotes`（保留历史手动覆写保护策略：如 `isManualOverride == true` 时仅在用户明确覆盖或显式刷新时更新，且失败时完整保留最近一次有效缓存与 `fetchedAt`）；
-     - 支持 `manualOverrideQuote(assetId, priceDecimal, currency)` 与 `clearManualOverride`；
-   - 在 `:app` 新增 `NetworkModule` Hilt DI 绑定（`DropletHttpClientFactory`、`ExchangeRateProviderChain`、`MarketQuoteProviderChain`、`MarketDataRepository`），并在 `:core:security` 持久化可选代理配置（仅 `proxyType`/`host`/`port` 脱敏保存，严禁日志打印）。
-4. **测试与门禁（全量本地 Mock，严禁依赖外部公网）**：
-   - 在 `:core:network` 使用 `OkHttp MockWebServer` 补齐全套 L1/L2 离线测试：覆盖 9 类资产/三币种汇率正常解析、异常格式容错、主源 500/超时自动降级备用源、全部失败保留错误摘要、代理配置构建、5 分钟节流与强制刷新、数值零浮点 `BigDecimal` 精度断言；
-   - 补齐 `MarketDataRepository` Room/Robolectric 测试（缓存持久化、拉取失败保留旧缓存、手动覆写单价、手动汇率桥接 `ExchangeRateTable`）；
-   - 通过本地单测（`ANDROID_HOME=/data/home/android-sdk ./gradlew --max-workers=2 ...`）、`verifyRoborazziDebug`、`gitleaks`、`assembleDebug` 与 GitHub Actions 全线 CI 绿灯。
+### M2.1 已落地的核心约定
+1. **纯 JVM 网络与 Provider 链 (`:core:network`)**：
+   - 保持零 Android 依赖与零浮点解析（全链路经 `NetworkDecimalParser` 从 `JsonPrimitive.content` 直接构造 `BigDecimal`，规范输出 8 位小数）；
+   - `NetworkProxyConfig`（`NONE`/`HTTP`/`SOCKS`，校验 host/port、拒收凭据与 Scheme、`toString()` 脱敏）+ `DropletHttpClientFactory`（共享连接池按代理缓存、支持 `NetworkProxyConfigProvider` 动态切换、GB18030/UTF-8 编码解码、统一超时与协程取消联动）+ `RefreshThrottlePolicy`（默认 5 分钟窗口 + `forceRefresh`）；
+   - `ExchangeRateProviderChain`（`EastMoneyExchangeRateProvider` → `FrankfurterExchangeRateProvider` → `OpenExchangeRateApiProvider`）统一产出 CNY/USD/HKD 全部 6 组有向 `CachedExchangeRate`（16 位中间精度、8 位规范输出）；
+   - `MarketQuoteProviderChain` 覆盖全部 9 类 `AssetClass`（A股/ETF：东方财富→腾讯→新浪；公募基金：天天基金 JSONP→东方财富官方净值；港美股：东方财富→腾讯→Yahoo；黄金：国内 `AU9999/AUTD` 东方财富→新浪 `gds_` 严守 CNY/克，国际 `XAU` 东方财富→新浪 `hf_XAU`→`SpotXauQuoteProvider` 严守 USD/盎司；加密：OKX→Binance→CoinGecko 含 `USDT` 路由；`FIXED_DEPOSIT` 与无公开代码 `BANK_WEALTH` 零请求跳过），支持 `quoteProviderHint` 优先与 `Semaphore` 并发限流 + 单标的失败隔离。
+2. **缓存降级仓库、代理持久化与 DI (`:core:database` & `:core:security` & `:app`)**：
+   - `:core:security` 新增 `NetworkProxyPreferencesRepository` / `DataStoreNetworkProxyPreferencesRepository`（独立 `droplet_network_proxy_preferences.preferences_pb`，仅持久化脱敏 `proxyType`/`host`/`port`）；
+   - `:core:database` 新增 `MarketDataRepository` / `LocalMarketDataRepository`（衔接 Room `ExchangeRateDao` / `MarketQuoteDao` / `InvestmentAssetDao`，支持 5 分钟单标的/汇率节流、原子事务写入、失败完整保留旧缓存与 `fetchedAt`、`manualOverrideQuote` / `clearManualOverride` 及手动覆写保护策略）；
+   - `:app` 新增 `NetworkModule` 与 `MarketDataEntryPoint`、`AndroidManifest.xml` 补齐 `INTERNET` 与 `ACCESS_NETWORK_STATE` 权限，并在 `SecurityModule` 绑定 `@NetworkProxyDataStore`。
+
+### M2.2 启动入口契约（投资持仓引擎与定存/理财计算）
+1. 从 `main` 切出分支 `feat/m2-2-investment-portfolio-engine`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m2.2"`。
+2. **纯 JVM 投资持仓与定存/理财计算引擎 (`:core:domain`)**：
+   - 新增 `io.github.kvtttba.droplet.core.domain.investment`（严禁浮点，份额/单价/汇率全量 `BigDecimal` 8 位精度、法币金额 `Money` 4 位定点 `Long`）：
+     - `PortfolioPositionEngine`：按时间顺序回放某 `InvestmentAsset` 的已入账（`POSTED`）`INVEST` 分录（复用 `LedgerEngine.buildInvestmentBuy` / `buildInvestmentSell` / `buildInvestmentDividend`），维护：
+       - **持仓份额（`Quantity`，支持加密货币 8 位小数）**、**加权平均成本价（`UnitPrice`）**、**剩余持仓成本（原币种 `Money`）**、**累计已实现盈亏（卖出结转成本差额）**、**累计现金分红**、**累计交易手续费**；
+       - 结合 `MarketQuote`（支持行情币种 `priceCurrency` 与持仓币种不一致时通过 `ExchangeRateTable` 自动换算）计算：**最新单价/净值、原币种当前市值、本位币当前市值、当日涨跌额/涨跌幅、累计浮动盈亏与收益率、总回报（含已实现盈亏与分红）**；
+       - 覆盖买入、追加定投（DCA）、部分卖出（按当前加权平均成本按比例结转 `costBasis`）、清仓再买入（成本归零重算）、分红、防超卖（卖超持仓校验）与空持仓边界。
+     - `FixedDepositCalculator`：针对 `AssetClass.FIXED_DEPOSIT`（读取 `InvestmentAsset` 的 `depositRateAnnualDecimal`、`depositStartAt`、`depositMaturityAt`、`depositInterestMode`：`SIMPLE_AT_MATURITY` / `COMPOUND_ANNUAL` / `MONTHLY_PAYOUT`）与当前本金，本地按天（Actual/365 或明确约定日计基准，文档注明）自动计算：**已计息天数、剩余天数、是否已到期、当前应计利息、到期预期总利息、当前参考总值（本金 + 应计利息）与到期预期本息**，并提供到期结息/提前支取分录构造辅助（利息计入 `Income:投资理财:利息收入`，本金返还资金账户）。
+     - `BankWealthValuationHelper`：针对 `AssetClass.BANK_WEALTH` 支持两种估值路径：① 公开净值代码走标准份额 × 最新净值；② 非标准化产品支持按**手动覆写最新净值**或**直接录入最新收益金额（反推最新净值/当前市值并保留审计时间戳）**。
+     - `PortfolioSummaryAggregator`：汇总全部投资持仓与现金/负债/信用/借贷/待报销账户（遵循 `account.includeInNetWorth` 开关），结合 `ExchangeRateTable` 计算**总净资产、总资产、总负债、按 CNY/USD/HKD 币种分布及投资总浮盈/当日总盈亏**，为 M2.3 资产总览页直接提供纯领域输出模型。
+3. **投资业务仓储与复式联动 (`:core:database` & `:app`)**：
+   - 在 `:core:database` 新增 `InvestmentRepository` / `LocalInvestmentRepository`（衔接 `InvestmentAssetDao`、`MarketQuoteDao`、`AccountDao`、`TransactionDao`、`LedgerTransactionWriter`、`LedgerEngine` 与 `MarketDataRepository`）：
+     - 支持创建/编辑/归档投资标的（自动联动或绑定 `INVEST_HOLDING` 账户）；
+     - 封装 **买入 / 定投 / 卖出（自动带入当前加权平均成本计算 `costBasis` 并结转已实现盈亏）/ 现金分红 / 定存到期结息 / 银行理财手动收益或净值更新** 的原子复式写入；
+     - 提供响应式 `Flow` 观察全量持仓估值列表与资产总览汇总（基于 Room 实时流水 + `market_quotes` + `exchange_rates`）。
+   - 在 `:app` 补齐 `InvestmentRepository` 等 Hilt DI 绑定（若暂未被 UI 注入，同步在 `@EntryPoint` 暴露确保编译期校验）。
+4. **测试与门禁**：
+   - 在 `:core:domain` 配齐全套 L1 纯 JVM 单元测试：加权成本多笔买入/定投/部分卖出/清仓再买/超卖拦截/8 位加密小数精度/跨币种行情折算/分红汇总、定存 3 种计息模式（起息前/存续中/到期日/超期/零利率/闰年边界）、银行理财双模式估值、资产汇总 `includeInNetWorth` 排除与三币种折算；
+   - 在 `:core:database` 配齐 L2 Room/Robolectric 测试：验证买入→定投→部分卖出→分红→定存结息→银行理财手动更新全链路复式平衡与实时 Flow 持仓估值更新；
+   - 通过本地单测（`ANDROID_HOME=/data/home/android-sdk ./gradlew --max-workers=2 ...`）、`verifyRoborazziDebug`、`assembleDebug`、`gitleaks` 与 GitHub Actions 全线 CI 绿灯。
 
 ---
 
@@ -129,3 +138,4 @@
 - **[M1.3] Room Flow 筛选切换防闪烁 & Roborazzi 跨时区确定性**：多查询随筛选条件联动时，须在单个 `flatMapLatest` 内 `combine` 列表流与汇总流，避免旧结果与新筛选条件拼帧；涉及日期文本的 Roborazzi 测试须固定 `TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"))` 并在 `@After` 恢复，确保本机与 UTC CI 像素一致；本机 8 GB 无 Swap 环境并行跑 Robolectric + Roborazzi 时建议加 `--max-workers=2`。
 - **[M1.4] `BiometricPrompt` 设备锁屏兜底 & `AUTHENTICATING` 态切后台保活**：允许 `DEVICE_CREDENTIAL` 时严禁同时调用 `setNegativeButtonText`（否则抛出 `IllegalArgumentException`）；唤起系统 PIN/密码验证页会触发 `ProcessLifecycleOwner.ON_STOP`，`AppLockStateMachine` 在 `AUTHENTICATING` 态收到 `onAppBackgrounded()` 时须保持认证中状态，避免解锁成功回调被误重锁。
 - **[M1.4] `AppLockOverlay` 触摸拦截与 Roborazzi 语义树 / DataStore 单测隔离 / gitleaks 熵检**：全屏遮罩拦截底层触摸应使用 `Modifier.pointerInput` 消费事件而非 `Modifier.clickable`（避免 `mergeDescendants = true` 合并子语义节点并干扰 TalkBack 与测试断言）；DataStore 单测须通过 `PreferenceDataStoreFactory.create` 绑定独立临时文件并在 `finally` 中 `cancelAndJoin()` 防止多实例冲突；公开仓测试样例字符串须避免高熵值紧邻 `secret`/`token` 变量名以防误触 `gitleaks` 的 `generic-api-key` 规则。
+- **[M2.1] Hilt 未引用绑定校验与行情接口编码/零浮点**：在 UI 尚未注入的新底层 `@Module`（如 `NetworkModule`）上同步声明 `@EntryPoint`（`MarketDataEntryPoint`），可促使 Dagger/Hilt 在编译期即校验全部依赖绑定而非跳过未引用图；腾讯/新浪公开行情接口响应可能采用 GBK/GB18030 且新浪要求 `Referer` 头，解析 JSON 数值时统一从 `JsonPrimitive.content` 直接构建 `BigDecimal` 彻底杜绝浮点精度漂移；国内 SGE 黄金（CNY/克）与国际现货 XAU（USD/盎司）须按标的区分备用源，避免跨单位错配。

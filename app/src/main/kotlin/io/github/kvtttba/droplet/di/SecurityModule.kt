@@ -11,19 +11,27 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.github.kvtttba.droplet.core.network.NetworkProxyConfigProvider
 import io.github.kvtttba.droplet.core.security.AndroidBiometricAuthenticator
 import io.github.kvtttba.droplet.core.security.AndroidKeystoreSecretKeyProvider
 import io.github.kvtttba.droplet.core.security.AppLockStateMachine
 import io.github.kvtttba.droplet.core.security.BiometricAuthenticator
+import io.github.kvtttba.droplet.core.security.DataStoreNetworkProxyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStorePrivacyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.KeystoreSecretCipher
 import io.github.kvtttba.droplet.core.security.MonotonicClock
+import io.github.kvtttba.droplet.core.security.NetworkProxyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.PrivacyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.SecretCipher
 import io.github.kvtttba.droplet.core.security.SecretKeyProvider
 import io.github.kvtttba.droplet.core.security.SecurityContract
+import javax.inject.Qualifier
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class NetworkProxyDataStore
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -46,6 +54,31 @@ object SecurityModule {
     fun providePrivacyPreferencesRepository(
         dataStore: DataStore<Preferences>,
     ): PrivacyPreferencesRepository = DataStorePrivacyPreferencesRepository(dataStore)
+
+    @Provides
+    @Singleton
+    @NetworkProxyDataStore
+    fun provideNetworkProxyPreferencesDataStore(
+        @ApplicationContext context: Context,
+        @ApplicationScope applicationScope: CoroutineScope,
+    ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        scope = applicationScope,
+        produceFile = {
+            context.preferencesDataStoreFile(SecurityContract.NETWORK_PROXY_PREFERENCES_FILE)
+        },
+    )
+
+    @Provides
+    @Singleton
+    fun provideNetworkProxyPreferencesRepository(
+        @NetworkProxyDataStore dataStore: DataStore<Preferences>,
+    ): NetworkProxyPreferencesRepository = DataStoreNetworkProxyPreferencesRepository(dataStore)
+
+    @Provides
+    @Singleton
+    fun provideNetworkProxyConfigProvider(
+        repository: NetworkProxyPreferencesRepository,
+    ): NetworkProxyConfigProvider = repository
 
     @Provides
     @Singleton
