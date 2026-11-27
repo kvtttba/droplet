@@ -16,9 +16,11 @@ import io.github.kvtttba.droplet.core.security.AndroidBiometricAuthenticator
 import io.github.kvtttba.droplet.core.security.AndroidKeystoreSecretKeyProvider
 import io.github.kvtttba.droplet.core.security.AppLockStateMachine
 import io.github.kvtttba.droplet.core.security.BiometricAuthenticator
+import io.github.kvtttba.droplet.core.security.DataStoreMarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreNetworkProxyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStorePrivacyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.KeystoreSecretCipher
+import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.MonotonicClock
 import io.github.kvtttba.droplet.core.security.NetworkProxyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.PrivacyPreferencesRepository
@@ -32,6 +34,10 @@ import kotlinx.coroutines.CoroutineScope
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class NetworkProxyDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class MarketSyncDataStore
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -79,6 +85,25 @@ object SecurityModule {
     fun provideNetworkProxyConfigProvider(
         repository: NetworkProxyPreferencesRepository,
     ): NetworkProxyConfigProvider = repository
+
+    @Provides
+    @Singleton
+    @MarketSyncDataStore
+    fun provideMarketSyncPreferencesDataStore(
+        @ApplicationContext context: Context,
+        @ApplicationScope applicationScope: CoroutineScope,
+    ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        scope = applicationScope,
+        produceFile = {
+            context.preferencesDataStoreFile(SecurityContract.MARKET_SYNC_PREFERENCES_FILE)
+        },
+    )
+
+    @Provides
+    @Singleton
+    fun provideMarketSyncPreferencesRepository(
+        @MarketSyncDataStore dataStore: DataStore<Preferences>,
+    ): MarketSyncPreferencesRepository = DataStoreMarketSyncPreferencesRepository(dataStore)
 
     @Provides
     @Singleton

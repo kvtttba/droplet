@@ -12,9 +12,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import io.github.kvtttba.droplet.core.network.NetworkProxyConfig
+import io.github.kvtttba.droplet.core.network.NetworkProxyType
 import io.github.kvtttba.droplet.core.security.BiometricAuthResult
 import io.github.kvtttba.droplet.core.security.BiometricAuthenticator
 import io.github.kvtttba.droplet.core.security.LockStatus
+import io.github.kvtttba.droplet.core.security.MarketSyncPreferences
+import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
+import io.github.kvtttba.droplet.core.security.NetworkProxyPreferencesRepository
 import io.github.kvtttba.droplet.security.AppLockCoordinator
 import io.github.kvtttba.droplet.ui.DropletApp
 import io.github.kvtttba.droplet.ui.toAppThemePreference
@@ -31,6 +36,12 @@ class MainActivity : FragmentActivity() {
 
     @Inject
     lateinit var biometricAuthenticator: BiometricAuthenticator
+
+    @Inject
+    lateinit var marketSyncPreferencesRepository: MarketSyncPreferencesRepository
+
+    @Inject
+    lateinit var networkProxyPreferencesRepository: NetworkProxyPreferencesRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +63,24 @@ class MainActivity : FragmentActivity() {
             val preferences by appLockCoordinator.preferences.collectAsStateWithLifecycle()
             val isHydrated by appLockCoordinator.isHydrated.collectAsStateWithLifecycle()
             val lockState by appLockCoordinator.lockState.collectAsStateWithLifecycle()
+            val marketSyncPrefs by marketSyncPreferencesRepository.preferences
+                .collectAsStateWithLifecycle(initialValue = MarketSyncPreferences())
+            val proxyConfig by networkProxyPreferencesRepository.proxyConfig
+                .collectAsStateWithLifecycle(initialValue = NetworkProxyConfig.NONE)
+            val marketSyncSummary = buildString {
+                append(marketSyncPrefs.refreshInterval.label)
+                if (marketSyncPrefs.wifiOnly && marketSyncPrefs.refreshInterval.isPeriodicEnabled) {
+                    append(" · 仅 Wi-Fi")
+                }
+                append(" · ")
+                append(
+                    when {
+                        !proxyConfig.isEnabled -> "直连"
+                        proxyConfig.type == NetworkProxyType.HTTP -> "HTTP 代理"
+                        else -> "SOCKS 代理"
+                    },
+                )
+            }
 
             LaunchedEffect(isHydrated, lockState.isOverlayVisible, lockState.status, lockState.lastErrorMessage) {
                 if (
@@ -68,6 +97,7 @@ class MainActivity : FragmentActivity() {
                 preferences = preferences,
                 isPreferencesHydrated = isHydrated,
                 lockState = lockState,
+                marketSyncSummary = marketSyncSummary,
                 onThemeModeChange = { mode ->
                     appLockCoordinator.setThemeMode(mode.toAppThemePreference())
                 },

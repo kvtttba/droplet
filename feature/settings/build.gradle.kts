@@ -37,6 +37,9 @@ android {
 
 dependencies {
     implementation(projects.core.model)
+    implementation(projects.core.domain)
+    implementation(projects.core.database)
+    implementation(projects.core.network)
     implementation(projects.core.security)
     implementation(projects.core.sync)
     implementation(projects.core.ui)
