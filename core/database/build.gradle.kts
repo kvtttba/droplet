@@ -43,6 +43,7 @@ ksp {
 dependencies {
     implementation(projects.core.model)
     implementation(projects.core.domain)
+    api(projects.core.network)
     api(libs.room.runtime)
     api(libs.room.ktx)
     ksp(libs.room.compiler)
@@ -53,4 +54,5 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.okhttp.mockwebserver)
 }

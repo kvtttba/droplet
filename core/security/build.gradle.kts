@@ -30,6 +30,7 @@ android {
 
 dependencies {
     implementation(projects.core.model)
+    api(projects.core.network)
     implementation(libs.androidx.core.ktx)
     api(libs.androidx.biometric)
     api(libs.androidx.fragment.ktx)

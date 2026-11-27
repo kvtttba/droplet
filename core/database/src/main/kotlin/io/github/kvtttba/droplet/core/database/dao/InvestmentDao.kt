@@ -25,6 +25,9 @@ interface InvestmentAssetDao {
     @Query("SELECT * FROM investment_assets ORDER BY asset_class ASC, symbol ASC, id ASC")
     fun observeAll(): Flow<List<InvestmentAssetEntity>>
 
+    @Query("SELECT * FROM investment_assets ORDER BY asset_class ASC, symbol ASC, id ASC")
+    suspend fun getAll(): List<InvestmentAssetEntity>
+
     @Query("SELECT * FROM investment_assets WHERE account_id = :accountId ORDER BY symbol ASC, id ASC")
     fun observeByAccountId(accountId: String): Flow<List<InvestmentAssetEntity>>
 
@@ -49,6 +52,9 @@ interface MarketQuoteDao {
 
     @Query("SELECT * FROM market_quotes ORDER BY fetched_at DESC, asset_id ASC")
     fun observeAll(): Flow<List<MarketQuoteEntity>>
+
+    @Query("SELECT * FROM market_quotes ORDER BY fetched_at DESC, asset_id ASC")
+    suspend fun getAll(): List<MarketQuoteEntity>
 
     @Query("SELECT * FROM market_quotes WHERE asset_id = :assetId LIMIT 1")
     fun observeByAssetId(assetId: String): Flow<MarketQuoteEntity?>
