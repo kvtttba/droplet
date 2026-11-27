@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-- **当前阶段**：`M2.2`（投资持仓引擎与定存/理财计算）已完成验收并合入 `main`。
-- **下一个待执行切片**：**`M2.3`**（资产总览页、持仓详情与后台定时刷新）
-- **最新已合入提交**：`feat/m2-2-investment-portfolio-engine` 合入 `main`（CI `#46010205871` 全线绿灯，详见 `git log`）
+- **当前阶段**：`M2.3`（资产总览页、持仓详情与后台定时刷新）已完成验收并合入 `main`。
+- **下一个待执行切片**：**`M3.1`**（信用卡额度、账单日与还款本地提醒）
+- **最新已合入提交**：`feat/m2-3-assets-ui-and-market-sync` 合入 `main`（CI `#46017227034` 全线绿灯，详见 `git log`）
 
 ---
 
@@ -36,8 +36,8 @@
 | `M1.4` | 生物识别隐私锁、重锁与金额隐藏 | ✅ 已完成 | `:core:security` DataStore 隐私偏好持久化、`AppLockStateMachine`（单调时钟 5 档超时重锁）、Android 12+ `BiometricPrompt`（含设备锁屏兜底）、Keystore AES-256-GCM 凭据加密器；`MainActivity` 升级 `FragmentActivity` 接入动态 `FLAG_SECURE`、`ProcessLifecycleOwner` 与全屏 `AppLockOverlay`；`PrivacySecurityScreen` 落地与全局隐身/主题持久化 + 156 项测试 & 16 张 Roborazzi 截图 + API 31 持久化 E2E + 14 MB Debug APK 全绿 | `feat/m1-4-biometric-privacy-lock` 已验收合入（CI `#45999836880`） |
 | `M2.1` | 免费公开汇率与全品类行情 Provider 链 | ✅ 已完成 | 纯 JVM `:core:network` 代理配置与 OkHttp 工厂、CNY/USD/HKD 3 级主备汇率链（东方财富→Frankfurter→Open ER API）、9 类资产国内直连优先+备用源降级+单标的失败隔离行情链、5 分钟节流；`:core:security` 代理 DataStore 持久化；`:core:database` `MarketDataRepository` 缓存降级与手动覆写单价/清除；`:app` `NetworkModule` + `MarketDataEntryPoint`；185 项离线单测 & 16 张 Roborazzi 截图 + API 31 E2E + 15 MB Debug APK 全绿 | `feat/m2-1-market-fx-providers` 已验收合入（CI `#46005286947`） |
 | `M2.2` | 投资持仓引擎与定存/理财计算 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点投资引擎（`PortfolioPositionEngine` 加权平均成本/定投/部分卖出结转/清仓零残差再买/分红/防超卖/8 位加密小数/跨币种行情折算、`FixedDepositCalculator` ACT/365 三模式计息与到期/提前支取分录辅助、`BankWealthValuationHelper` 公开净值与手动净值/收益金额反推、`PortfolioSummaryAggregator` 全账户与持仓净资产/三币种分布及 `includeInNetWorth` 过滤）；`:core:database` `InvestmentRepository` / `LocalInvestmentRepository` 原子复式写入与实时 Flow 持仓/总览聚合；`:app` `InvestmentModule` + `InvestmentEntryPoint`；206 项测试 & 16 张 Roborazzi 截图 + API 31 E2E + 15 MB Debug APK 全绿 | `feat/m2-2-investment-portfolio-engine` 已验收合入（CI `#46010205871`） |
-| `M2.3` | 资产总览页、持仓详情与后台定时刷新 | ⬜ 待开始 | 资产页总览与币种分布、持仓行情与手动覆写价、WorkManager 定时刷新、截图 + APK | 下一切片 |
-| `M3.1` | 信用卡额度、账单日与还款本地提醒 | ⬜ 待开始 | 信用额度进度条、出账/还款倒计时、到期前本地通知提醒 | — |
+| `M2.3` | 资产总览页、持仓详情与后台定时刷新 | ✅ 已完成 | `:feature:assets` 接入 Hilt 与真实 Room Flow 资产总览（CNY/USD/HKD 实时切换、真实三币种分布条、进页 5 分钟节流 + 下拉/一键刷新 + 上次更新时间、全局隐私隐身、分组账户卡与不计入总资产折叠区、9 类资产/定存/理财新建表单）；`InvestmentDetailScreen` / `Route` / `ViewModel`（8 位加密份额、加权成本与浮盈/已实现/分红/税费/净总回报、买/定投/卖实时结转预览与防超卖/分红/定存结息支取付息/手动覆写与清除/银行理财手动净值或收益反推与历史流水）；`:core:security` `MarketSyncPreferencesRepository` + `:app` WorkManager `MarketRefreshWorker`（经 `EntryPointAccessors` 访问 `MarketDataEntryPoint`）& `MarketSyncScheduler` + `:feature:settings` 行情同步与网络代理设置页；222 项测试 & 18 张 Roborazzi 截图 + API 31 投资/行情全链路 E2E + 15 MB Debug APK 全绿 | `feat/m2-3-assets-ui-and-market-sync` 已验收合入（CI `#46017227034`） |
+| `M3.1` | 信用卡额度、账单日与还款本地提醒 | ⬜ 待开始 | 信用额度进度条、出账/还款倒计时、到期前本地通知提醒 | 下一切片 |
 | `M3.2` | 分期贷款引擎与到期自动还款分录 | ⬜ 待开始 | 等额本息/等额本金/固定手续费计划表、到期自动拆本息分录与通知 | — |
 | `M3.3` | 往来借贷、待报销冲抵与多次退款 | ⬜ 待开始 | 往来人借入/借出/分次还/利息/坏账核销、待报销冲抵与差额转支出、多次关联退款 | — |
 | `M4.1` | AI 配置、Keystore 加密与 JSON 解析引擎 | ⬜ 待开始 | OpenAI Compatible 配置页与连通性测试、Keystore 加密存储、隐私最小化 Prompt、容错解析 | — |
@@ -113,26 +113,35 @@
    - 新增 `InvestmentRepository` / `LocalInvestmentRepository`，封装标的新建（自动联动或绑定 `INVEST_HOLDING` 账户）/编辑/归档/安全删除，买/定投/卖（自动结转加权成本并将收益路由至 `投资收益`、亏损路由至 `投资亏损`，含回溯时间线防超卖校验）/现金分红/定存开立与结息/按期付息/银行理财手动净值或收益更新的原子复式写入，以及响应式 `Flow` 持仓与资产总览查询（离线无缓存汇率时通过 `FallbackExchangeRateProvider` 回退参考汇率）；
    - `:app` 新增 `InvestmentModule` 与 `InvestmentEntryPoint` 完成单例绑定与编译期依赖图校验。
 
-### M2.3 启动入口契约（资产总览页、持仓详情与后台定时刷新）
-1. 从 `main` 切出分支 `feat/m2-3-assets-ui-and-market-sync`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m2.3"`。
-2. **资产总览页与投资持仓交互闭环 (`:feature:assets` & `:app`)**：
-   - 为 `:feature:assets` 接入 Hilt、`projects.core.database`、`projects.core.security`、`projects.core.network`，保留 Stateless Screen + Hilt Route 分层（`DropletAppShell` 继续支持无 Hilt 预览槽位供 Roborazzi 截图测试）；
-   - 升级 `AssetsScreen` / 新增 `AssetsRoute` & `AssetsViewModel`：
-     - 订阅 `InvestmentRepository.observePortfolioSummary(baseCurrency)` 与 `MarketDataRepository.observeMarketQuotes()`，渲染真实总净资产 / 总资产 / 总负债卡、CNY / USD / HKD 显示币种切换、真实三币种占比进度条、全局隐私隐身（`LocalAmountsHidden` / `PrivacyAmountText`）；
-     - 进资产页按 5 分钟节流自动刷新行情与汇率，顶部提供一键/下拉强制刷新按钮与「上次更新时间」及失败降级提示；
-     - 完整呈现分组卡片：日常资金、信用账户、投资持仓列表（最新单价/净值、原币种+本位币市值、当日涨跌、累计浮盈与收益率、定存计息进度/银行理财手动估值徽章）、分期贷款/借贷与待报销、以及「不计入总资产」折叠分区；
-     - 提供新建投资标的表单（支持 9 类 `AssetClass`、定存利率/起息/到期/计息模式与首笔本金开立、银行理财、自动创建或选择 `INVEST_HOLDING` 账户）。
-   - 新增持仓详情页 `InvestmentDetailScreen` / `InvestmentDetailRoute` / `InvestmentDetailViewModel`：
-     - 展示持仓份额（加密支持 8 位小数）、加权平均成本价、剩余成本、最新单价（支持手动覆写单价/清除覆写；银行理财支持按最新净值或最新收益金额一键更新）、当日涨跌、累计浮盈/已实现盈亏/分红/手续费/总回报与按标的历史流水列表；
-     - 内置买入、定投、卖出（实时预览加权成本结转与预估已实现盈亏 + 超卖拦截提示）、现金分红、定存到期结息/提前支取/按期付息表单，全部直连 `InvestmentRepository` 原子入账。
-3. **WorkManager 后台定时行情刷新与同步/代理设置 (`:core:security` & `:feature:settings` & `:app`)**：
-   - 在 `:core:security` 新增 `MarketSyncPreferencesRepository`（DataStore 持久化自动更新频率 `MANUAL_ONLY` / `HOURS_6` / `HOURS_12` / `DAILY` 与 `wifiOnly` 开关）；
-   - 在 `:app` 落地 `MarketRefreshWorker`（`CoroutineWorker` 通过 `EntryPointAccessors` 读取 `MarketDataEntryPoint.marketDataRepository()` 执行 `refreshAll(forceRefresh = false)`，确保后台定时刷新与 5 分钟节流一致且避免引入额外重依赖）与 `MarketSyncScheduler`（统一调度 `PeriodicWorkRequest` 与 `NetworkType.UNMETERED` / `CONNECTED` 约束，在 `DropletApplication.onCreate()` 及设置变更时生效）；
-   - 在 `:feature:settings` 新增「行情同步与代理」设置页（配置自动刷新周期、仅 Wi-Fi 开关、立即手动刷新、以及接入 M2.1 已落地的 `NetworkProxyPreferencesRepository` 配置 NONE / HTTP / SOCKS 代理与 host/port）。
-4. **测试、截图与门禁**：
-   - 补齐 ViewModel / `MarketRefreshWorker`（`TestListenableWorkerBuilder`）与 `MarketSyncPreferencesRepository` 单测；
-   - 更新 `assets_light.png` / `assets_dark.png` 并新增 `investment_detail_light.png` / `market_sync_settings_light.png` Roborazzi 基线截图（固定 `Asia/Shanghai` 时区）；
-   - 扩充 API 31 模拟器 `DropletAppE2ETest`（覆盖新建投资标的 → 买入 → 手动覆写净值 → 资产总览净资产与浮盈实时刷新）；
+### M2.3 已落地的核心约定
+1. **资产总览与投资持仓闭环 (`:feature:assets` & `:app`)**：
+   - `:feature:assets` 接入 Hilt/KSP 与 `:core:database`、`:core:security`、`:core:network`，继续保持 Stateless Screen + Hilt Route 分层（`DropletAppShell` 同步提供 `assetsPreviewState` / `investmentDetailPreviewState` / `marketSyncPreviewState` 无 Hilt 槽位）；
+   - `AssetsScreen` / `AssetsRoute` / `AssetsViewModel` 实时订阅 `InvestmentRepository.observePortfolioSummary(displayCurrency)` 与 `MarketDataRepository`，支持 CNY/USD/HKD 显示币种切换、真实三币种分布条、`PullToRefreshBox` + 顶部一键刷新、进页 5 分钟节流与失败保留缓存提示、不计入总资产折叠分区，以及 `CreateInvestmentAssetSheet`（全 9 类资产、定存年利率 `%` 规范转 8 位小数及首笔本金原子开立、自动新建或复用 `INVEST_HOLDING` 账户）；
+   - `InvestmentDetailScreen` / `InvestmentDetailRoute` / `InvestmentDetailViewModel`（`DropletRoutes.INVESTMENT_DETAIL_PATTERN`）与 `InvestmentDetailSheets` 完整覆盖 8 位加密份额、加权平均成本、浮盈/已实现/分红/税费/扣费净总回报、买入/定投/卖出（基于 `PortfolioPositionEngine.previewSellFromState` 的零浮点实时结转预览与 `OversellPositionException` 超卖拦截）/现金分红/定存结息与提前支取与按期付息、行情手动覆写与清除、银行理财按净值/收益金额（支持负收益破净）/总市值反推净值及标的历史流水。
+2. **WorkManager 后台定时行情同步与网络代理设置 (`:core:security` & `:app` & `:feature:settings`)**：
+   - `:core:security` 新增 `MarketSyncInterval`（`MANUAL_ONLY` / `HOURS_6` / `HOURS_12` / `DAILY`，默认 `HOURS_12`）、`MarketSyncPreferences` 与 `MarketSyncPreferencesRepository` / `DataStoreMarketSyncPreferencesRepository`（独立 `droplet_market_sync_preferences.preferences_pb`，`SecurityModule` 经 `@MarketSyncDataStore` 绑定）；
+   - `:app` 新增 `MarketRefreshWorker`（`CoroutineWorker` 通过 `EntryPointAccessors` 访问 `MarketDataEntryPoint.marketDataRepository()` 执行 5 分钟节流 `refreshAll(forceRefresh = false)`，失败按重试上限 `Result.retry()`）与 `MarketSyncScheduler`（`ExistingPeriodicWorkPolicy.UPDATE` + `NetworkType.UNMETERED`/`CONNECTED` 约束，`MANUAL_ONLY` 时取消唯一周期任务），并在 `DropletApplication.onCreate()` 持续订阅 `MarketSyncPreferencesRepository.preferences` 自动重调度；
+   - `:feature:settings` 新增 `MarketSyncSettingsScreen` / `MarketSyncSettingsRoute` / `MarketSyncSettingsViewModel`（`DropletRoutes.MARKET_SYNC_SETTINGS`），打通自动刷新周期、仅 Wi-Fi 开关、立即强制刷新与 `NetworkProxyPreferencesRepository`（NONE / HTTP / SOCKS 与主机/端口校验及脱敏存储），`SettingsScreen` 与 `MainActivity` 实时展示当前同步与代理摘要。
+
+### M3.1 启动入口契约（信用卡额度、账单日与还款本地提醒）
+1. 从 `main` 切出分支 `feat/m3-1-credit-card-billing-reminders`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m3.1"`。
+2. **纯 JVM 信用卡账单周期与还款引擎 (`:core:domain`)**：
+   - 新增 `io.github.kvtttba.droplet.core.domain.credit`（零浮点，全量 `Money` 4 位定点 `Long` + `BigDecimal`）：
+     - `CreditCardStatementCalculator`：结合 `Account` 已有字段（`creditLimitMinor`、`billingDay`、`dueDay`、`remindDaysBefore`），处理 29–31 号月末安全夹紧与同月/跨月还款日逻辑，精确计算上期已出账单区间、本期未出账单区间、距下次出账日与还款日倒计时、提前 N 天提醒窗口判定；
+     - 结合该信用卡账户 `POSTED` 流水精确计算：当前已用额度、可用额度（含溢缴款处理）、额度使用率（%）、本期已出账单应还金额（扣除出账日后的还款/退款冲减）、当前未出账单消费及账单状态（已还清 / 待还款 / 即将到期 / 已逾期）；
+     - `CreditCardRepaymentHelper`：复用 `LedgerEngine` 构造一键还款复式转账分录（支持全额还本期账单、还清全部欠款、自定义还款额与跨币种还款）。
+3. **信用卡账单详情页与资产页联动 (`:core:database` & `:feature:assets` & `:app`)**：
+   - 在 `:core:database` 提供信用卡账单与按账户流水的响应式 Flow 查询/仓储封装（Room Schema `v1` 保持兼容不变或按需扩展）；
+   - 升级 `AssetsScreen` 信用账户分组：展示真实额度进度条、已用/可用额度、距出账日与还款日倒计时及本期应还提示，点击行直达信用卡详情页；
+   - 新增 `CreditCardDetailScreen` / `CreditCardDetailRoute` / `CreditCardDetailViewModel`（支持无 Hilt 预览槽位）：展示额度与账单周期 Hero 卡、已出账单 / 未出账单流水切换、一键「立即还款」底部表单（自动预填本期应还或全部当前欠款，选付款账户原子入账）以及快捷修改额度/账单日/还款日/提前提醒天数。
+4. **本地还款到期通知提醒 (`:app` & `:feature:settings`)**：
+   - 在 `AndroidManifest.xml` 声明 `POST_NOTIFICATIONS`（Android 13+ 运行时优雅请求，不阻断核心记账）；
+   - 在 `:app` 落地通知渠道（`droplet_credit_card_reminders`）、`CreditCardReminderNotificationPublisher`、`CreditCardReminderWorker`（经 Hilt `@EntryPoint` 扫描到期提醒窗口内仍有待还金额的信用卡并防同日重复推送）与 `CreditCardReminderScheduler`（WorkManager 每日检查，在 `DropletApplication` 启动与提醒设置变更时调度）；
+   - 提供提醒开关/提前提醒偏好与通知权限状态引导（可在信用卡详情页与设置页访问）。
+5. **测试、截图与门禁**：
+   - 补齐 `CreditCardStatementCalculator` L1 单测（覆盖闰年 2 月 / 31 号夹紧、跨月还款、部分还款冲减、溢缴款、提醒窗口边界）、ViewModel 单测、`CreditCardReminderWorker`（`TestListenableWorkerBuilder`）与 `CreditCardReminderScheduler` 单测；
+   - 更新 `assets_light.png` / `assets_dark.png` 并新增 `credit_card_detail_light.png` Roborazzi 截图（固定 `Asia/Shanghai` 时区）；
+   - 扩充 API 31 模拟器 `DropletAppE2ETest`（覆盖配置信用卡额度/账单日/还款日 → 记一笔信用卡消费 → 进入信用卡详情核对已用额度与账单 → 一键还款 → 额度恢复）；
    - 通过本地单测（`ANDROID_HOME=/data/home/android-sdk ./gradlew --max-workers=1 -Dorg.gradle.jvmargs="-Xmx2048m -Dfile.encoding=UTF-8" ...`）、`verifyRoborazziDebug`、`assembleDebug`、`gitleaks` 与 GitHub Actions 全线 CI 绿灯。
 
 ---
@@ -152,3 +161,4 @@
 - **[M1.4] `AppLockOverlay` 触摸拦截与 Roborazzi 语义树 / DataStore 单测隔离 / gitleaks 熵检**：全屏遮罩拦截底层触摸应使用 `Modifier.pointerInput` 消费事件而非 `Modifier.clickable`（避免 `mergeDescendants = true` 合并子语义节点并干扰 TalkBack 与测试断言）；DataStore 单测须通过 `PreferenceDataStoreFactory.create` 绑定独立临时文件并在 `finally` 中 `cancelAndJoin()` 防止多实例冲突；公开仓测试样例字符串须避免高熵值紧邻 `secret`/`token` 变量名以防误触 `gitleaks` 的 `generic-api-key` 规则。
 - **[M2.1] Hilt 未引用绑定校验与行情接口编码/零浮点**：在 UI 尚未注入的新底层 `@Module`（如 `NetworkModule`）上同步声明 `@EntryPoint`（`MarketDataEntryPoint`），可促使 Dagger/Hilt 在编译期即校验全部依赖绑定而非跳过未引用图；腾讯/新浪公开行情接口响应可能采用 GBK/GB18030 且新浪要求 `Referer` 头，解析 JSON 数值时统一从 `JsonPrimitive.content` 直接构建 `BigDecimal` 彻底杜绝浮点精度漂移；国内 SGE 黄金（CNY/克）与国际现货 XAU（USD/盎司）须按标的区分备用源，避免跨单位错配。
 - **[M2.2] KSP2 跨模块新增接口缓存、8G 无 Swap 内存控制与防双计规则**：向 `:core:database` 新增被 `:app` Hilt `@Module` 引用的接口时，若复用历史长驻 Gradle Daemon 偶发 KSP2 `NoIsolationWorkerFactory` 读取旧 jar 索引报错，执行 `./gradlew --no-build-cache :core:database:clean :app:clean :app:kspDebugKotlin` 或重启 Daemon 即可刷新；本机 8 GB 无 Swap 环境下并行运行单测 + Roborazzi + `assembleDebug` 易触发 OOM Killer，建议分步执行并加 `--max-workers=1 -Dorg.gradle.jvmargs="-Xmx2048m -Dfile.encoding=UTF-8"`；总净资产汇总须用持仓实时/应计市值替换 `INVEST_HOLDING` 账面成本避免双计，定存仅在 `MONTHLY_PAYOUT` 模式下从当前应计利息扣除 `alreadyPaidInterest`，避免 `SIMPLE_AT_MATURITY` 部分提前支取的已结利息冲减剩余本金的正常计息。
+- **[M2.3] Compose `clickable` 语义合并与 E2E `ModalBottomSheet` 稳定性**：`Modifier.clickable` 默认 `mergeDescendants = true`，当父容器与子 `Text` 同时设置 `testTag` 时合并语义树仅保留父节点 `testTag`（`first-wins`），故需将 E2E 稳定标识直接放在可点击容器上（或无合并目标文本节点上）；涉及底部弹窗提交的模拟器 E2E 须等待弹窗节点消失后再滚动底层 `LazyColumn`，且 `:core:model` 的 `DecimalCanonicalizer` 为 `internal`，外部模块统一通过 `UnitPrice.of(...)`/`Quantity.of(...)` 获取规范小数串。
