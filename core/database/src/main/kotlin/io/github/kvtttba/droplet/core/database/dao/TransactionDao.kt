@@ -560,6 +560,9 @@ interface TransactionDao {
     @Query("SELECT COUNT(*) FROM postings")
     suspend fun countPostings(): Int
 
+    @Query("SELECT COUNT(*) FROM postings WHERE account_id = :accountId")
+    suspend fun countPostingsForAccount(accountId: String): Int
+
     @Query("SELECT COUNT(*) FROM transaction_tags")
     suspend fun countTransactionTags(): Int
 }

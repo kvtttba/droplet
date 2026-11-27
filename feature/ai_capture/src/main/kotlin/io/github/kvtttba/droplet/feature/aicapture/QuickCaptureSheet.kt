@@ -39,7 +39,7 @@ enum class QuickCaptureMode(
     MANUAL(
         title = "手动记账",
         subtitle = "直观表单与可展开专业复式分录",
-        milestoneTag = "M1.3",
+        milestoneTag = "已可用",
         icon = DropletIcons.EditNote,
     ),
     IMAGE(

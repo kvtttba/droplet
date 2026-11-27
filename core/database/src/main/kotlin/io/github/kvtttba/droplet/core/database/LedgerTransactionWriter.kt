@@ -77,6 +77,38 @@ class LedgerTransactionWriter(
     }
 
     /**
+     * Restores a voided or draft transaction back to POSTED status after re-validating
+     * its persisted double-entry postings against live accounts.
+     */
+    suspend fun restoreTransaction(
+        transactionId: String,
+        updatedAt: Long,
+        allowArchivedAccounts: Boolean = true,
+    ) {
+        database.withTransaction {
+            val existing = transactionDao.getById(transactionId)?.toDomain()
+                ?: throw IllegalArgumentException("Transaction '$transactionId' not found")
+            val referencedAccountIds = existing.postings.map { it.accountId }.distinct()
+            val accountsById = if (referencedAccountIds.isEmpty()) {
+                emptyMap()
+            } else {
+                accountDao.getByIds(referencedAccountIds)
+                    .associate { entity -> entity.id to entity.toDomain() }
+            }
+            LedgerValidator.requireValid(
+                transaction = existing.copy(status = TransactionStatus.POSTED, updatedAt = updatedAt),
+                accounts = accountsById,
+                allowArchivedAccounts = allowArchivedAccounts,
+            )
+            transactionDao.updateStatus(
+                transactionId = transactionId,
+                status = TransactionStatus.POSTED,
+                updatedAt = updatedAt,
+            )
+        }
+    }
+
+    /**
      * Updates the reimbursement settlement status of an advance transaction.
      */
     suspend fun updateReimburseState(
