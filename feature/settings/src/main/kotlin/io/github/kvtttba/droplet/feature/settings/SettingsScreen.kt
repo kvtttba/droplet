@@ -1,6 +1,7 @@
 package io.github.kvtttba.droplet.feature.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,6 +47,8 @@ fun SettingsScreen(
     onThemeModeChange: (ThemeMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
     onToggleAmountsHidden: () -> Unit,
+    onOpenAccountManagement: () -> Unit = {},
+    onOpenCategoryTagManagement: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val amountsHidden = LocalAmountsHidden.current
@@ -65,7 +71,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                DropletPillBadge(text = "v0.1.0-m0")
+                DropletPillBadge(text = "v0.1.0-m1.3")
             }
         }
 
@@ -104,6 +110,33 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+        }
+
+        item {
+            DropletSectionHeader(title = "账本基础管理")
+        }
+
+        item {
+            DropletCard(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
+                SettingsItemRow(
+                    icon = DropletIcons.AccountBalanceWallet,
+                    title = "账户管理",
+                    subtitle = "日常账户、信用参数、期初余额建账与归档",
+                    onClick = onOpenAccountManagement,
+                    modifier = Modifier.testTag("settings_entry_accounts"),
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 48.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                )
+                SettingsItemRow(
+                    icon = DropletIcons.Category,
+                    title = "二级分类与标签管理",
+                    subtitle = "自定义收支大类/小类图标与多标签配色",
+                    onClick = onOpenCategoryTagManagement,
+                    modifier = Modifier.testTag("settings_entry_categories_tags"),
+                )
             }
         }
 
@@ -157,11 +190,20 @@ fun SettingsScreen(
         }
 
         item {
-            DropletSectionHeader(title = "智能记账 · 同步与安全")
+            DropletSectionHeader(title = "智能记账 · 同步与导出")
         }
 
         item {
             DropletCard(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
+                SettingsItemRow(
+                    icon = DropletIcons.Fingerprint,
+                    title = "生物识别锁与防截屏",
+                    subtitle = "BiometricPrompt · 切后台重锁 · FLAG_SECURE · M1.4",
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 48.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                )
                 SettingsItemRow(
                     icon = DropletIcons.AutoAwesome,
                     title = "AI 服务配置",
@@ -172,29 +214,6 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
                 )
                 SettingsItemRow(
-                    icon = DropletIcons.CloudSync,
-                    title = "WebDAV 加密备份与恢复",
-                    subtitle = "AES-256-GCM 端到端快照 · 本地回滚保护 · M5",
-                )
-                HorizontalDivider(
-                    modifier = Modifier.padding(start = 48.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                )
-                SettingsItemRow(
-                    icon = DropletIcons.Fingerprint,
-                    title = "生物识别锁与防截屏",
-                    subtitle = "BiometricPrompt · 切后台重锁 · FLAG_SECURE · M1.4",
-                )
-            }
-        }
-
-        item {
-            DropletSectionHeader(title = "账本管理与导出")
-        }
-
-        item {
-            DropletCard(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
-                SettingsItemRow(
                     icon = DropletIcons.Repeat,
                     title = "预算、周期记账与快捷模板",
                     subtitle = "分类预算预警 · 自动入账规则 · M5.1",
@@ -204,9 +223,9 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
                 )
                 SettingsItemRow(
-                    icon = DropletIcons.Category,
-                    title = "二级分类与标签管理",
-                    subtitle = "自定义收支分类图标与多标签配色 · M1.3",
+                    icon = DropletIcons.CloudSync,
+                    title = "WebDAV 加密备份与恢复",
+                    subtitle = "AES-256-GCM 端到端快照 · 本地回滚保护 · M5.3",
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 48.dp),
@@ -260,10 +279,14 @@ private fun SettingsItemRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -292,6 +315,15 @@ private fun SettingsItemRow(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (onClick != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
             )
         }
     }

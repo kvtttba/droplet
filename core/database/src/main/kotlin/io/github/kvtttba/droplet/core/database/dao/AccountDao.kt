@@ -106,6 +106,9 @@ interface AccountDao {
     @Query("DELETE FROM accounts WHERE id = :accountId")
     suspend fun deleteById(accountId: String)
 
+    @Query("SELECT COUNT(*) FROM accounts WHERE parent_id = :parentId")
+    suspend fun countChildren(parentId: String): Int
+
     @Query("SELECT COUNT(*) FROM accounts")
     suspend fun countAll(): Int
 }
