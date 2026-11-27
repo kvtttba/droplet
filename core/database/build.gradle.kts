@@ -21,10 +21,28 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    sourceSets {
+        getByName("test").assets.srcDir("$projectDir/schemas")
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+    arg("room.incremental", "true")
+    arg("room.generateKotlin", "true")
 }
 
 dependencies {
     implementation(projects.core.model)
+    implementation(projects.core.domain)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
@@ -33,4 +51,6 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.room.testing)
     testImplementation(libs.robolectric)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.androidx.test.ext.junit)
 }
