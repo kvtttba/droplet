@@ -16,7 +16,7 @@ android {
         minSdk = 31
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0-m1.3"
+        versionName = "0.1.0-m1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -84,9 +84,13 @@ dependencies {
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.datastore.preferences)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

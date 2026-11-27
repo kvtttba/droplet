@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToKey
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
@@ -18,9 +19,13 @@ import io.github.kvtttba.droplet.core.model.Currency
 import io.github.kvtttba.droplet.core.model.Money
 import io.github.kvtttba.droplet.core.model.TransactionDisplayType
 import io.github.kvtttba.droplet.core.model.TransactionStatus
+import io.github.kvtttba.droplet.core.security.BiometricCapability
+import io.github.kvtttba.droplet.core.security.RelockTimeout
 import io.github.kvtttba.droplet.core.ui.theme.DropletTheme
 import io.github.kvtttba.droplet.core.ui.theme.ThemeMode
 import io.github.kvtttba.droplet.feature.aicapture.QuickCaptureSheetContent
+import io.github.kvtttba.droplet.feature.settings.PrivacySecurityScreen
+import io.github.kvtttba.droplet.feature.settings.PrivacySecurityUiState
 import io.github.kvtttba.droplet.feature.ledger.LedgerAmountTone
 import io.github.kvtttba.droplet.feature.ledger.LedgerDayGroup
 import io.github.kvtttba.droplet.feature.ledger.LedgerItemMapper
@@ -288,6 +293,96 @@ class DropletAppScreenshotTest {
             filePath = "src/test/snapshots/quick_capture_sheet_light.png",
             roborazziOptions = roborazziOptions,
         )
+    }
+
+    @Test
+    fun captureAppLockOverlayLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                AppLockOverlay(
+                    isAuthenticating = false,
+                    errorMessage = null,
+                    onUnlockClick = {},
+                )
+            }
+        }
+        composeRule.onNodeWithTag("app_lock_overlay").assertIsDisplayed()
+        composeRule.onNodeWithTag("app_lock_unlock_button").assertIsDisplayed()
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/app_lock_overlay_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun captureAppLockOverlayDark() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.DARK, dynamicColor = false) {
+                AppLockOverlay(
+                    isAuthenticating = false,
+                    errorMessage = "已取消验证，请点击下方按钮重试",
+                    onUnlockClick = {},
+                )
+            }
+        }
+        composeRule.onNodeWithTag("app_lock_overlay").assertIsDisplayed()
+        composeRule.onNodeWithTag("app_lock_error_banner").assertIsDisplayed()
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/app_lock_overlay_dark.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun capturePrivacySecurityLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                PrivacySecurityScreen(
+                    uiState = PrivacySecurityUiState(
+                        biometricLockEnabled = true,
+                        relockTimeout = RelockTimeout.MINUTE_1,
+                        flagSecureEnabled = true,
+                        amountsHidden = false,
+                        biometricCapability = BiometricCapability.AVAILABLE,
+                    ),
+                )
+            }
+        }
+        composeRule.onNodeWithTag("screen_privacy_security").assertIsDisplayed()
+        composeRule.onNodeWithTag("privacy_lock_now_button").assertIsDisplayed()
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/privacy_security_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun interactiveShell_privacySecurityAndAppLockFlowWork() {
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.SETTINGS,
+                initialThemeMode = ThemeMode.LIGHT,
+                initialDynamicColor = false,
+                initialBiometricLockEnabled = true,
+                initialIsLocked = true,
+                ledgerPreviewState = sampleLedgerUiState(),
+            )
+        }
+
+        // Cold-start locked overlay obscures everything until unlock
+        composeRule.onNodeWithTag("app_lock_overlay").assertIsDisplayed()
+        composeRule.onNodeWithTag("app_lock_unlock_button").performClick()
+
+        // After unlock, Settings screen is shown and navigates into PrivacySecurityScreen
+        composeRule.onNodeWithTag("screen_settings").assertIsDisplayed()
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.onNodeWithTag("settings_entry_privacy_security").performClick()
+        composeRule.onNodeWithTag("screen_privacy_security").assertIsDisplayed()
+
+        // Manual lock re-displays AppLockOverlay
+        composeRule.onNodeWithTag("privacy_security_list").performScrollToKey("app_lock_card")
+        composeRule.onNodeWithTag("privacy_lock_now_button").performClick()
+        composeRule.onNodeWithTag("app_lock_overlay").assertIsDisplayed()
     }
 
     @Test

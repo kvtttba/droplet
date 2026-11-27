@@ -49,6 +49,10 @@ fun SettingsScreen(
     onToggleAmountsHidden: () -> Unit,
     onOpenAccountManagement: () -> Unit = {},
     onOpenCategoryTagManagement: () -> Unit = {},
+    onOpenPrivacySecurity: () -> Unit = {},
+    biometricLockEnabled: Boolean = false,
+    flagSecureEnabled: Boolean = false,
+    versionLabel: String = "v0.1.0-m1.4",
     modifier: Modifier = Modifier,
 ) {
     val amountsHidden = LocalAmountsHidden.current
@@ -71,7 +75,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                DropletPillBadge(text = "v0.1.0-m1.3")
+                DropletPillBadge(text = versionLabel)
             }
         }
 
@@ -168,6 +172,7 @@ fun SettingsScreen(
                             selected = themeMode == mode,
                             onClick = { onThemeModeChange(mode) },
                             label = { Text(mode.label) },
+                            modifier = Modifier.testTag("settings_theme_${mode.name}"),
                         )
                     }
                 }
@@ -178,6 +183,7 @@ fun SettingsScreen(
                     subtitle = "跟随 Android 12+ 系统壁纸色板",
                     checked = dynamicColor,
                     onCheckedChange = onDynamicColorChange,
+                    switchTestTag = "settings_switch_dynamic_color",
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
                 SettingsSwitchRow(
@@ -185,20 +191,28 @@ fun SettingsScreen(
                     subtitle = "首页、资产与统计页统一显示为 ****",
                     checked = amountsHidden,
                     onCheckedChange = { onToggleAmountsHidden() },
+                    switchTestTag = "settings_switch_amounts_hidden",
                 )
             }
         }
 
         item {
-            DropletSectionHeader(title = "智能记账 · 同步与导出")
+            DropletSectionHeader(title = "隐私安全 · 智能记账与同步")
         }
 
-        item {
+        item(key = "settings_security_card") {
+            val privacyStatusSummary = buildString {
+                append(if (biometricLockEnabled) "应用锁已开启" else "应用锁未开启")
+                append(" · ")
+                append(if (flagSecureEnabled) "防截屏已开启" else "防截屏未开启")
+            }
             DropletCard(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
                 SettingsItemRow(
                     icon = DropletIcons.Fingerprint,
                     title = "生物识别锁与防截屏",
-                    subtitle = "BiometricPrompt · 切后台重锁 · FLAG_SECURE · M1.4",
+                    subtitle = privacyStatusSummary,
+                    onClick = onOpenPrivacySecurity,
+                    modifier = Modifier.testTag("settings_entry_privacy_security"),
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 48.dp),
@@ -247,6 +261,7 @@ private fun SettingsSwitchRow(
     subtitle: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    switchTestTag: String? = null,
 ) {
     Row(
         modifier = Modifier
@@ -270,6 +285,7 @@ private fun SettingsSwitchRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
+            modifier = if (switchTestTag != null) Modifier.testTag(switchTestTag) else Modifier,
         )
     }
 }

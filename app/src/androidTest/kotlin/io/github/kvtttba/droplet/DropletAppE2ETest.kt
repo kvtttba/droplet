@@ -1,7 +1,11 @@
 package io.github.kvtttba.droplet
 
+import android.view.WindowManager
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -14,6 +18,8 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,7 +32,7 @@ class DropletAppE2ETest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun endToEndRecordExpenseFilterTogglePrivacyAndManageCatalogs() {
+    fun endToEndRecordExpenseFilterTogglePrivacyManageCatalogsAndPersistSecurityPrefs() {
         // 1. Starts on Ledger screen with seeded Room database
         composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 10_000)
         composeRule.onNodeWithTag("screen_ledger").assertIsDisplayed()
@@ -88,5 +94,72 @@ class DropletAppE2ETest {
         composeRule.onNodeWithTag("settings_entry_categories_tags").performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_category_tag_management"), timeoutMillis = 5_000)
         composeRule.waitUntilAtLeastOneExists(hasText("餐饮", substring = true), timeoutMillis = 5_000)
+
+        // 8. Navigate back to Settings and open Privacy & Security screen (M1.4)
+        composeRule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.onNodeWithTag("settings_entry_privacy_security").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_privacy_security"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("privacy_capability_banner").assertIsDisplayed()
+
+        // 9. Select relock timeout & enable FLAG_SECURE and confirm Window FLAG_SECURE is applied
+        composeRule.onNodeWithTag("privacy_security_list").performScrollToKey("app_lock_card")
+        composeRule.onNodeWithTag("relock_timeout_SECONDS_30").performClick()
+        composeRule.onNodeWithTag("relock_timeout_SECONDS_30").assertIsSelected()
+
+        composeRule.onNodeWithTag("privacy_security_list").performScrollToKey("screen_privacy_card")
+        composeRule.onNodeWithTag("privacy_switch_amounts_hidden").assertIsOn()
+        assertFalse(isFlagSecureApplied())
+
+        composeRule.onNodeWithTag("privacy_switch_flag_secure").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) { isFlagSecureApplied() }
+        assertTrue(isFlagSecureApplied())
+        composeRule.onNodeWithTag("privacy_switch_flag_secure").assertIsOn()
+
+        // 10. Recreate MainActivity and confirm DataStore persists amountsHidden, FLAG_SECURE, and timeout
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_privacy_security"), timeoutMillis = 10_000)
+        composeRule.waitUntil(timeoutMillis = 5_000) { isFlagSecureApplied() }
+        assertTrue(isFlagSecureApplied())
+
+        composeRule.onNodeWithTag("privacy_security_list").performScrollToKey("app_lock_card")
+        composeRule.onNodeWithTag("relock_timeout_SECONDS_30").assertIsSelected()
+
+        composeRule.onNodeWithTag("privacy_security_list").performScrollToKey("screen_privacy_card")
+        composeRule.onNodeWithTag("privacy_switch_flag_secure").assertIsOn()
+        composeRule.onNodeWithTag("privacy_switch_amounts_hidden").assertIsOn()
+
+        // 11. Navigate back to Ledger and confirm persisted privacy masking survives Activity recreation
+        composeRule.onNodeWithTag("privacy_back_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("nav_tab_ledger").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("ledger_monthly_balance").assertTextContains("****", substring = true)
+
+        // 12. Return to Privacy & Security and toggle FLAG_SECURE + amountsHidden back off cleanly
+        composeRule.onNodeWithTag("nav_tab_settings").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.onNodeWithTag("settings_entry_privacy_security").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_privacy_security"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("privacy_security_list").performScrollToKey("screen_privacy_card")
+        composeRule.onNodeWithTag("privacy_switch_flag_secure").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) { !isFlagSecureApplied() }
+        assertFalse(isFlagSecureApplied())
+        composeRule.onNodeWithTag("privacy_switch_flag_secure").assertIsOff()
+
+        composeRule.onNodeWithTag("privacy_switch_amounts_hidden").performClick()
+        composeRule.onNodeWithTag("privacy_switch_amounts_hidden").assertIsOff()
+    }
+
+    private fun isFlagSecureApplied(): Boolean {
+        var applied = false
+        composeRule.activityRule.scenario.onActivity { activity ->
+            applied = (activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE) != 0
+        }
+        return applied
     }
 }
