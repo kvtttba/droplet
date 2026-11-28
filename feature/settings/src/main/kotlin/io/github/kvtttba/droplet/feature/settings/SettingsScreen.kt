@@ -56,6 +56,7 @@ fun SettingsScreen(
     onOpenBudgetManagement: () -> Unit = {},
     onOpenRecurringRules: () -> Unit = {},
     onOpenTemplateManagement: () -> Unit = {},
+    onOpenDataExport: () -> Unit = {},
     biometricLockEnabled: Boolean = false,
     flagSecureEnabled: Boolean = false,
     marketSyncSummary: String = "后台自动刷新 · 可选 HTTP/SOCKS 代理",
@@ -64,7 +65,7 @@ fun SettingsScreen(
     budgetSummary: String = "设置月/年总预算与分类消耗预警",
     recurringSummary: String = "房租、工资与订阅自动入账或到期提醒",
     templateSummary: String = "高频消费一键入账或预填表单",
-    versionLabel: String = "v0.1.0-m5.1",
+    versionLabel: String = "v0.1.0-m5.2",
     modifier: Modifier = Modifier,
 ) {
     val amountsHidden = LocalAmountsHidden.current
@@ -313,7 +314,9 @@ fun SettingsScreen(
                 SettingsItemRow(
                     icon = DropletIcons.FileDownload,
                     title = "数据导出",
-                    subtitle = "Excel (.xlsx) / CSV / Beancount 纯文本 · M5.2",
+                    subtitle = "Excel (.xlsx) / CSV / Beancount 纯文本账本导出",
+                    onClick = onOpenDataExport,
+                    modifier = Modifier.testTag("settings_entry_data_export"),
                 )
             }
         }

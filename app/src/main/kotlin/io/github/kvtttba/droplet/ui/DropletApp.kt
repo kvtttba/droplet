@@ -96,6 +96,9 @@ import io.github.kvtttba.droplet.feature.settings.BudgetManagementUiState
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsRoute
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsUiState
+import io.github.kvtttba.droplet.feature.settings.DataExportRoute
+import io.github.kvtttba.droplet.feature.settings.DataExportScreen
+import io.github.kvtttba.droplet.feature.settings.DataExportUiState
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsRoute
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsUiState
@@ -109,7 +112,9 @@ import io.github.kvtttba.droplet.feature.settings.SettingsScreen
 import io.github.kvtttba.droplet.feature.settings.TemplateManagementRoute
 import io.github.kvtttba.droplet.feature.settings.TemplateManagementScreen
 import io.github.kvtttba.droplet.feature.settings.TemplateManagementUiState
+import io.github.kvtttba.droplet.feature.stats.StatsRoute
 import io.github.kvtttba.droplet.feature.stats.StatsScreen
+import io.github.kvtttba.droplet.feature.stats.StatsUiState
 import io.github.kvtttba.droplet.notification.PlanningAlertNotificationPublisher
 import kotlinx.coroutines.launch
 
@@ -162,6 +167,7 @@ object DropletRoutes {
     const val BUDGET_MANAGEMENT = "budget_management"
     const val RECURRING_RULES = "recurring_rules"
     const val TEMPLATE_MANAGEMENT = "template_management"
+    const val DATA_EXPORT = "data_export"
     const val AI_CAPTURE_PATTERN = "ai_capture?${AiCaptureViewModel.NAV_ARG_TAB}={${AiCaptureViewModel.NAV_ARG_TAB}}"
     const val AI_DRAFT_REVIEW_PATTERN = "ai_draft_review/{${AiDraftReviewViewModel.NAV_ARG_DRAFT_ID}}"
 
@@ -442,6 +448,20 @@ fun DropletApp(
                 onShowMessage = onShowMessage,
             )
         },
+        statsContent = { onToggleHidden, onOpenBudgets, onOpenExport, onEditTx ->
+            StatsRoute(
+                onToggleAmountsHidden = onToggleHidden,
+                onOpenBudgetManagement = onOpenBudgets,
+                onOpenDataExport = onOpenExport,
+                onEditTransaction = onEditTx,
+            )
+        },
+        dataExportContent = { onBack, onShowMessage ->
+            DataExportRoute(
+                onNavigateBack = onBack,
+                onShowMessage = onShowMessage,
+            )
+        },
     )
 }
 
@@ -461,6 +481,7 @@ fun DropletAppShell(
     initialShowQuickCapture: Boolean = false,
     ledgerPreviewState: LedgerUiState? = null,
     assetsPreviewState: AssetsUiState? = null,
+    statsPreviewState: StatsUiState? = null,
     investmentDetailPreviewState: InvestmentDetailUiState? = null,
     creditCardDetailPreviewState: CreditCardDetailUiState? = null,
     loanDetailPreviewState: LoanDetailUiState? = null,
@@ -474,6 +495,7 @@ fun DropletAppShell(
     budgetManagementPreviewState: BudgetManagementUiState? = null,
     recurringRulesPreviewState: RecurringRulesUiState? = null,
     templateManagementPreviewState: TemplateManagementUiState? = null,
+    dataExportPreviewState: DataExportUiState? = null,
     initialPendingAiDraftCount: Int = 0,
     ledgerContent: @Composable (
         onToggleAmountsHidden: () -> Unit,
@@ -681,6 +703,21 @@ fun DropletAppShell(
                 onPrefillEditor = onPrefillEditor,
             )
         },
+        statsContent = { onToggleHidden, onOpenBudgets, onOpenExport, onEditTx ->
+            StatsScreen(
+                uiState = statsPreviewState ?: StatsUiState(isLoading = false),
+                onToggleAmountsHidden = onToggleHidden,
+                onOpenBudgetManagement = onOpenBudgets,
+                onOpenDataExport = onOpenExport,
+                onEditTransaction = onEditTx,
+            )
+        },
+        dataExportContent = { onBack, _ ->
+            DataExportScreen(
+                uiState = dataExportPreviewState ?: DataExportUiState(isLoadingPreview = false),
+                onNavigateBack = onBack,
+            )
+        },
     )
 }
 
@@ -819,6 +856,16 @@ private fun DropletAppContent(
         onNavigateBack: () -> Unit,
         onToggleAmountsHidden: () -> Unit,
         onOpenEditorWithTemplate: (String) -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    statsContent: @Composable (
+        onToggleAmountsHidden: () -> Unit,
+        onOpenBudgetManagement: () -> Unit,
+        onOpenDataExport: () -> Unit,
+        onEditTransaction: (String) -> Unit,
+    ) -> Unit,
+    dataExportContent: @Composable (
+        onNavigateBack: () -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
 ) {
@@ -987,12 +1034,11 @@ private fun DropletAppContent(
                                 )
                             }
                             composable(DropletTab.STATS.route) {
-                                StatsScreen(
-                                    onToggleAmountsHidden = onToggleAmountsHidden,
-                                    monthlyBudgetProgress = monthlyBudgetProgress,
-                                    onOpenBudgetManagement = {
-                                        navController.navigate(DropletRoutes.BUDGET_MANAGEMENT)
-                                    },
+                                statsContent(
+                                    onToggleAmountsHidden,
+                                    { navController.navigate(DropletRoutes.BUDGET_MANAGEMENT) },
+                                    { navController.navigate(DropletRoutes.DATA_EXPORT) },
+                                    { txId -> openTransactionEditor(txId, null) },
                                 )
                             }
                             composable(DropletTab.SETTINGS.route) {
@@ -1028,6 +1074,9 @@ private fun DropletAppContent(
                                     },
                                     onOpenTemplateManagement = {
                                         navController.navigate(DropletRoutes.TEMPLATE_MANAGEMENT)
+                                    },
+                                    onOpenDataExport = {
+                                        navController.navigate(DropletRoutes.DATA_EXPORT)
                                     },
                                     biometricLockEnabled = biometricLockEnabled,
                                     flagSecureEnabled = flagSecureEnabled,
@@ -1182,6 +1231,12 @@ private fun DropletAppContent(
                                     { navController.popBackStack() },
                                     onToggleAmountsHidden,
                                     { templateId -> openTransactionEditor(null, templateId) },
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletRoutes.DATA_EXPORT) {
+                                dataExportContent(
+                                    { navController.popBackStack() },
                                     showMessage,
                                 )
                             }
