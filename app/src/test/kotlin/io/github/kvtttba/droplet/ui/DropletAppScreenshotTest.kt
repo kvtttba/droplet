@@ -14,6 +14,14 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementCalculator
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
+import io.github.kvtttba.droplet.core.domain.debt.DebtProfileSummary
+import io.github.kvtttba.droplet.core.domain.debt.DebtSummaryCalculator
+import io.github.kvtttba.droplet.core.domain.debt.DebtTransactionHelper
+import io.github.kvtttba.droplet.core.domain.debt.RefundCalculator
+import io.github.kvtttba.droplet.core.domain.debt.RefundHelper
+import io.github.kvtttba.droplet.core.domain.debt.ReimbursementCalculator
+import io.github.kvtttba.droplet.core.domain.debt.ReimbursementOverviewSummary
+import io.github.kvtttba.droplet.core.domain.debt.ReimbursementSettlementHelper
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioPositionEngine
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioSummaryAggregator
 import io.github.kvtttba.droplet.core.domain.investment.PositionLedgerState
@@ -27,6 +35,7 @@ import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AccountType
 import io.github.kvtttba.droplet.core.model.AssetClass
 import io.github.kvtttba.droplet.core.model.Currency
+import io.github.kvtttba.droplet.core.model.DebtProfile
 import io.github.kvtttba.droplet.core.model.DepositInterestMode
 import io.github.kvtttba.droplet.core.model.ExchangeRateSnapshot
 import io.github.kvtttba.droplet.core.model.ExchangeRateSource
@@ -53,12 +62,16 @@ import io.github.kvtttba.droplet.feature.assets.CreditCardDetailScreen
 import io.github.kvtttba.droplet.feature.assets.CreditCardDetailUiState
 import io.github.kvtttba.droplet.feature.assets.CreditCardStatementTab
 import io.github.kvtttba.droplet.feature.assets.CreditCardTransactionItem
+import io.github.kvtttba.droplet.feature.assets.DebtDetailScreen
+import io.github.kvtttba.droplet.feature.assets.DebtDetailUiState
 import io.github.kvtttba.droplet.feature.assets.InvestmentDetailScreen
 import io.github.kvtttba.droplet.feature.assets.InvestmentDetailUiState
 import io.github.kvtttba.droplet.feature.assets.InvestmentHistoryKind
 import io.github.kvtttba.droplet.feature.assets.InvestmentTransactionItem
 import io.github.kvtttba.droplet.feature.assets.LoanDetailScreen
 import io.github.kvtttba.droplet.feature.assets.LoanDetailUiState
+import io.github.kvtttba.droplet.feature.assets.ReimbursementListScreen
+import io.github.kvtttba.droplet.feature.assets.ReimbursementListUiState
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsUiState
@@ -70,6 +83,7 @@ import io.github.kvtttba.droplet.feature.ledger.LedgerItemMapper
 import io.github.kvtttba.droplet.feature.ledger.LedgerPostingDetail
 import io.github.kvtttba.droplet.feature.ledger.LedgerTransactionItem
 import io.github.kvtttba.droplet.feature.ledger.LedgerUiState
+import io.github.kvtttba.droplet.feature.ledger.TransactionDetailBottomSheetContent
 import io.github.kvtttba.droplet.feature.ledger.editor.CurrencyImbalanceInfo
 import io.github.kvtttba.droplet.feature.ledger.editor.EditorTab
 import io.github.kvtttba.droplet.feature.ledger.editor.PostingDirection
@@ -337,6 +351,62 @@ class DropletAppScreenshotTest {
     }
 
     @Test
+    fun captureDebtDetailLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                DebtDetailScreen(
+                    uiState = sampleDebtDetailUiState(),
+                    notificationPermissionGranted = true,
+                )
+            }
+        }
+        composeRule.onNodeWithTag("screen_debt_detail").assertIsDisplayed()
+        composeRule.onNodeWithTag("debt_detail_receivable").assertTextContains("600.00", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/debt_detail_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun captureReimbursementListLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                ReimbursementListScreen(
+                    uiState = sampleReimbursementListUiState(),
+                )
+            }
+        }
+        composeRule.onNodeWithTag("screen_reimbursement_list").assertIsDisplayed()
+        composeRule.onNodeWithTag("reimbursement_pending_total").assertTextContains("860.00", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/reimbursement_list_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun captureExpenseRefundDetailLight() {
+        val (item, accountsMap) = sampleRefundedExpenseDetailItem()
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                Surface {
+                    TransactionDetailBottomSheetContent(
+                        item = item,
+                        accountsById = accountsMap,
+                    )
+                }
+            }
+        }
+        composeRule.onNodeWithTag("tx_detail_refund_card").assertIsDisplayed()
+        composeRule.onNodeWithTag("tx_detail_net_expense").assertTextContains("100.00", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/expense_refund_detail_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
     fun captureMarketSyncSettingsLight() {
         composeRule.setContent {
             DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
@@ -589,6 +659,32 @@ class DropletAppScreenshotTest {
         composeRule.onNodeWithTag("assets_loan_新能源车贷").performClick()
         composeRule.onNodeWithTag("screen_loan_detail").assertIsDisplayed()
         composeRule.onNodeWithTag("loan_detail_back").performClick()
+        composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
+    }
+
+    @Test
+    fun interactiveShell_debtAndReimbursementNavigationWork() {
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.ASSETS,
+                initialThemeMode = ThemeMode.LIGHT,
+                initialDynamicColor = false,
+                assetsPreviewState = sampleAssetsUiState(),
+                debtDetailPreviewState = sampleDebtDetailUiState(),
+                reimbursementListPreviewState = sampleReimbursementListUiState(),
+            )
+        }
+
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_debts")
+        composeRule.onNodeWithTag("assets_debt_张三").performClick()
+        composeRule.onNodeWithTag("screen_debt_detail").assertIsDisplayed()
+        composeRule.onNodeWithTag("debt_detail_back").performClick()
+
+        composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_reimbursements")
+        composeRule.onNodeWithTag("assets_reimbursement_entry").performClick()
+        composeRule.onNodeWithTag("screen_reimbursement_list").assertIsDisplayed()
+        composeRule.onNodeWithTag("reimbursement_back").performClick()
         composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
     }
 
@@ -1182,14 +1278,213 @@ class DropletAppScreenshotTest {
             )
 
             val creditCardSummary = sampleCreditCardSummary()
+            val debtDetail = sampleDebtDetailUiState()
+            val reimbursementState = sampleReimbursementListUiState()
             return AssetsUiState(
                 displayCurrency = Currency.CNY,
                 summary = summary,
                 creditCardSummariesById = mapOf(creditCard.id to creditCardSummary),
                 loanSummaries = listOf(loanSummary),
+                debtSummaries = listOfNotNull(debtDetail.summary),
+                reimbursementOverview = reimbursementState.overview,
                 lastUpdatedAtEpochMs = fixedTimestampMs,
                 isLoading = false,
             )
+        }
+
+        private fun sampleDebtDetailUiState(): DebtDetailUiState {
+            val zone = DebtSummaryCalculator.DEFAULT_ZONE_ID
+            val engine = LedgerEngine(baseCurrency = Currency.CNY)
+            val debit = sampleOperationalAccounts.first { it.id == DefaultSeedCatalog.AccountIds.DEBIT_CARD }
+            val interestInc = DefaultSeedCatalog.defaultIncomeCategories(fixedTimestampMs)
+                .first { it.id == DefaultSeedCatalog.AccountIds.INC_INVEST_INTEREST }
+            val badDebtExp = DefaultSeedCatalog.defaultExpenseCategories(fixedTimestampMs)
+                .first { it.id == DefaultSeedCatalog.AccountIds.EXP_FINANCE_BAD_DEBT }
+            val recv = Account(
+                id = "debt:recv:snap-zhang",
+                name = "张三 · 应收",
+                type = AccountType.ASSET,
+                subType = AccountSubType.RECEIVABLE,
+                currency = Currency.CNY,
+            )
+            val pay = Account(
+                id = "debt:pay:snap-zhang",
+                name = "张三 · 应付",
+                type = AccountType.LIABILITY,
+                subType = AccountSubType.PAYABLE,
+                currency = Currency.CNY,
+            )
+            val profile = DebtProfile(
+                id = "snap-debt-zhang",
+                name = "张三",
+                receivableAccountId = recv.id,
+                payableAccountId = pay.id,
+                defaultDueAt = LocalDate.of(2026, 11, 29).atStartOfDay(zone).toInstant().toEpochMilli(),
+                annualInterestRateDecimal = "0.04",
+                note = "合租押金与周转",
+            )
+            val accountsMap = mapOf(
+                debit.id to debit,
+                interestInc.id to interestInc,
+                badDebtExp.id to badDebtExp,
+                recv.id to recv,
+                pay.id to pay,
+            )
+            val lendTx = DebtTransactionHelper.buildLendTransaction(
+                ledgerEngine = engine,
+                profile = profile,
+                receivableAccount = recv,
+                fromAccount = debit,
+                amount = Money.fromDecimalString("1000.00", Currency.CNY),
+                occurredAt = fixedTimestampMs - 15 * 86_400_000L,
+                note = "周转借款",
+            )
+            val collectTx = DebtTransactionHelper.buildCollectTransaction(
+                ledgerEngine = engine,
+                profile = profile,
+                receivableAccount = recv,
+                depositAccount = debit,
+                principalAmount = Money.fromDecimalString("400.00", Currency.CNY),
+                interestAmount = Money.fromDecimalString("20.00", Currency.CNY),
+                interestIncomeAccount = interestInc,
+                occurredAt = fixedTimestampMs - 2 * 86_400_000L,
+                note = "首笔还本付息",
+            )
+            val txs = listOf(lendTx, collectTx)
+            val summary = DebtSummaryCalculator.summarize(
+                profile = profile,
+                receivableAccount = recv,
+                payableAccount = pay,
+                transactions = txs,
+                accountsById = accountsMap,
+                asOfDate = LocalDate.of(2026, 11, 27),
+                remindDaysBefore = 3,
+                zoneId = zone,
+            )
+            val records = DebtSummaryCalculator.classifyTransactions(
+                profile = profile,
+                currency = Currency.CNY,
+                transactions = txs,
+                accountsById = accountsMap,
+            )
+            return DebtDetailUiState(
+                profileId = profile.id,
+                summary = summary,
+                receivableAccount = recv,
+                payableAccount = pay,
+                transactions = records,
+                fundingAccounts = listOf(debit),
+                expenseCategories = listOf(badDebtExp),
+                incomeCategories = listOf(interestInc),
+                accountsById = accountsMap,
+                isLoading = false,
+            )
+        }
+
+        private fun sampleReimbursementListUiState(): ReimbursementListUiState {
+            val engine = LedgerEngine(baseCurrency = Currency.CNY)
+            val allSeed = DefaultSeedCatalog.allSeedAccounts(fixedTimestampMs)
+            val accountsMap = allSeed.associateBy { it.id }
+            val reimburseAcct = accountsMap.getValue(DefaultSeedCatalog.AccountIds.REIMBURSEMENT_CNY)
+            val debit = accountsMap.getValue(DefaultSeedCatalog.AccountIds.DEBIT_CARD)
+            val credit = accountsMap.getValue(DefaultSeedCatalog.AccountIds.CREDIT_CARD)
+            val taxiExp = accountsMap.getValue(DefaultSeedCatalog.AccountIds.EXP_TRANSPORT_TAXI)
+
+            val adv1 = engine.buildReimbursableAdvance(
+                meta = TransactionMeta(id = "snap-reimb-1", occurredAt = fixedTimestampMs - 86_400_000L, payee = "出差高铁票", note = "上海往返"),
+                reimbursementAccountId = reimburseAcct.id,
+                paymentAccountId = credit.id,
+                amount = Money.fromDecimalString("560.00", Currency.CNY),
+            )
+            val adv2 = engine.buildReimbursableAdvance(
+                meta = TransactionMeta(id = "snap-reimb-2", occurredAt = fixedTimestampMs - 2 * 86_400_000L, payee = "机场打车", note = "客户拜访"),
+                reimbursementAccountId = reimburseAcct.id,
+                paymentAccountId = debit.id,
+                amount = Money.fromDecimalString("300.00", Currency.CNY),
+            )
+            val adv3 = engine.buildReimbursableAdvance(
+                meta = TransactionMeta(id = "snap-reimb-3", occurredAt = fixedTimestampMs - 5 * 86_400_000L, payee = "客户招待餐饮", note = "超标部分自付"),
+                reimbursementAccountId = reimburseAcct.id,
+                paymentAccountId = credit.id,
+                amount = Money.fromDecimalString("500.00", Currency.CNY),
+            )
+            val adv3Summary = requireNotNull(ReimbursementCalculator.summarizeItem(adv3, emptyList(), accountsMap))
+            val settled3 = ReimbursementSettlementHelper.buildSingleSettlement(
+                ledgerEngine = engine,
+                item = adv3Summary,
+                reimbursementAccount = reimburseAcct,
+                depositAccount = debit,
+                settledReimbursementAmount = Money.fromDecimalString("500.00", Currency.CNY),
+                receivedAmount = Money.fromDecimalString("450.00", Currency.CNY),
+                shortfallExpenseAccount = taxiExp,
+                occurredAt = fixedTimestampMs - 3 * 86_400_000L,
+            )
+            val overview = ReimbursementCalculator.summarizeAll(
+                reimburseTransactions = listOf(adv1, adv2, adv3, settled3.settlementTransaction),
+                accountsById = accountsMap,
+            )
+            return ReimbursementListUiState(
+                overview = overview,
+                depositAccounts = listOf(debit, credit),
+                expenseCategories = listOf(taxiExp),
+                accountsById = accountsMap,
+                isLoading = false,
+            )
+        }
+
+        private fun sampleRefundedExpenseDetailItem(): Pair<LedgerTransactionItem, Map<String, Account>> {
+            val engine = LedgerEngine(baseCurrency = Currency.CNY)
+            val allSeed = DefaultSeedCatalog.allSeedAccounts(fixedTimestampMs)
+            val accountsMap = allSeed.associateBy { it.id }
+            val debit = accountsMap.getValue(DefaultSeedCatalog.AccountIds.DEBIT_CARD)
+            val original = engine.buildExpense(
+                meta = TransactionMeta(
+                    id = "snap-exp-refunded",
+                    occurredAt = fixedTimestampMs - 3 * 86_400_000L,
+                    payee = "严选数码旗舰店",
+                    note = "两件配件订单",
+                ),
+                expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_SHOPPING_DIGITAL,
+                paymentAccountId = debit.id,
+                amount = Money.fromDecimalString("200.00", Currency.CNY),
+            )
+            val r1 = RefundHelper.buildRefundTransaction(
+                ledgerEngine = engine,
+                originalExpense = original,
+                existingLinkedRefunds = emptyList(),
+                accountsById = accountsMap,
+                refundToAccount = debit,
+                refundAmount = Money.fromDecimalString("60.00", Currency.CNY),
+                occurredAt = fixedTimestampMs - 2 * 86_400_000L,
+                note = "部分配件退货",
+            )
+            val r2 = RefundHelper.buildRefundTransaction(
+                ledgerEngine = engine,
+                originalExpense = original,
+                existingLinkedRefunds = listOf(r1.refundTransaction),
+                accountsById = accountsMap,
+                refundToAccount = debit,
+                refundAmount = Money.fromDecimalString("40.00", Currency.CNY),
+                occurredAt = fixedTimestampMs - 86_400_000L,
+                note = "退运费补贴",
+            )
+            val refundSummary = requireNotNull(
+                RefundCalculator.summarize(
+                    originalExpense = original,
+                    linkedRefunds = listOf(r1.refundTransaction, r2.refundTransaction),
+                    accountsById = accountsMap,
+                ),
+            )
+            val item = LedgerItemMapper.toItem(
+                record = io.github.kvtttba.droplet.core.database.repository.LedgerTransactionRecord(
+                    transaction = original,
+                    tags = listOf(sampleTags.first { it.id == DefaultSeedCatalog.TagIds.WORKDAY }),
+                ),
+                accountsById = accountsMap,
+                baseCurrency = Currency.CNY,
+                refundSummary = refundSummary,
+            )
+            return item to accountsMap
         }
 
         private fun sampleLoanAccount(): Account = Account(

@@ -3,9 +3,11 @@ package io.github.kvtttba.droplet.feature.assets
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.kvtttba.droplet.core.database.repository.CreateDebtProfileRequest
 import io.github.kvtttba.droplet.core.database.repository.CreateInvestmentAssetRequest
 import io.github.kvtttba.droplet.core.database.repository.CreateLoanPlanRequest
 import io.github.kvtttba.droplet.core.database.repository.CreditCardRepository
+import io.github.kvtttba.droplet.core.database.repository.DebtRepository
 import io.github.kvtttba.droplet.core.database.repository.InvestmentRepository
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
 import io.github.kvtttba.droplet.core.database.repository.LoanRepository
@@ -13,8 +15,12 @@ import io.github.kvtttba.droplet.core.database.repository.MarketDataRepository
 import io.github.kvtttba.droplet.core.database.repository.MarketSyncReport
 import io.github.kvtttba.droplet.core.database.repository.MarketSyncStatus
 import io.github.kvtttba.droplet.core.database.repository.OpenFixedDepositRequest
+import io.github.kvtttba.droplet.core.database.repository.ReimbursementAndRefundRepository
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
+import io.github.kvtttba.droplet.core.domain.debt.DebtProfileSummary
+import io.github.kvtttba.droplet.core.domain.debt.DebtSummaryCalculator
+import io.github.kvtttba.droplet.core.domain.debt.ReimbursementOverviewSummary
 import io.github.kvtttba.droplet.core.domain.investment.AssetGroupSummary
 import io.github.kvtttba.droplet.core.domain.investment.AssetOverviewGroup
 import io.github.kvtttba.droplet.core.domain.investment.CurrencyDistribution
@@ -33,6 +39,7 @@ import io.github.kvtttba.droplet.core.model.MarketQuote
 import io.github.kvtttba.droplet.core.model.Money
 import io.github.kvtttba.droplet.core.network.NetworkClock
 import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
+import io.github.kvtttba.droplet.core.security.DebtReminderPreferencesRepository
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -94,11 +101,22 @@ data class CreateLoanPlanFormInput(
     val note: String = "",
 )
 
+data class CreateDebtProfileFormInput(
+    val name: String,
+    val currency: Currency = Currency.CNY,
+    val dueDateIso: String = "",
+    val annualInterestRatePercentText: String = "",
+    val includeInNetWorth: Boolean = true,
+    val note: String = "",
+)
+
 data class AssetsUiState(
     val displayCurrency: Currency = Currency.CNY,
     val summary: PortfolioSummary = emptyPortfolioSummary(Currency.CNY),
     val creditCardSummariesById: Map<String, CreditCardStatementSummary> = emptyMap(),
     val loanSummaries: List<LoanPlanSummary> = emptyList(),
+    val debtSummaries: List<DebtProfileSummary> = emptyList(),
+    val reimbursementOverview: ReimbursementOverviewSummary = ReimbursementOverviewSummary.empty(),
     val quotesByAssetId: Map<String, MarketQuote> = emptyMap(),
     val availableCashAccounts: List<Account> = emptyList(),
     val availableHoldingAccounts: List<Account> = emptyList(),
@@ -111,6 +129,7 @@ data class AssetsUiState(
     val excludedExpanded: Boolean = false,
     val isCreatingAsset: Boolean = false,
     val isCreatingLoan: Boolean = false,
+    val isCreatingDebtProfile: Boolean = false,
     val userMessage: String? = null,
 ) {
     companion object {
@@ -170,6 +189,7 @@ private data class AssetsRuntimeState(
     val excludedExpanded: Boolean = false,
     val isCreatingAsset: Boolean = false,
     val isCreatingLoan: Boolean = false,
+    val isCreatingDebtProfile: Boolean = false,
     val userMessage: String? = null,
 )
 
@@ -183,6 +203,8 @@ private data class AssetsCoreData(
     val summary: PortfolioSummary,
     val creditCardSummaries: Map<String, CreditCardStatementSummary>,
     val loanSummaries: List<LoanPlanSummary>,
+    val debtSummaries: List<DebtProfileSummary>,
+    val reimbursementOverview: ReimbursementOverviewSummary,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -192,6 +214,9 @@ class AssetsViewModel @Inject constructor(
     private val creditCardRepository: CreditCardRepository,
     private val creditCardReminderPreferencesRepository: CreditCardReminderPreferencesRepository,
     private val loanRepository: LoanRepository,
+    private val debtRepository: DebtRepository,
+    private val debtReminderPreferencesRepository: DebtReminderPreferencesRepository,
+    private val reimbursementAndRefundRepository: ReimbursementAndRefundRepository,
     private val marketDataRepository: MarketDataRepository,
     private val ledgerRepository: LedgerRepository,
     private val clock: NetworkClock,
@@ -217,6 +242,20 @@ class AssetsViewModel @Inject constructor(
 
     private val loanSummariesFlow = loanRepository.observeLoanSummaries(includeArchived = false)
 
+    private val debtSummariesFlow = debtReminderPreferencesRepository.preferences
+        .map { it.defaultRemindDaysBefore }
+        .distinctUntilChanged()
+        .flatMapLatest { remindDays ->
+            debtRepository.observeDebtSummaries(remindDaysBefore = remindDays)
+        }
+
+    private val debtAndReimbursementFlow = combine(
+        debtSummariesFlow,
+        reimbursementAndRefundRepository.observeReimbursementOverview(),
+    ) { debtSummaries, reimbursementOverview ->
+        debtSummaries to reimbursementOverview
+    }
+
     private val marketMetadataFlow = combine(
         marketDataRepository.observeMarketQuotes(),
         marketDataRepository.observeExchangeRates(),
@@ -234,12 +273,15 @@ class AssetsViewModel @Inject constructor(
         portfolioSummaryFlow,
         creditCardSummariesFlow,
         loanSummariesFlow,
-    ) { displayCurrency, summary, creditCardSummaries, loanSummaries ->
+        debtAndReimbursementFlow,
+    ) { displayCurrency, summary, creditCardSummaries, loanSummaries, (debtSummaries, reimbursementOverview) ->
         AssetsCoreData(
             displayCurrency = displayCurrency,
             summary = summary,
             creditCardSummaries = creditCardSummaries,
             loanSummaries = loanSummaries,
+            debtSummaries = debtSummaries,
+            reimbursementOverview = reimbursementOverview,
         )
     }
 
@@ -272,6 +314,8 @@ class AssetsViewModel @Inject constructor(
             summary = coreData.summary,
             creditCardSummariesById = coreData.creditCardSummaries,
             loanSummaries = coreData.loanSummaries,
+            debtSummaries = coreData.debtSummaries,
+            reimbursementOverview = coreData.reimbursementOverview,
             quotesByAssetId = marketMeta.quotesByAssetId,
             availableCashAccounts = cashAccounts,
             availableHoldingAccounts = holdingAccounts,
@@ -284,6 +328,7 @@ class AssetsViewModel @Inject constructor(
             excludedExpanded = runtime.excludedExpanded,
             isCreatingAsset = runtime.isCreatingAsset,
             isCreatingLoan = runtime.isCreatingLoan,
+            isCreatingDebtProfile = runtime.isCreatingDebtProfile,
             userMessage = runtime.userMessage,
         )
     }.stateIn(
@@ -579,6 +624,62 @@ class AssetsViewModel @Inject constructor(
                     userMessage = result.fold(
                         onSuccess = { "已创建分期贷款「${input.name.trim()}」并生成还款计划表" },
                         onFailure = { error -> error.message ?: "创建分期贷款失败" },
+                    ),
+                )
+            }
+            onResult(result)
+        }
+    }
+
+    fun createDebtProfile(
+        input: CreateDebtProfileFormInput,
+        onResult: (Result<String>) -> Unit,
+    ) {
+        if (runtimeFlow.value.isCreatingDebtProfile) return
+        viewModelScope.launch {
+            runtimeFlow.update { it.copy(isCreatingDebtProfile = true) }
+            val result = runCatching {
+                val trimmedName = input.name.trim()
+                require(trimmedName.isNotEmpty()) { "请输入往来人名称" }
+
+                val trimmedDue = input.dueDateIso.trim()
+                val dueAt = if (trimmedDue.isEmpty()) {
+                    null
+                } else {
+                    runCatching {
+                        AssetsFormatters.parseIsoDateToEpochMs(
+                            trimmedDue,
+                            zoneId = DebtSummaryCalculator.DEFAULT_ZONE_ID,
+                        )
+                    }.getOrElse {
+                        throw IllegalArgumentException("约定还款日格式无效，请使用 YYYY-MM-DD")
+                    }
+                }
+                val rateDecimal = AssetsFormatters.parseOptionalRatePercentToCanonicalDecimal(
+                    input.annualInterestRatePercentText,
+                    "约定年利率",
+                )
+
+                val created = debtRepository.createDebtProfile(
+                    CreateDebtProfileRequest(
+                        name = trimmedName,
+                        currency = input.currency,
+                        includeInNetWorth = input.includeInNetWorth,
+                        defaultDueAt = dueAt,
+                        annualInterestRateDecimal = rateDecimal,
+                        note = input.note.trim().takeIf { it.isNotEmpty() },
+                        nowEpochMs = clock.nowEpochMs(),
+                    ),
+                )
+                created.profile.id
+            }
+
+            runtimeFlow.update {
+                it.copy(
+                    isCreatingDebtProfile = false,
+                    userMessage = result.fold(
+                        onSuccess = { "已创建往来人「${input.name.trim()}」" },
+                        onFailure = { error -> error.message ?: "创建往来人失败" },
                     ),
                 )
             }

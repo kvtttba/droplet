@@ -165,8 +165,25 @@ interface DebtProfileDao {
     @Query("SELECT * FROM debt_profiles WHERE id = :profileId LIMIT 1")
     suspend fun getById(profileId: String): DebtProfileEntity?
 
+    @Query("SELECT * FROM debt_profiles WHERE id = :profileId LIMIT 1")
+    fun observeById(profileId: String): Flow<DebtProfileEntity?>
+
+    @Query("SELECT * FROM debt_profiles WHERE LOWER(name) = LOWER(:name) LIMIT 1")
+    suspend fun getByName(name: String): DebtProfileEntity?
+
     @Query("SELECT * FROM debt_profiles ORDER BY name ASC, id ASC")
     fun observeAll(): Flow<List<DebtProfileEntity>>
+
+    @Query("SELECT * FROM debt_profiles ORDER BY name ASC, id ASC")
+    suspend fun getAll(): List<DebtProfileEntity>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM debt_profiles
+        WHERE receivable_account_id = :accountId OR payable_account_id = :accountId
+        """,
+    )
+    suspend fun countProfilesReferencingAccount(accountId: String): Int
 
     @Query("DELETE FROM debt_profiles WHERE id = :profileId")
     suspend fun deleteById(profileId: String)

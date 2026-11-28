@@ -8,14 +8,19 @@ import io.github.kvtttba.droplet.core.database.LedgerTransactionWriter
 import io.github.kvtttba.droplet.core.database.dao.TagFilterMode
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
 import io.github.kvtttba.droplet.core.database.repository.LocalLedgerRepository
+import io.github.kvtttba.droplet.core.database.repository.LocalReimbursementAndRefundRepository
+import io.github.kvtttba.droplet.core.database.repository.ReimbursementAndRefundRepository
+import io.github.kvtttba.droplet.core.database.repository.SettleReimbursementRequest
 import io.github.kvtttba.droplet.core.database.seed.DefaultLedgerSeeder
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
 import io.github.kvtttba.droplet.core.domain.PrivacyAmountFormatter
 import io.github.kvtttba.droplet.core.domain.ledger.LedgerEngine
+import io.github.kvtttba.droplet.core.domain.ledger.TransactionMeta
 import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AccountType
 import io.github.kvtttba.droplet.core.model.Currency
 import io.github.kvtttba.droplet.core.model.Money
+import io.github.kvtttba.droplet.core.model.ReimburseState
 import io.github.kvtttba.droplet.core.model.SystemAccounts
 import io.github.kvtttba.droplet.core.model.TransactionStatus
 import io.github.kvtttba.droplet.feature.ledger.editor.EditorTab
@@ -55,6 +60,7 @@ class LedgerFeatureViewModelsTest {
 
     private lateinit var database: DropletDatabase
     private lateinit var repository: LedgerRepository
+    private lateinit var reimbursementAndRefundRepository: ReimbursementAndRefundRepository
     private lateinit var engine: LedgerEngine
     private val testDispatcher = UnconfinedTestDispatcher()
 
@@ -64,10 +70,18 @@ class LedgerFeatureViewModelsTest {
         val context = ApplicationProvider.getApplicationContext<Application>()
         database = DropletDatabase.createInMemory(context, allowMainThreadQueries = true)
         engine = LedgerEngine(baseCurrency = Currency.CNY)
+        val writer = LedgerTransactionWriter(database)
+        val seeder = DefaultLedgerSeeder(database)
         repository = LocalLedgerRepository(
             database = database,
-            transactionWriter = LedgerTransactionWriter(database),
-            seeder = DefaultLedgerSeeder(database),
+            transactionWriter = writer,
+            seeder = seeder,
+            ledgerEngine = engine,
+        )
+        reimbursementAndRefundRepository = LocalReimbursementAndRefundRepository(
+            database = database,
+            transactionWriter = writer,
+            seeder = seeder,
             ledgerEngine = engine,
         )
     }
@@ -86,7 +100,7 @@ class LedgerFeatureViewModelsTest {
 
         repository.ensureSeeded(occurredAt)
 
-        val ledgerVm = LedgerViewModel(repository)
+        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository)
         ledgerVm.selectMonth(month)
 
         // 1. Create an expense via TransactionEditorViewModel
@@ -187,7 +201,7 @@ class LedgerFeatureViewModelsTest {
             payee = "网约车",
         )
 
-        val ledgerVm = LedgerViewModel(repository)
+        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository)
         ledgerVm.selectMonth(month)
 
         val initial = ledgerVm.uiState.awaitFirst { it.transactionCount == 2 }
@@ -337,7 +351,7 @@ class LedgerFeatureViewModelsTest {
         editorVm.uiState.awaitFirst { it.savedSuccessfully }
 
         // Verify LedgerViewModel shows +15,000 income, -3,000 expense, +12,000 balance
-        val ledgerVm = LedgerViewModel(repository)
+        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository)
         ledgerVm.selectMonth(month)
         val summary = ledgerVm.uiState.awaitFirst { it.transactionCount == 1 }
         assertEquals(Money.fromDecimalString("15000.00", Currency.CNY), summary.monthlyIncome)
@@ -396,6 +410,96 @@ class LedgerFeatureViewModelsTest {
         vm.saveTag(TagSaveRequest(name = "装修", icon = "home", color = "#00897B"))
         val dupState = vm.uiState.awaitFirst { state -> state.userMessage.orEmpty().contains("已存在") }
         assertTrue(dupState.userMessage.orEmpty().contains("已存在"))
+    }
+
+    @Test
+    fun ledgerViewModel_recordsMultiStageRefundAndReflectsReimbursementProgress() = runBlocking {
+        val month = YearMonth.of(2026, 11)
+        val day = month.atDay(18).atTime(15, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        repository.ensureSeeded(day)
+
+        val expense = engine.buildExpense(
+            meta = TransactionMeta(occurredAt = day, payee = "网购退款单"),
+            expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_SHOPPING_DAILY,
+            paymentAccountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+            amount = Money.fromDecimalString("200.00", Currency.CNY),
+        )
+        val reimburseAdvance = engine.buildReimbursableAdvance(
+            meta = TransactionMeta(occurredAt = day + 60_000L, payee = "差旅垫付单"),
+            reimbursementAccountId = DefaultSeedCatalog.AccountIds.REIMBURSEMENT_CNY,
+            paymentAccountId = DefaultSeedCatalog.AccountIds.CREDIT_CARD,
+            amount = Money.fromDecimalString("400.00", Currency.CNY),
+        )
+        repository.saveTransaction(expense)
+        repository.saveTransaction(reimburseAdvance)
+
+        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository)
+        ledgerVm.selectMonth(month)
+
+        val initial = ledgerVm.uiState.awaitFirst { it.transactionCount == 2 }
+        assertEquals(Money.fromDecimalString("200.00", Currency.CNY), initial.monthlyExpense)
+
+        // First partial refund: ¥60
+        var firstErr: String? = "unset"
+        ledgerVm.recordRefund(
+            expenseTransactionId = expense.id,
+            refundToAccountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+            refundAmountText = "60.00",
+            expenseReductionText = null,
+            note = "第一次退款",
+        ) { firstErr = it }
+
+        val afterRefund1 = ledgerVm.uiState.awaitFirst { state ->
+            val expItem = state.dayGroups.flatMap { it.items }.firstOrNull { it.id == expense.id }
+            expItem?.refundSummary?.refundCount == 1
+        }
+        assertEquals(null, firstErr)
+        assertEquals(Money.fromDecimalString("140.00", Currency.CNY), afterRefund1.monthlyExpense)
+        val expAfter1 = afterRefund1.dayGroups.flatMap { it.items }.first { it.id == expense.id }
+        assertEquals(Money.fromDecimalString("60.00", Currency.CNY), expAfter1.refundSummary?.cumulativeRefundedAmount)
+        assertEquals(Money.fromDecimalString("140.00", Currency.CNY), expAfter1.refundSummary?.remainingRefundableAmount)
+
+        // Second partial refund: ¥40 -> total refunded ¥100, net ¥100
+        var secondErr: String? = "unset"
+        ledgerVm.recordRefund(
+            expenseTransactionId = expense.id,
+            refundToAccountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+            refundAmountText = "40.00",
+            expenseReductionText = null,
+            note = "第二次退款",
+        ) { secondErr = it }
+
+        val afterRefund2 = ledgerVm.uiState.awaitFirst { state ->
+            val expItem = state.dayGroups.flatMap { it.items }.firstOrNull { it.id == expense.id }
+            expItem?.refundSummary?.refundCount == 2
+        }
+        assertEquals(null, secondErr)
+        assertEquals(Money.fromDecimalString("100.00", Currency.CNY), afterRefund2.monthlyExpense)
+        val expAfter2 = afterRefund2.dayGroups.flatMap { it.items }.first { it.id == expense.id }
+        assertEquals("已退 2 笔", expAfter2.statusBadge)
+        assertEquals(Money.fromDecimalString("100.00", Currency.CNY), expAfter2.refundSummary?.netExpenseAmount)
+
+        // Settle the reimbursement advance with ¥350 received + ¥50 shortfall expense
+        reimbursementAndRefundRepository.settleReimbursement(
+            SettleReimbursementRequest(
+                advanceTransactionId = reimburseAdvance.id,
+                depositAccountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+                settledReimbursementAmount = Money.fromDecimalString("400.00", Currency.CNY),
+                receivedAmount = Money.fromDecimalString("350.00", Currency.CNY),
+                shortfallExpenseAccountId = DefaultSeedCatalog.AccountIds.EXP_TRANSPORT_TAXI,
+                occurredAt = day + 120_000L,
+            ),
+        )
+
+        val afterSettle = ledgerVm.uiState.awaitFirst { state ->
+            val advItem = state.dayGroups.flatMap { it.items }.firstOrNull { it.id == reimburseAdvance.id }
+            advItem?.reimbursementSummary?.derivedState == ReimburseState.SETTLED
+        }
+        val advItem = afterSettle.dayGroups.flatMap { it.items }.first { it.id == reimburseAdvance.id }
+        assertEquals("已报销", advItem.statusBadge)
+        assertEquals(Money.fromDecimalString("-400.00", Currency.CNY), advItem.primaryAmount)
+        assertEquals(1, advItem.reimbursementSummary?.settlementCount)
+        assertEquals(Money.fromDecimalString("150.00", Currency.CNY), afterSettle.monthlyExpense)
     }
 
     private suspend fun saveExpense(

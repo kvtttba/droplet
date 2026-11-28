@@ -69,7 +69,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.kvtttba.droplet.core.database.dao.TagFilterMode
 import io.github.kvtttba.droplet.core.domain.PrivacyAmountFormatter
+import io.github.kvtttba.droplet.core.domain.debt.ExpenseRefundSummary
+import io.github.kvtttba.droplet.core.domain.debt.ReimbursementItemSummary
+import io.github.kvtttba.droplet.core.model.Account
 import io.github.kvtttba.droplet.core.model.Money
+import io.github.kvtttba.droplet.core.model.ReimburseState
+import io.github.kvtttba.droplet.core.model.TransactionDisplayType
 import io.github.kvtttba.droplet.core.model.TransactionStatus
 import io.github.kvtttba.droplet.core.ui.component.DropletCard
 import io.github.kvtttba.droplet.core.ui.component.DropletHeroCard
@@ -88,6 +93,7 @@ fun LedgerRoute(
     onToggleAmountsHidden: () -> Unit,
     onCreateTransaction: () -> Unit,
     onEditTransaction: (String) -> Unit,
+    onOpenReimbursementList: () -> Unit = {},
     onShowMessage: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: LedgerViewModel = hiltViewModel(),
@@ -117,6 +123,8 @@ fun LedgerRoute(
         onClearAllFilters = viewModel::onClearAllFilters,
         onCreateTransaction = onCreateTransaction,
         onEditTransaction = onEditTransaction,
+        onOpenReimbursementList = onOpenReimbursementList,
+        onRecordRefund = viewModel::recordRefund,
         onVoidTransaction = viewModel::voidTransaction,
         onRestoreTransaction = viewModel::restoreTransaction,
         onDeleteTransaction = viewModel::deleteTransaction,
@@ -142,6 +150,15 @@ fun LedgerScreen(
     onClearAllFilters: () -> Unit = {},
     onCreateTransaction: () -> Unit = {},
     onEditTransaction: (String) -> Unit = {},
+    onOpenReimbursementList: () -> Unit = {},
+    onRecordRefund: (
+        expenseTxId: String,
+        refundToAccountId: String?,
+        refundAmountText: String,
+        expenseReductionText: String?,
+        note: String,
+        onComplete: (String?) -> Unit,
+    ) -> Unit = { _, _, _, _, _, cb -> cb(null) },
     onVoidTransaction: (String) -> Unit = {},
     onRestoreTransaction: (String) -> Unit = {},
     onDeleteTransaction: (String) -> Unit = {},
@@ -151,8 +168,19 @@ fun LedgerScreen(
     val semantic = DropletTheme.semanticColors
     var showFilterSheet by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(uiState.filterState.keyword.isNotEmpty()) }
-    var inspectingItem by remember { mutableStateOf<LedgerTransactionItem?>(null) }
+    var inspectingItemId by remember { mutableStateOf<String?>(null) }
+    var refundingItemId by remember { mutableStateOf<String?>(null) }
     var confirmDeleteId by remember { mutableStateOf<String?>(null) }
+
+    val allVisibleItems = remember(uiState.dayGroups) {
+        uiState.dayGroups.flatMap { it.items }
+    }
+    val inspectingItem = remember(inspectingItemId, allVisibleItems) {
+        inspectingItemId?.let { id -> allVisibleItems.firstOrNull { it.id == id } }
+    }
+    val refundingItem = remember(refundingItemId, allVisibleItems) {
+        refundingItemId?.let { id -> allVisibleItems.firstOrNull { it.id == id } }
+    }
 
     val selectedAccountName = remember(uiState.filterState.selectedAccountId, uiState.availableAccounts) {
         uiState.availableAccounts.firstOrNull { it.id == uiState.filterState.selectedAccountId }?.name
@@ -519,7 +547,7 @@ fun LedgerScreen(
                         dayGroup.items.forEachIndexed { index, item ->
                             LedgerTransactionRow(
                                 item = item,
-                                onClick = { inspectingItem = item },
+                                onClick = { inspectingItemId = item.id },
                             )
                             if (index != dayGroup.items.lastIndex) {
                                 HorizontalDivider(
@@ -548,27 +576,61 @@ fun LedgerScreen(
         )
     }
 
-    inspectingItem?.let { detail ->
-        TransactionDetailBottomSheet(
-            item = detail,
-            onDismiss = { inspectingItem = null },
-            onEdit = {
-                inspectingItem = null
-                onEditTransaction(detail.id)
-            },
-            onVoid = {
-                inspectingItem = null
-                onVoidTransaction(detail.id)
-            },
-            onRestore = {
-                inspectingItem = null
-                onRestoreTransaction(detail.id)
-            },
-            onRequestDelete = {
-                inspectingItem = null
-                confirmDeleteId = detail.id
-            },
-        )
+    val activeRefundingItem = refundingItem
+    if (activeRefundingItem == null) {
+        inspectingItem?.let { detail ->
+            TransactionDetailBottomSheet(
+                item = detail,
+                accountsById = uiState.accountsById,
+                onDismiss = { inspectingItemId = null },
+                onEdit = {
+                    inspectingItemId = null
+                    onEditTransaction(detail.id)
+                },
+                onRequestRefund = {
+                    refundingItemId = detail.id
+                },
+                onOpenReimbursementList = {
+                    inspectingItemId = null
+                    onOpenReimbursementList()
+                },
+                onVoid = {
+                    inspectingItemId = null
+                    onVoidTransaction(detail.id)
+                },
+                onRestore = {
+                    inspectingItemId = null
+                    onRestoreTransaction(detail.id)
+                },
+                onRequestDelete = {
+                    inspectingItemId = null
+                    confirmDeleteId = detail.id
+                },
+            )
+        }
+    }
+
+    activeRefundingItem?.let { target ->
+        val summary = target.refundSummary
+        if (summary != null && summary.canRefundMore) {
+            RecordRefundBottomSheet(
+                itemTitle = target.title,
+                summary = summary,
+                refundEligibleAccounts = uiState.refundEligibleAccounts.ifEmpty { uiState.availableAccounts },
+                isSubmitting = uiState.isSubmittingRefund,
+                onDismiss = { refundingItemId = null },
+                onSubmit = { refundToId, refundAmtText, reductionText, note, cb ->
+                    onRecordRefund(
+                        target.id,
+                        refundToId,
+                        refundAmtText,
+                        reductionText,
+                        note,
+                        cb,
+                    )
+                },
+            )
+        }
     }
 
     confirmDeleteId?.let { txId ->
@@ -801,7 +863,19 @@ private fun LedgerTransactionRow(
                 showPositiveSign = item.showPositiveSign,
             )
             val subAmount = item.crossCurrencyTargetAmount ?: item.secondaryBaseAmount
-            if (subAmount != null) {
+            if (item.refundSummary?.hasRefunds == true) {
+                val hidden = LocalAmountsHidden.current
+                val netFormatted = PrivacyAmountFormatter.format(
+                    money = item.refundSummary.netExpenseAmount,
+                    hidden = hidden,
+                )
+                Text(
+                    text = "净支出 $netFormatted",
+                    style = MaterialTheme.typography.labelSmall.tabularNums(),
+                    color = semantic.income,
+                    maxLines = 1,
+                )
+            } else if (subAmount != null) {
                 val hidden = LocalAmountsHidden.current
                 val prefix = if (item.crossCurrencyTargetAmount != null) "→ " else "≈ "
                 val formatted = PrivacyAmountFormatter.format(
@@ -1091,220 +1165,573 @@ private fun LedgerFilterBottomSheet(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun TransactionDetailBottomSheet(
+fun TransactionDetailBottomSheetContent(
     item: LedgerTransactionItem,
-    onDismiss: () -> Unit,
-    onEdit: () -> Unit,
-    onVoid: () -> Unit,
-    onRestore: () -> Unit,
-    onRequestDelete: () -> Unit,
+    accountsById: Map<String, Account> = emptyMap(),
+    onEdit: () -> Unit = {},
+    onRequestRefund: () -> Unit = {},
+    onOpenReimbursementList: () -> Unit = {},
+    onVoid: () -> Unit = {},
+    onRestore: () -> Unit = {},
+    onRequestDelete: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     val semantic = DropletTheme.semanticColors
     var showSystemBalancing by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val hasSystemBalancing = item.postings.any { it.isSystemBalancing }
     val visiblePostings = if (showSystemBalancing) {
         item.postings
     } else {
         item.postings.filterNot { it.isSystemBalancing }
     }
+    val canTriggerRefund = item.status == TransactionStatus.POSTED &&
+        item.displayType == TransactionDisplayType.EXPENSE &&
+        item.refundSummary != null
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(bottom = 24.dp)
+            .testTag("tx_detail_sheet"),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 24.dp)
-                .testTag("tx_detail_sheet"),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Header
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    item.statusBadge?.let { DropletPillBadge(text = it) }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = item.dateTimeLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            PrivacyAmountText(
+                money = item.primaryAmount,
+                style = MaterialTheme.typography.headlineSmall,
+                color = when (item.amountTone) {
+                    LedgerAmountTone.INCOME -> semantic.income
+                    LedgerAmountTone.EXPENSE -> semantic.expense
+                    LedgerAmountTone.NEUTRAL -> MaterialTheme.colorScheme.onSurface
+                    LedgerAmountTone.MUTED -> MaterialTheme.colorScheme.outline
+                },
+                showPositiveSign = item.showPositiveSign,
+            )
+        }
+
+        // Refund & Net Expense Section (for POSTED EXPENSE transactions)
+        if (canTriggerRefund) {
+            val refundSummary = item.refundSummary!!
+            ExpenseRefundDetailCard(
+                summary = refundSummary,
+                accountsById = accountsById,
+                onRequestRefund = onRequestRefund,
+            )
+        }
+
+        // Reimbursement Status & Settlements Section (for REIMBURSE advances)
+        item.reimbursementSummary?.let { reimburseSummary ->
+            ReimbursementDetailCard(
+                summary = reimburseSummary,
+                accountsById = accountsById,
+                onOpenReimbursementList = onOpenReimbursementList,
+            )
+        }
+
+        if (!item.payee.isNullOrBlank() || !item.note.isNullOrBlank() || item.tags.isNotEmpty()) {
+            DropletCard(contentPadding = PaddingValues(14.dp)) {
+                if (!item.payee.isNullOrBlank()) {
+                    DetailMetaRow(label = "商户 / 对象", value = item.payee)
+                }
+                if (!item.note.isNullOrBlank()) {
+                    DetailMetaRow(label = "备注", value = item.note)
+                }
+                if (item.tags.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        item.tags.forEach { tag ->
+                            val tagColor = DropletIconRegistry.parseColor(
+                                hex = tag.color,
+                                fallback = MaterialTheme.colorScheme.primary,
+                            )
+                            DropletPillBadge(
+                                text = "#${tag.name}",
+                                containerColor = tagColor.copy(alpha = 0.14f),
+                                contentColor = tagColor,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Double-Entry Postings Section
+        DropletCard(contentPadding = PaddingValues(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = item.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        item.statusBadge?.let { DropletPillBadge(text = it) }
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = item.dateTimeLabel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                PrivacyAmountText(
-                    money = item.primaryAmount,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = when (item.amountTone) {
-                        LedgerAmountTone.INCOME -> semantic.income
-                        LedgerAmountTone.EXPENSE -> semantic.expense
-                        LedgerAmountTone.NEUTRAL -> MaterialTheme.colorScheme.onSurface
-                        LedgerAmountTone.MUTED -> MaterialTheme.colorScheme.outline
-                    },
-                    showPositiveSign = item.showPositiveSign,
+                Text(
+                    text = "复式借贷分录 (${visiblePostings.size} 行)",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-
-            if (!item.payee.isNullOrBlank() || !item.note.isNullOrBlank() || item.tags.isNotEmpty()) {
-                DropletCard(contentPadding = PaddingValues(14.dp)) {
-                    if (!item.payee.isNullOrBlank()) {
-                        DetailMetaRow(label = "商户 / 对象", value = item.payee)
-                    }
-                    if (!item.note.isNullOrBlank()) {
-                        DetailMetaRow(label = "备注", value = item.note)
-                    }
-                    if (item.tags.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            item.tags.forEach { tag ->
-                                val tagColor = DropletIconRegistry.parseColor(
-                                    hex = tag.color,
-                                    fallback = MaterialTheme.colorScheme.primary,
-                                )
-                                DropletPillBadge(
-                                    text = "#${tag.name}",
-                                    containerColor = tagColor.copy(alpha = 0.14f),
-                                    contentColor = tagColor,
-                                )
-                            }
-                        }
+                if (hasSystemBalancing) {
+                    TextButton(onClick = { showSystemBalancing = !showSystemBalancing }) {
+                        Text(if (showSystemBalancing) "隐藏 Trading" else "展开 Trading")
                     }
                 }
             }
-
-            // Double-Entry Postings Section
-            DropletCard(contentPadding = PaddingValues(14.dp)) {
+            Spacer(modifier = Modifier.height(6.dp))
+            visiblePostings.forEachIndexed { index, posting ->
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = "复式借贷分录 (${visiblePostings.size} 行)",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    if (hasSystemBalancing) {
-                        TextButton(onClick = { showSystemBalancing = !showSystemBalancing }) {
-                            Text(if (showSystemBalancing) "隐藏 Trading" else "展开 Trading")
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = posting.accountName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (posting.isSystemBalancing) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                        if (posting.amount.currency != posting.baseAmount.currency) {
+                            Text(
+                                text = "锁定汇率 ${posting.rateDecimal}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                visiblePostings.forEachIndexed { index, posting ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = posting.accountName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (posting.isSystemBalancing) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
-                            )
-                            if (posting.amount.currency != posting.baseAmount.currency) {
-                                Text(
-                                    text = "锁定汇率 ${posting.rateDecimal}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        PrivacyAmountText(
+                            money = posting.amount,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = if (posting.amount.isPositive) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            showPositiveSign = true,
+                        )
+                        if (posting.amount.currency != posting.baseAmount.currency) {
                             PrivacyAmountText(
-                                money = posting.amount,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = if (posting.amount.isPositive) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
+                                money = posting.baseAmount,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 showPositiveSign = true,
                             )
-                            if (posting.amount.currency != posting.baseAmount.currency) {
-                                PrivacyAmountText(
-                                    money = posting.baseAmount,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    showPositiveSign = true,
-                                )
-                            }
                         }
                     }
-                    if (index != visiblePostings.lastIndex) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                    }
+                }
+                if (index != visiblePostings.lastIndex) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                 }
             }
+        }
 
-            // Action Buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+        // Action Buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Button(
+                onClick = onEdit,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("tx_detail_edit_button"),
             ) {
-                Button(
-                    onClick = onEdit,
+                Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("编辑")
+            }
+            if (item.status == TransactionStatus.VOID) {
+                FilledTonalButton(
+                    onClick = onRestore,
                     modifier = Modifier
                         .weight(1f)
-                        .testTag("tx_detail_edit_button"),
+                        .testTag("tx_detail_restore_button"),
                 ) {
-                    Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("编辑")
+                    Text("恢复入账")
                 }
-                if (item.status == TransactionStatus.VOID) {
-                    FilledTonalButton(
-                        onClick = onRestore,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("tx_detail_restore_button"),
-                    ) {
-                        Text("恢复入账")
-                    }
-                } else {
-                    FilledTonalButton(
-                        onClick = onVoid,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("tx_detail_void_button"),
-                    ) {
-                        Text("作废")
-                    }
-                }
-                OutlinedButton(
-                    onClick = onRequestDelete,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-                    modifier = Modifier.testTag("tx_detail_delete_button"),
+            } else {
+                FilledTonalButton(
+                    onClick = onVoid,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("tx_detail_void_button"),
                 ) {
-                    Icon(Icons.Rounded.Delete, contentDescription = "删除", modifier = Modifier.size(18.dp))
+                    Text("作废")
+                }
+            }
+            OutlinedButton(
+                onClick = onRequestDelete,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
+                modifier = Modifier.testTag("tx_detail_delete_button"),
+            ) {
+                Icon(Icons.Rounded.Delete, contentDescription = "删除", modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TransactionDetailBottomSheet(
+    item: LedgerTransactionItem,
+    accountsById: Map<String, Account>,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onRequestRefund: () -> Unit,
+    onOpenReimbursementList: () -> Unit,
+    onVoid: () -> Unit,
+    onRestore: () -> Unit,
+    onRequestDelete: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        TransactionDetailBottomSheetContent(
+            item = item,
+            accountsById = accountsById,
+            onEdit = onEdit,
+            onRequestRefund = onRequestRefund,
+            onOpenReimbursementList = onOpenReimbursementList,
+            onVoid = onVoid,
+            onRestore = onRestore,
+            onRequestDelete = onRequestDelete,
+        )
+    }
+}
+
+@Composable
+private fun ExpenseRefundDetailCard(
+    summary: ExpenseRefundSummary,
+    accountsById: Map<String, Account>,
+    onRequestRefund: () -> Unit,
+) {
+    val semantic = DropletTheme.semanticColors
+    DropletCard(
+        contentPadding = PaddingValues(14.dp),
+        modifier = Modifier.testTag("tx_detail_refund_card"),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "关联退款与净支出",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = if (summary.hasRefunds) {
+                        "已关联 ${summary.refundCount} 笔退款 · 自动重算分类净支出"
+                    } else {
+                        "支持全额退款、部分退款与多次关联退款"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            FilledTonalButton(
+                onClick = onRequestRefund,
+                enabled = summary.canRefundMore,
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(999.dp),
+                modifier = Modifier.testTag("tx_detail_refund_button"),
+            ) {
+                Text(
+                    text = if (summary.canRefundMore) "退款" else "已全额退",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "已退金额",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                PrivacyAmountText(
+                    money = summary.cumulativeRefundedAmount,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (summary.hasRefunds) semantic.income else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.testTag("tx_detail_refunded_total"),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "剩余可退",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                PrivacyAmountText(
+                    money = summary.remainingRefundableAmount,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.testTag("tx_detail_remaining_refundable"),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "原单净支出",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                PrivacyAmountText(
+                    money = summary.netExpenseAmount,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = semantic.expense,
+                    modifier = Modifier.testTag("tx_detail_net_expense"),
+                )
+            }
+        }
+
+        if (summary.linkedRefunds.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "关联退款记录 (${summary.linkedRefunds.size})",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            summary.linkedRefunds.forEachIndexed { idx, record ->
+                val accountName = record.refundToAccountId?.let { accountsById[it]?.name } ?: "退回账户"
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = record.transaction.note?.takeIf { it.isNotBlank() }
+                                ?: "第 ${idx + 1} 次关联退款",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = "${LedgerDateFormats.formatDateTime(record.transaction.occurredAt)} · 退回 $accountName",
+                            style = MaterialTheme.typography.labelSmall.tabularNums(),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    PrivacyAmountText(
+                        money = record.refundReceivedAmount,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = semantic.income,
+                        showPositiveSign = true,
+                    )
+                }
+                if (idx != summary.linkedRefunds.lastIndex) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReimbursementDetailCard(
+    summary: ReimbursementItemSummary,
+    accountsById: Map<String, Account>,
+    onOpenReimbursementList: () -> Unit,
+) {
+    val semantic = DropletTheme.semanticColors
+    val (stateLabel, stateBg, stateFg) = when (summary.derivedState) {
+        ReimburseState.PENDING -> Triple("待报销", semantic.warningContainer, semantic.warning)
+        ReimburseState.PARTIAL -> Triple("部分报销", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
+        ReimburseState.SETTLED -> Triple("已报销结清", semantic.incomeContainer, semantic.income)
+    }
+
+    DropletCard(
+        contentPadding = PaddingValues(14.dp),
+        modifier = Modifier.testTag("tx_detail_reimburse_card"),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "待报销进度",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                DropletPillBadge(
+                    text = stateLabel,
+                    containerColor = stateBg,
+                    contentColor = stateFg,
+                )
+            }
+            if (summary.isPending) {
+                TextButton(
+                    onClick = onOpenReimbursementList,
+                    modifier = Modifier.testTag("tx_detail_open_reimburse_list"),
+                ) {
+                    Text("去冲抵")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("原垫付", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                PrivacyAmountText(money = summary.advanceAmount, style = MaterialTheme.typography.titleSmall)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("已到账", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                PrivacyAmountText(
+                    money = summary.receivedCashTotal,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (summary.receivedCashTotal.isPositive) semantic.income else MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (summary.shortfallExpenseTotal.isPositive) "差额自付" else "剩余待报销",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                PrivacyAmountText(
+                    money = if (summary.shortfallExpenseTotal.isPositive) {
+                        summary.shortfallExpenseTotal
+                    } else {
+                        summary.remainingPendingAmount
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (summary.shortfallExpenseTotal.isPositive) {
+                        semantic.expense
+                    } else if (summary.remainingPendingAmount.isPositive) {
+                        semantic.warning
+                    } else {
+                        semantic.income
+                    },
+                )
+            }
+        }
+
+        if (summary.settlementTransactions.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "关联冲抵记录 (${summary.settlementCount})",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            summary.settlementTransactions.forEachIndexed { idx, settlement ->
+                val clearedMinor = settlement.businessPostings
+                    .filter { it.accountId == summary.reimbursementAccountId && it.amountMinor < 0L }
+                    .fold(0L) { acc, p -> Math.addExact(acc, Math.negateExact(p.amountMinor)) }
+                val depositAcctName = settlement.businessPostings
+                    .firstOrNull { p ->
+                        p.accountId != summary.reimbursementAccountId &&
+                            p.amountMinor > 0L &&
+                            accountsById[p.accountId]?.type != io.github.kvtttba.droplet.core.model.AccountType.EXPENSE
+                    }
+                    ?.let { accountsById[it.accountId]?.name }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = settlement.note?.takeIf { it.isNotBlank() } ?: settlement.payee ?: "报销冲抵",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        val meta = buildList {
+                            add(LedgerDateFormats.formatDateTime(settlement.occurredAt))
+                            depositAcctName?.let { add("入账 $it") }
+                        }
+                        Text(
+                            text = meta.joinToString(" · "),
+                            style = MaterialTheme.typography.labelSmall.tabularNums(),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    PrivacyAmountText(
+                        money = Money(clearedMinor, summary.currency),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = semantic.income,
+                    )
+                }
+                if (idx != summary.settlementTransactions.lastIndex) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
                 }
             }
         }

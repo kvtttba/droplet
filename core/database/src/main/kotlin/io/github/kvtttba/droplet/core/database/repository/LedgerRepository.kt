@@ -11,6 +11,7 @@ import io.github.kvtttba.droplet.core.database.entity.toEntity
 import io.github.kvtttba.droplet.core.database.entity.toExchangeRateTable
 import io.github.kvtttba.droplet.core.database.seed.DefaultLedgerSeeder
 import io.github.kvtttba.droplet.core.database.seed.SeedResult
+import io.github.kvtttba.droplet.core.domain.debt.ReimbursementCalculator
 import io.github.kvtttba.droplet.core.domain.ledger.ExchangeRateTable
 import io.github.kvtttba.droplet.core.domain.ledger.LedgerEngine
 import io.github.kvtttba.droplet.core.domain.ledger.TransactionMeta
@@ -24,6 +25,7 @@ import io.github.kvtttba.droplet.core.model.ExchangeRateSource
 import io.github.kvtttba.droplet.core.model.Money
 import io.github.kvtttba.droplet.core.model.Tag
 import io.github.kvtttba.droplet.core.model.Transaction
+import io.github.kvtttba.droplet.core.model.TransactionDisplayType
 import io.github.kvtttba.droplet.core.model.TransactionStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -376,18 +378,64 @@ class LocalLedgerRepository(
         transactionId: String,
         nowEpochMs: Long,
     ) {
-        transactionWriter.voidTransaction(transactionId = transactionId, updatedAt = nowEpochMs)
+        database.withTransaction {
+            val target = transactionDao.getById(transactionId)?.toDomain()
+            transactionWriter.voidTransaction(transactionId = transactionId, updatedAt = nowEpochMs)
+            syncParentReimburseStateIfNeeded(target, nowEpochMs)
+        }
     }
 
     override suspend fun restoreTransaction(
         transactionId: String,
         nowEpochMs: Long,
     ) {
-        transactionWriter.restoreTransaction(transactionId = transactionId, updatedAt = nowEpochMs)
+        database.withTransaction {
+            val target = transactionDao.getById(transactionId)?.toDomain()
+            transactionWriter.restoreTransaction(transactionId = transactionId, updatedAt = nowEpochMs)
+            syncParentReimburseStateIfNeeded(target, nowEpochMs)
+        }
     }
 
     override suspend fun deleteTransaction(transactionId: String) {
-        transactionWriter.deleteTransaction(transactionId)
+        database.withTransaction {
+            val target = transactionDao.getById(transactionId)?.toDomain()
+            transactionWriter.deleteTransaction(transactionId)
+            syncParentReimburseStateIfNeeded(target, System.currentTimeMillis())
+        }
+    }
+
+    private suspend fun syncParentReimburseStateIfNeeded(
+        mutatedTx: Transaction?,
+        updatedAt: Long,
+    ) {
+        val parentId = mutatedTx
+            ?.takeIf { it.displayType == TransactionDisplayType.REIMBURSE }
+            ?.refTransactionId
+            ?: return
+        val parentTx = transactionDao.getById(parentId)?.toDomain() ?: return
+        val linkedSettlements = transactionDao.getLinkedTransactionsByType(
+            refTransactionId = parentId,
+            displayType = TransactionDisplayType.REIMBURSE,
+            status = TransactionStatus.POSTED,
+        ).map { it.toDomain() }
+        val accountIds = (parentTx.postings + linkedSettlements.flatMap { it.postings })
+            .map { it.accountId }
+            .distinct()
+        val accountsById = if (accountIds.isEmpty()) {
+            emptyMap()
+        } else {
+            accountDao.getByIds(accountIds).associate { it.id to it.toDomain() }
+        }
+        val summary = ReimbursementCalculator.summarizeItem(
+            advanceTransaction = parentTx,
+            linkedSettlements = linkedSettlements,
+            accountsById = accountsById,
+        ) ?: return
+        transactionDao.updateReimburseState(
+            transactionId = parentId,
+            state = summary.derivedState,
+            updatedAt = updatedAt,
+        )
     }
 
     override fun observeExchangeRateTable(): Flow<ExchangeRateTable> =

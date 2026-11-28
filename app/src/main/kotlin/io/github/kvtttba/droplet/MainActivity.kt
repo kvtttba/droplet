@@ -24,6 +24,7 @@ import io.github.kvtttba.droplet.core.security.MarketSyncPreferences
 import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.NetworkProxyPreferencesRepository
 import io.github.kvtttba.droplet.notification.CreditCardReminderNotificationPublisher
+import io.github.kvtttba.droplet.notification.DebtReminderNotificationPublisher
 import io.github.kvtttba.droplet.notification.LoanReminderNotificationPublisher
 import io.github.kvtttba.droplet.security.AppLockCoordinator
 import io.github.kvtttba.droplet.ui.DropletApp
@@ -54,6 +55,7 @@ class MainActivity : FragmentActivity() {
 
     private val pendingCreditCardAccountIdFlow = MutableStateFlow<String?>(null)
     private val pendingLoanPlanIdFlow = MutableStateFlow<String?>(null)
+    private val pendingDebtProfileIdFlow = MutableStateFlow<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,6 +86,7 @@ class MainActivity : FragmentActivity() {
                 .collectAsStateWithLifecycle(initialValue = CreditCardReminderPreferences())
             val pendingCreditCardAccountId by pendingCreditCardAccountIdFlow.collectAsStateWithLifecycle()
             val pendingLoanPlanId by pendingLoanPlanIdFlow.collectAsStateWithLifecycle()
+            val pendingDebtProfileId by pendingDebtProfileIdFlow.collectAsStateWithLifecycle()
 
             val marketSyncSummary = buildString {
                 append(marketSyncPrefs.refreshInterval.label)
@@ -130,6 +133,8 @@ class MainActivity : FragmentActivity() {
                 onConsumePendingCreditCardAccountId = { pendingCreditCardAccountIdFlow.value = null },
                 pendingLoanPlanId = pendingLoanPlanId,
                 onConsumePendingLoanPlanId = { pendingLoanPlanIdFlow.value = null },
+                pendingDebtProfileId = pendingDebtProfileId,
+                onConsumePendingDebtProfileId = { pendingDebtProfileIdFlow.value = null },
                 onThemeModeChange = { mode ->
                     appLockCoordinator.setThemeMode(mode.toAppThemePreference())
                 },
@@ -160,6 +165,12 @@ class MainActivity : FragmentActivity() {
         )?.takeIf { it.isNotBlank() }
         if (loanPlanId != null) {
             pendingLoanPlanIdFlow.value = loanPlanId
+        }
+        val debtProfileId = intent?.getStringExtra(
+            DebtReminderNotificationPublisher.EXTRA_DEBT_PROFILE_ID,
+        )?.takeIf { it.isNotBlank() }
+        if (debtProfileId != null) {
+            pendingDebtProfileIdFlow.value = debtProfileId
         }
     }
 

@@ -2,6 +2,8 @@ package io.github.kvtttba.droplet.feature.ledger
 
 import io.github.kvtttba.droplet.core.database.dao.TagFilterMode
 import io.github.kvtttba.droplet.core.database.repository.LedgerTransactionRecord
+import io.github.kvtttba.droplet.core.domain.debt.ExpenseRefundSummary
+import io.github.kvtttba.droplet.core.domain.debt.ReimbursementItemSummary
 import io.github.kvtttba.droplet.core.model.Account
 import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AccountType
@@ -90,6 +92,10 @@ data class LedgerTransactionItem(
     val postings: List<LedgerPostingDetail> = emptyList(),
     val isMultiCurrency: Boolean = false,
     val isOpeningBalance: Boolean = false,
+    val refTransactionId: String? = null,
+    val reimburseState: ReimburseState? = null,
+    val refundSummary: ExpenseRefundSummary? = null,
+    val reimbursementSummary: ReimbursementItemSummary? = null,
 )
 
 data class LedgerDayGroup(
@@ -110,10 +116,13 @@ data class LedgerUiState(
     val filterState: LedgerFilterState = LedgerFilterState(),
     val dayGroups: List<LedgerDayGroup> = emptyList(),
     val availableAccounts: List<Account> = emptyList(),
+    val refundEligibleAccounts: List<Account> = emptyList(),
+    val accountsById: Map<String, Account> = emptyMap(),
     val expenseCategoryGroups: List<CategoryGroupOption> = emptyList(),
     val incomeCategoryGroups: List<CategoryGroupOption> = emptyList(),
     val availableTags: List<Tag> = emptyList(),
     val isLoading: Boolean = false,
+    val isSubmittingRefund: Boolean = false,
     val userMessage: String? = null,
 ) {
     val monthLabel: String
@@ -190,6 +199,8 @@ object LedgerItemMapper {
         accountsById: Map<String, Account>,
         baseCurrency: Currency = Currency.DEFAULT,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        refundSummariesByExpenseId: Map<String, ExpenseRefundSummary> = emptyMap(),
+        reimbursementSummariesByAdvanceId: Map<String, ReimbursementItemSummary> = emptyMap(),
     ): List<LedgerDayGroup> {
         if (records.isEmpty()) return emptyList()
 
@@ -225,6 +236,8 @@ object LedgerItemMapper {
                         accountsById = accountsById,
                         baseCurrency = baseCurrency,
                         zoneId = zoneId,
+                        refundSummary = refundSummariesByExpenseId[record.transaction.id],
+                        reimbursementSummary = reimbursementSummariesByAdvanceId[record.transaction.id],
                     )
                 }
 
@@ -243,6 +256,8 @@ object LedgerItemMapper {
         accountsById: Map<String, Account>,
         baseCurrency: Currency = Currency.DEFAULT,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        refundSummary: ExpenseRefundSummary? = null,
+        reimbursementSummary: ReimbursementItemSummary? = null,
     ): LedgerTransactionItem {
         val tx = record.transaction
         val business = tx.businessPostings
@@ -272,18 +287,26 @@ object LedgerItemMapper {
             type == AccountType.ASSET || type == AccountType.LIABILITY
         }
 
+        val effectiveReimburseState = reimbursementSummary?.derivedState ?: tx.reimburseState
+        val isReimburseSettlement = tx.displayType == TransactionDisplayType.REIMBURSE && tx.refTransactionId != null
+
         val statusBadge = when {
             isVoid -> "已作废"
-            tx.reimburseState == ReimburseState.PENDING -> "待报销"
-            tx.reimburseState == ReimburseState.PARTIAL -> "部分报销"
-            tx.reimburseState == ReimburseState.SETTLED -> "已报销"
+            isReimburseSettlement -> "报销到账"
+            effectiveReimburseState == ReimburseState.PENDING -> "待报销"
+            effectiveReimburseState == ReimburseState.PARTIAL -> "部分报销"
+            effectiveReimburseState == ReimburseState.SETTLED -> "已报销"
+            tx.displayType == TransactionDisplayType.EXPENSE && refundSummary?.isFullyRefunded == true -> "已全额退款"
+            tx.displayType == TransactionDisplayType.EXPENSE && refundSummary?.hasRefunds == true ->
+                if (refundSummary.refundCount > 1) "已退 ${refundSummary.refundCount} 笔" else "部分退款"
             tx.displayType == TransactionDisplayType.REFUND -> "退款"
+            tx.displayType == TransactionDisplayType.DEBT -> "借贷"
             isOpening -> "期初"
             tx.displayType == TransactionDisplayType.SPLIT -> "多拆"
             else -> null
         }
 
-        val isReimburseBadge = !isVoid && tx.reimburseState != null
+        val isReimburseBadge = !isVoid && (effectiveReimburseState != null || isReimburseSettlement)
 
         val primaryAccount: Account?
         val title: String
@@ -402,13 +425,18 @@ object LedgerItemMapper {
             }
 
             tx.displayType == TransactionDisplayType.REIMBURSE -> {
-                val paymentPosting = balanceSheetPostings.minByOrNull { it.amountMinor }
-                val receivePosting = balanceSheetPostings.maxByOrNull { it.amountMinor }
-                val isAdvance = tx.reimburseState == ReimburseState.PENDING && tx.refTransactionId == null
+                val isAdvance = tx.refTransactionId == null
+                val paymentPosting = balanceSheetPostings
+                    .filter { accountsById[it.accountId]?.subType != AccountSubType.REIMBURSEMENT && it.amountMinor < 0L }
+                    .minByOrNull { it.amountMinor }
+                    ?: balanceSheetPostings.minByOrNull { it.amountMinor }
+                val depositPosting = balanceSheetPostings
+                    .filter { accountsById[it.accountId]?.subType != AccountSubType.REIMBURSEMENT && it.amountMinor > 0L }
+                    .maxByOrNull { it.amountMinor }
                 val focusPosting = if (isAdvance) {
                     paymentPosting ?: business.first()
                 } else {
-                    receivePosting ?: business.first()
+                    depositPosting ?: expensePostings.maxByOrNull { it.amountMinor } ?: business.first()
                 }
                 val account = accountsById[focusPosting.accountId]
                 primaryAccount = account
@@ -417,7 +445,11 @@ object LedgerItemMapper {
                 accountLabel = account?.name ?: "待报销"
                 iconKey = "receipt_long"
                 colorHex = "#FB8C00"
-                primaryAmount = focusPosting.money
+                primaryAmount = if (!isAdvance && depositPosting == null && expensePostings.isNotEmpty()) {
+                    Money(-focusPosting.amountMinor, focusPosting.currency)
+                } else {
+                    focusPosting.money
+                }
                 secondaryBase = if (focusPosting.currency != baseCurrency) focusPosting.baseMoney else null
                 crossTarget = null
                 tone = when {
@@ -426,6 +458,38 @@ object LedgerItemMapper {
                     else -> LedgerAmountTone.EXPENSE
                 }
                 showPositiveSign = primaryAmount.isPositive
+            }
+
+            tx.displayType == TransactionDisplayType.DEBT -> {
+                val cashPosting = balanceSheetPostings.firstOrNull { p ->
+                    val st = accountsById[p.accountId]?.subType
+                    st != AccountSubType.RECEIVABLE && st != AccountSubType.PAYABLE
+                }
+                val focusPosting = cashPosting
+                    ?: expensePostings.maxByOrNull { it.amountMinor }
+                    ?: balanceSheetPostings.firstOrNull()
+                    ?: business.first()
+                val account = accountsById[focusPosting.accountId]
+                primaryAccount = account
+                title = tx.payee?.takeIf { it.isNotBlank() } ?: "往来借贷"
+                accountLabel = account?.name ?: "往来账户"
+                iconKey = "card_giftcard"
+                colorHex = "#00897B"
+                val displayMoney = if (cashPosting == null && expensePostings.isNotEmpty()) {
+                    Money(-focusPosting.amountMinor, focusPosting.currency)
+                } else {
+                    focusPosting.money
+                }
+                primaryAmount = displayMoney
+                secondaryBase = if (focusPosting.currency != baseCurrency) focusPosting.baseMoney else null
+                crossTarget = null
+                tone = when {
+                    isVoid -> LedgerAmountTone.MUTED
+                    displayMoney.isPositive -> LedgerAmountTone.INCOME
+                    displayMoney.isNegative -> LedgerAmountTone.EXPENSE
+                    else -> LedgerAmountTone.NEUTRAL
+                }
+                showPositiveSign = displayMoney.isPositive
             }
 
             tx.displayType == TransactionDisplayType.REFUND -> {
@@ -504,6 +568,10 @@ object LedgerItemMapper {
             postings = postingDetails,
             isMultiCurrency = tx.isMultiCurrency,
             isOpeningBalance = isOpening,
+            refTransactionId = tx.refTransactionId,
+            reimburseState = effectiveReimburseState,
+            refundSummary = refundSummary,
+            reimbursementSummary = reimbursementSummary,
         )
     }
 

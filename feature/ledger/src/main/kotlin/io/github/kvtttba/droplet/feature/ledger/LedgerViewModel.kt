@@ -6,6 +6,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.kvtttba.droplet.core.database.dao.TagFilterMode
 import io.github.kvtttba.droplet.core.database.dao.TransactionFilter
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
+import io.github.kvtttba.droplet.core.database.repository.RecordRefundRequest
+import io.github.kvtttba.droplet.core.database.repository.ReimbursementAndRefundRepository
+import io.github.kvtttba.droplet.core.domain.debt.ExpenseRefundSummary
+import io.github.kvtttba.droplet.core.domain.debt.ReimbursementItemSummary
 import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AccountType
 import io.github.kvtttba.droplet.core.model.Currency
@@ -21,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -29,6 +34,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class LedgerViewModel @Inject constructor(
     private val repository: LedgerRepository,
+    private val reimbursementAndRefundRepository: ReimbursementAndRefundRepository,
 ) : ViewModel() {
 
     private val baseCurrency: Currency = Currency.DEFAULT
@@ -37,6 +43,7 @@ class LedgerViewModel @Inject constructor(
     private val selectedMonthFlow = MutableStateFlow(YearMonth.now())
     private val filterStateFlow = MutableStateFlow(LedgerFilterState())
     private val userMessageFlow = MutableStateFlow<String?>(null)
+    private val isSubmittingRefundFlow = MutableStateFlow(false)
 
     private val queryCriteriaFlow = combine(
         selectedMonthFlow,
@@ -45,9 +52,18 @@ class LedgerViewModel @Inject constructor(
         month to filterState
     }
 
+    private val reimbursementSummariesByAdvanceIdFlow =
+        reimbursementAndRefundRepository.observeReimbursementOverview()
+            .map { overview -> overview.items.associateBy { it.advanceTransaction.id } }
+
     private val ledgerSnapshotFlow = queryCriteriaFlow.flatMapLatest { (month, filterState) ->
         val txFilter = buildTransactionFilter(month, filterState)
-        val transactionsFlow = repository.observeFilteredTransactions(txFilter)
+        val transactionsWithRefundsFlow = repository.observeFilteredTransactions(txFilter)
+            .flatMapLatest { records ->
+                reimbursementAndRefundRepository
+                    .observeRefundSummariesForExpenses(records.map { it.transaction })
+                    .map { refundMap -> records to refundMap }
+            }
         val summaryFlow = if (!filterState.hasExtraFilters) {
             val (start, end) = LedgerDateFormats.monthRangeEpochMs(month, zoneId)
             repository.observePeriodSummary(
@@ -62,12 +78,18 @@ class LedgerViewModel @Inject constructor(
                 filter = txFilter.copy(statuses = setOf(TransactionStatus.POSTED)),
             )
         }
-        combine(transactionsFlow, summaryFlow) { records, summary ->
+        combine(
+            transactionsWithRefundsFlow,
+            summaryFlow,
+            reimbursementSummariesByAdvanceIdFlow,
+        ) { (records, refundMap), summary, reimburseMap ->
             QuerySnapshot(
                 month = month,
                 filterState = filterState,
                 records = records,
                 summary = summary,
+                refundSummariesByExpenseId = refundMap,
+                reimbursementSummariesByAdvanceId = reimburseMap,
             )
         }
     }
@@ -79,11 +101,18 @@ class LedgerViewModel @Inject constructor(
         accounts to tags
     }
 
+    private val runtimeFlow = combine(
+        userMessageFlow,
+        isSubmittingRefundFlow,
+    ) { message, isSubmittingRefund ->
+        message to isSubmittingRefund
+    }
+
     val uiState: StateFlow<LedgerUiState> = combine(
         ledgerSnapshotFlow,
         catalogFlow,
-        userMessageFlow,
-    ) { snapshot, (allAccounts, tags), message ->
+        runtimeFlow,
+    ) { snapshot, (allAccounts, tags), (message, isSubmittingRefund) ->
         val month = snapshot.month
         val filterState = snapshot.filterState
         val records = snapshot.records
@@ -91,6 +120,13 @@ class LedgerViewModel @Inject constructor(
         val accountsById = allAccounts.associateBy { it.id }
         val activeOperationalAccounts = allAccounts.filter {
             !it.isArchived && !it.isSystem && it.subType in LedgerRepository.OPERATIONAL_SUB_TYPES
+        }
+        val refundEligibleAccounts = activeOperationalAccounts.filter { acct ->
+            (acct.type == AccountType.ASSET &&
+                acct.subType != AccountSubType.RECEIVABLE &&
+                acct.subType != AccountSubType.REIMBURSEMENT &&
+                acct.subType != AccountSubType.INVEST_HOLDING) ||
+                (acct.type == AccountType.LIABILITY && acct.subType == AccountSubType.CREDIT_CARD)
         }
         val activeExpenseCategories = allAccounts.filter {
             !it.isArchived && !it.isSystem && it.type == AccountType.EXPENSE && it.subType == AccountSubType.CATEGORY
@@ -112,12 +148,17 @@ class LedgerViewModel @Inject constructor(
                 accountsById = accountsById,
                 baseCurrency = baseCurrency,
                 zoneId = zoneId,
+                refundSummariesByExpenseId = snapshot.refundSummariesByExpenseId,
+                reimbursementSummariesByAdvanceId = snapshot.reimbursementSummariesByAdvanceId,
             ),
             availableAccounts = activeOperationalAccounts,
+            refundEligibleAccounts = refundEligibleAccounts,
+            accountsById = accountsById,
             expenseCategoryGroups = LedgerItemMapper.buildCategoryGroups(activeExpenseCategories),
             incomeCategoryGroups = LedgerItemMapper.buildCategoryGroups(activeIncomeCategories),
             availableTags = tags,
             isLoading = false,
+            isSubmittingRefund = isSubmittingRefund,
             userMessage = message,
         )
     }.stateIn(
@@ -225,6 +266,73 @@ class LedgerViewModel @Inject constructor(
         }
     }
 
+    fun recordRefund(
+        expenseTransactionId: String,
+        refundToAccountId: String?,
+        refundAmountText: String,
+        expenseReductionText: String?,
+        note: String,
+        onComplete: (String?) -> Unit,
+    ) {
+        if (isSubmittingRefundFlow.value) return
+        viewModelScope.launch {
+            isSubmittingRefundFlow.value = true
+            val result = runCatching {
+                val accountId = refundToAccountId ?: throw IllegalArgumentException("请选择退款退回账户")
+                val targetAccount = uiState.value.accountsById[accountId]
+                    ?: repository.getAccountById(accountId)
+                    ?: throw IllegalArgumentException("未找到退回账户")
+                val cleanedRefund = refundAmountText.trim()
+                require(cleanedRefund.isNotEmpty()) { "请输入退款金额" }
+                val refundMoney = runCatching {
+                    Money.fromDecimalString(cleanedRefund, targetAccount.currency)
+                }.getOrElse {
+                    throw IllegalArgumentException("退款金额格式无效")
+                }
+                require(refundMoney.isPositive) { "退款金额必须大于 0" }
+
+                val originalItem = uiState.value.dayGroups
+                    .asSequence()
+                    .flatMap { it.items.asSequence() }
+                    .firstOrNull { it.id == expenseTransactionId }
+                val expenseCurrency = originalItem?.refundSummary?.expenseCurrency ?: targetAccount.currency
+
+                val reductionMoney = if (targetAccount.currency != expenseCurrency) {
+                    val cleanedRed = expenseReductionText?.trim().orEmpty()
+                    require(cleanedRed.isNotEmpty()) {
+                        "跨币种退款请输入冲减原支出金额 (${expenseCurrency.code})"
+                    }
+                    runCatching {
+                        Money.fromDecimalString(cleanedRed, expenseCurrency)
+                    }.getOrElse {
+                        throw IllegalArgumentException("冲减原支出金额格式无效")
+                    }
+                } else {
+                    null
+                }
+
+                val response = reimbursementAndRefundRepository.recordRefund(
+                    RecordRefundRequest(
+                        originalExpenseTransactionId = expenseTransactionId,
+                        refundToAccountId = accountId,
+                        refundAmount = refundMoney,
+                        expenseCurrencyReductionAmount = reductionMoney,
+                        note = note.trim().takeIf { it.isNotEmpty() },
+                    ),
+                )
+                val netAfter = response.updatedRefundSummary.netExpenseAmount
+                "已记录退款 $refundMoney，原单净支出 $netAfter"
+            }
+
+            isSubmittingRefundFlow.value = false
+            result.fold(
+                onSuccess = { msg -> userMessageFlow.value = msg },
+                onFailure = { err -> userMessageFlow.value = err.message ?: "退款入账失败" },
+            )
+            onComplete(result.exceptionOrNull()?.message)
+        }
+    }
+
     fun clearUserMessage() {
         userMessageFlow.value = null
     }
@@ -262,5 +370,7 @@ class LedgerViewModel @Inject constructor(
         val filterState: LedgerFilterState,
         val records: List<io.github.kvtttba.droplet.core.database.repository.LedgerTransactionRecord>,
         val summary: io.github.kvtttba.droplet.core.database.dao.PeriodSummaryRow,
+        val refundSummariesByExpenseId: Map<String, ExpenseRefundSummary>,
+        val reimbursementSummariesByAdvanceId: Map<String, ReimbursementItemSummary>,
     )
 }
