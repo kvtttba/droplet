@@ -41,6 +41,7 @@ dependencies {
     implementation(projects.core.database)
     implementation(projects.core.network)
     implementation(projects.core.security)
+    implementation(projects.core.ai)
     implementation(projects.core.sync)
     implementation(projects.core.ui)
     implementation(libs.androidx.lifecycle.runtime.compose)

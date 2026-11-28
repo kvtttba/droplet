@@ -12,11 +12,13 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.github.kvtttba.droplet.core.network.NetworkProxyConfigProvider
+import io.github.kvtttba.droplet.core.security.AiConfigPreferencesRepository
 import io.github.kvtttba.droplet.core.security.AndroidBiometricAuthenticator
 import io.github.kvtttba.droplet.core.security.AndroidKeystoreSecretKeyProvider
 import io.github.kvtttba.droplet.core.security.AppLockStateMachine
 import io.github.kvtttba.droplet.core.security.BiometricAuthenticator
 import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
+import io.github.kvtttba.droplet.core.security.DataStoreAiConfigPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreCreditCardReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreDebtReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreLoanReminderPreferencesRepository
@@ -56,6 +58,10 @@ annotation class LoanReminderDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class DebtReminderDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class AiConfigDataStore
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -210,4 +216,27 @@ object SecurityModule {
     fun provideSecretCipher(
         keyProvider: SecretKeyProvider,
     ): SecretCipher = KeystoreSecretCipher(keyProvider)
+
+    @Provides
+    @Singleton
+    @AiConfigDataStore
+    fun provideAiConfigPreferencesDataStore(
+        @ApplicationContext context: Context,
+        @ApplicationScope applicationScope: CoroutineScope,
+    ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        scope = applicationScope,
+        produceFile = {
+            context.preferencesDataStoreFile(SecurityContract.AI_CONFIG_PREFERENCES_FILE)
+        },
+    )
+
+    @Provides
+    @Singleton
+    fun provideAiConfigPreferencesRepository(
+        @AiConfigDataStore dataStore: DataStore<Preferences>,
+        secretCipher: SecretCipher,
+    ): AiConfigPreferencesRepository = DataStoreAiConfigPreferencesRepository(
+        dataStore = dataStore,
+        secretCipher = secretCipher,
+    )
 }
