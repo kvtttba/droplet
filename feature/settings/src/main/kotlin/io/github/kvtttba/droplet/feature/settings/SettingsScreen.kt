@@ -56,6 +56,7 @@ fun SettingsScreen(
     onOpenBudgetManagement: () -> Unit = {},
     onOpenRecurringRules: () -> Unit = {},
     onOpenTemplateManagement: () -> Unit = {},
+    onOpenWebDavSync: () -> Unit = {},
     onOpenDataExport: () -> Unit = {},
     biometricLockEnabled: Boolean = false,
     flagSecureEnabled: Boolean = false,
@@ -65,7 +66,8 @@ fun SettingsScreen(
     budgetSummary: String = "设置月/年总预算与分类消耗预警",
     recurringSummary: String = "房租、工资与订阅自动入账或到期提醒",
     templateSummary: String = "高频消费一键入账或预填表单",
-    versionLabel: String = "v0.1.0-m5.2",
+    webDavSyncSummary: String = "未配置 · 点击设置加密快照备份",
+    versionLabel: String = "v0.1.0-m5.3",
     modifier: Modifier = Modifier,
 ) {
     val amountsHidden = LocalAmountsHidden.current
@@ -305,7 +307,9 @@ fun SettingsScreen(
                 SettingsItemRow(
                     icon = DropletIcons.CloudSync,
                     title = "WebDAV 加密备份与恢复",
-                    subtitle = "AES-256-GCM 端到端快照 · 本地回滚保护 · M5.3",
+                    subtitle = webDavSyncSummary,
+                    onClick = onOpenWebDavSync,
+                    modifier = Modifier.testTag("settings_entry_webdav_sync"),
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 48.dp),

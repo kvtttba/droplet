@@ -82,6 +82,10 @@ import io.github.kvtttba.droplet.core.security.BiometricCapability
 import io.github.kvtttba.droplet.core.security.MarketSyncInterval
 import io.github.kvtttba.droplet.core.security.RelockTimeout
 import io.github.kvtttba.droplet.core.security.VoiceEngineMode
+import io.github.kvtttba.droplet.core.security.WebDavSyncPreferences
+import io.github.kvtttba.droplet.core.sync.LocalRollbackSnapshot
+import io.github.kvtttba.droplet.core.sync.RemoteBackupSnapshot
+import io.github.kvtttba.droplet.core.sync.WebDavConnectionTestResult
 import io.github.kvtttba.droplet.core.ui.theme.DropletTheme
 import io.github.kvtttba.droplet.core.ui.theme.ThemeMode
 import io.github.kvtttba.droplet.feature.aicapture.AiCaptureScreen
@@ -124,6 +128,8 @@ import io.github.kvtttba.droplet.feature.settings.RecurringRulesScreen
 import io.github.kvtttba.droplet.feature.settings.RecurringRulesUiState
 import io.github.kvtttba.droplet.feature.settings.TemplateManagementScreen
 import io.github.kvtttba.droplet.feature.settings.TemplateManagementUiState
+import io.github.kvtttba.droplet.feature.settings.WebDavSyncScreen
+import io.github.kvtttba.droplet.feature.settings.WebDavSyncUiState
 import io.github.kvtttba.droplet.feature.stats.StatsDisplayTab
 import io.github.kvtttba.droplet.feature.stats.StatsScreen
 import io.github.kvtttba.droplet.feature.stats.StatsUiState
@@ -1002,6 +1008,57 @@ class DropletAppScreenshotTest {
         composeRule.onNodeWithTag("settings_entry_templates").performClick()
         composeRule.onNodeWithTag("screen_template_management").assertIsDisplayed()
         composeRule.onNodeWithTag("template_back_button").performClick()
+        composeRule.onNodeWithTag("screen_settings").assertIsDisplayed()
+    }
+
+    @Test
+    fun captureWebDavSyncLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                WebDavSyncScreen(uiState = sampleWebDavSyncUiState())
+            }
+        }
+        composeRule.onNodeWithTag("screen_webdav_sync").assertIsDisplayed()
+        composeRule.onNodeWithTag("webdav_hero_summary").assertTextContains("DRP1 加密", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/webdav_sync_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun captureWebDavSyncDark() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.DARK, dynamicColor = false) {
+                WebDavSyncScreen(uiState = sampleWebDavSyncUiState())
+            }
+        }
+        composeRule.onNodeWithTag("screen_webdav_sync").assertIsDisplayed()
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_remote_snapshots_card")
+        composeRule.onNodeWithTag("webdav_remote_snapshot_0").assertIsDisplayed()
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/webdav_sync_dark.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun interactiveShell_webDavSyncNavigationWork() {
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.SETTINGS,
+                initialThemeMode = ThemeMode.LIGHT,
+                initialDynamicColor = false,
+                webDavSyncPreviewState = sampleWebDavSyncUiState(),
+            )
+        }
+
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.onNodeWithTag("settings_entry_webdav_sync")
+            .assertTextContains("DRP1 加密", substring = true)
+        composeRule.onNodeWithTag("settings_entry_webdav_sync").performClick()
+        composeRule.onNodeWithTag("screen_webdav_sync").assertIsDisplayed()
+        composeRule.onNodeWithTag("webdav_back_button").performClick()
         composeRule.onNodeWithTag("screen_settings").assertIsDisplayed()
     }
 
@@ -2643,5 +2700,65 @@ class DropletAppScreenshotTest {
             ),
             lastExportStatusMessage = "已导出 droplet-ledger-all-20261127.xlsx（48 笔，14 KB）",
         )
+
+        private fun sampleWebDavSyncUiState(): WebDavSyncUiState {
+            val prefs = WebDavSyncPreferences(
+                serverUrl = "https://webdav.example.invalid/dav",
+                username = "droplet-demo",
+                remoteDirectory = "droplet-backups",
+                hasPassword = true,
+                passwordMasked = "••••2026",
+                encryptionEnabled = true,
+                hasPassphrase = true,
+                passphraseMasked = "••••8899",
+                autoSyncEnabled = true,
+                dailyBackupEnabled = true,
+                wifiOnly = true,
+                syncAttachments = false,
+                retentionCount = 10,
+                lastBackupAt = fixedTimestampMs,
+                lastBackupSuccess = true,
+                lastBackupMessage = "手动备份成功（DRP1 加密 · 68.4 KB）",
+                lastBackupFileName = "droplet-backup-20261127-043000-000.drp",
+            )
+            return WebDavSyncUiState(
+                preferences = prefs,
+                serverUrlInput = prefs.serverUrl,
+                usernameInput = prefs.username,
+                remoteDirectoryInput = prefs.remoteDirectory,
+                connectionTestResult = WebDavConnectionTestResult(
+                    success = true,
+                    normalizedEndpointUrl = prefs.serverUrl,
+                    httpStatusCode = 207,
+                    latencyMs = 82L,
+                    message = "连接成功，WebDAV 服务与账号鉴权均已通过",
+                ),
+                remoteSnapshots = listOf(
+                    RemoteBackupSnapshot(
+                        fileName = "droplet-backup-20261127-043000-000.drp",
+                        remotePath = "/dav/droplet-backups/droplet-backup-20261127-043000-000.drp",
+                        sizeBytes = 70_042L,
+                        lastModifiedEpochMs = fixedTimestampMs,
+                        isEncrypted = true,
+                    ),
+                    RemoteBackupSnapshot(
+                        fileName = "droplet-backup-20261126-141500-000.drp",
+                        remotePath = "/dav/droplet-backups/droplet-backup-20261126-141500-000.drp",
+                        sizeBytes = 67_584L,
+                        lastModifiedEpochMs = fixedTimestampMs - 86_400_000L,
+                        isEncrypted = true,
+                    ),
+                ),
+                localRollbackSnapshots = listOf(
+                    LocalRollbackSnapshot(
+                        fileName = "pre-restore-20261127-041200-000.zip",
+                        filePath = "/data/user/0/io.github.kvtttba.droplet/files/rollback_backups/pre-restore-20261127-041200-000.zip",
+                        sizeBytes = 66_560L,
+                        createdAtEpochMs = fixedTimestampMs - 1_080_000L,
+                        isPreRestoreAuto = true,
+                    ),
+                ),
+            )
+        }
     }
 }

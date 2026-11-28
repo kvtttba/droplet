@@ -30,6 +30,8 @@ import io.github.kvtttba.droplet.core.security.LockStatus
 import io.github.kvtttba.droplet.core.security.MarketSyncPreferences
 import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.NetworkProxyPreferencesRepository
+import io.github.kvtttba.droplet.core.security.WebDavSyncPreferences
+import io.github.kvtttba.droplet.core.security.WebDavSyncPreferencesRepository
 import io.github.kvtttba.droplet.feature.aicapture.PendingAiSharePayload
 import io.github.kvtttba.droplet.notification.CreditCardReminderNotificationPublisher
 import io.github.kvtttba.droplet.notification.DebtReminderNotificationPublisher
@@ -79,6 +81,9 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var templateRepository: TemplateRepository
 
+    @Inject
+    lateinit var webDavSyncPreferencesRepository: WebDavSyncPreferencesRepository
+
     private val pendingCreditCardAccountIdFlow = MutableStateFlow<String?>(null)
     private val pendingLoanPlanIdFlow = MutableStateFlow<String?>(null)
     private val pendingDebtProfileIdFlow = MutableStateFlow<String?>(null)
@@ -122,6 +127,8 @@ class MainActivity : FragmentActivity() {
                 .collectAsStateWithLifecycle(initialValue = emptyList())
             val templates by templateRepository.observeTemplates()
                 .collectAsStateWithLifecycle(initialValue = emptyList())
+            val webDavSyncPrefs by webDavSyncPreferencesRepository.preferences
+                .collectAsStateWithLifecycle(initialValue = WebDavSyncPreferences())
             val pendingCreditCardAccountId by pendingCreditCardAccountIdFlow.collectAsStateWithLifecycle()
             val pendingLoanPlanId by pendingLoanPlanIdFlow.collectAsStateWithLifecycle()
             val pendingDebtProfileId by pendingDebtProfileIdFlow.collectAsStateWithLifecycle()
@@ -193,6 +200,7 @@ class MainActivity : FragmentActivity() {
                 budgetSummary = budgetSummary,
                 recurringSummary = recurringSummary,
                 templateSummary = templateSummary,
+                webDavSyncSummary = webDavSyncPrefs.formatSummary(),
                 monthlyBudgetProgress = budgetOverview.monthlyOverall,
                 pendingAiDraftCount = pendingAiDraftCount,
                 pendingCreditCardAccountId = pendingCreditCardAccountId,

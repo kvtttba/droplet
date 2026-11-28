@@ -112,6 +112,9 @@ import io.github.kvtttba.droplet.feature.settings.SettingsScreen
 import io.github.kvtttba.droplet.feature.settings.TemplateManagementRoute
 import io.github.kvtttba.droplet.feature.settings.TemplateManagementScreen
 import io.github.kvtttba.droplet.feature.settings.TemplateManagementUiState
+import io.github.kvtttba.droplet.feature.settings.WebDavSyncRoute
+import io.github.kvtttba.droplet.feature.settings.WebDavSyncScreen
+import io.github.kvtttba.droplet.feature.settings.WebDavSyncUiState
 import io.github.kvtttba.droplet.feature.stats.StatsRoute
 import io.github.kvtttba.droplet.feature.stats.StatsScreen
 import io.github.kvtttba.droplet.feature.stats.StatsUiState
@@ -167,6 +170,7 @@ object DropletRoutes {
     const val BUDGET_MANAGEMENT = "budget_management"
     const val RECURRING_RULES = "recurring_rules"
     const val TEMPLATE_MANAGEMENT = "template_management"
+    const val WEBDAV_SYNC = "webdav_sync"
     const val DATA_EXPORT = "data_export"
     const val AI_CAPTURE_PATTERN = "ai_capture?${AiCaptureViewModel.NAV_ARG_TAB}={${AiCaptureViewModel.NAV_ARG_TAB}}"
     const val AI_DRAFT_REVIEW_PATTERN = "ai_draft_review/{${AiDraftReviewViewModel.NAV_ARG_DRAFT_ID}}"
@@ -236,6 +240,7 @@ fun DropletApp(
     budgetSummary: String = "设置月/年总预算与分类消耗预警",
     recurringSummary: String = "房租、工资与订阅自动入账或到期提醒",
     templateSummary: String = "高频消费一键入账或预填表单",
+    webDavSyncSummary: String = "未配置 · 点击设置加密快照备份",
     monthlyBudgetProgress: BudgetProgress? = null,
     pendingAiDraftCount: Int = 0,
     pendingCreditCardAccountId: String? = null,
@@ -284,6 +289,7 @@ fun DropletApp(
         budgetSummary = budgetSummary,
         recurringSummary = recurringSummary,
         templateSummary = templateSummary,
+        webDavSyncSummary = webDavSyncSummary,
         monthlyBudgetProgress = monthlyBudgetProgress,
         pendingAiDraftCount = pendingAiDraftCount,
         pendingCreditCardAccountId = pendingCreditCardAccountId,
@@ -462,6 +468,12 @@ fun DropletApp(
                 onShowMessage = onShowMessage,
             )
         },
+        webDavSyncContent = { onBack, onShowMessage ->
+            WebDavSyncRoute(
+                onNavigateBack = onBack,
+                onShowMessage = onShowMessage,
+            )
+        },
     )
 }
 
@@ -495,6 +507,7 @@ fun DropletAppShell(
     budgetManagementPreviewState: BudgetManagementUiState? = null,
     recurringRulesPreviewState: RecurringRulesUiState? = null,
     templateManagementPreviewState: TemplateManagementUiState? = null,
+    webDavSyncPreviewState: WebDavSyncUiState? = null,
     dataExportPreviewState: DataExportUiState? = null,
     initialPendingAiDraftCount: Int = 0,
     ledgerContent: @Composable (
@@ -571,6 +584,8 @@ fun DropletAppShell(
         budgetSummary = "设置月/年总预算与分类消耗预警",
         recurringSummary = "房租、工资与订阅自动入账或到期提醒",
         templateSummary = "高频消费一键入账或预填表单",
+        webDavSyncSummary = webDavSyncPreviewState?.preferences?.formatSummary()
+            ?: "未配置 · 点击设置加密快照备份",
         monthlyBudgetProgress = null,
         pendingAiDraftCount = initialPendingAiDraftCount,
         pendingCreditCardAccountId = null,
@@ -718,6 +733,12 @@ fun DropletAppShell(
                 onNavigateBack = onBack,
             )
         },
+        webDavSyncContent = { onBack, _ ->
+            WebDavSyncScreen(
+                uiState = webDavSyncPreviewState ?: WebDavSyncUiState(),
+                onNavigateBack = onBack,
+            )
+        },
     )
 }
 
@@ -735,6 +756,7 @@ private fun DropletAppContent(
     budgetSummary: String,
     recurringSummary: String,
     templateSummary: String,
+    webDavSyncSummary: String,
     monthlyBudgetProgress: BudgetProgress?,
     pendingAiDraftCount: Int,
     pendingCreditCardAccountId: String?,
@@ -865,6 +887,10 @@ private fun DropletAppContent(
         onEditTransaction: (String) -> Unit,
     ) -> Unit,
     dataExportContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    webDavSyncContent: @Composable (
         onNavigateBack: () -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
@@ -1075,6 +1101,9 @@ private fun DropletAppContent(
                                     onOpenTemplateManagement = {
                                         navController.navigate(DropletRoutes.TEMPLATE_MANAGEMENT)
                                     },
+                                    onOpenWebDavSync = {
+                                        navController.navigate(DropletRoutes.WEBDAV_SYNC)
+                                    },
                                     onOpenDataExport = {
                                         navController.navigate(DropletRoutes.DATA_EXPORT)
                                     },
@@ -1086,6 +1115,7 @@ private fun DropletAppContent(
                                     budgetSummary = budgetSummary,
                                     recurringSummary = recurringSummary,
                                     templateSummary = templateSummary,
+                                    webDavSyncSummary = webDavSyncSummary,
                                     versionLabel = versionLabel,
                                 )
                             }
@@ -1236,6 +1266,12 @@ private fun DropletAppContent(
                             }
                             composable(DropletRoutes.DATA_EXPORT) {
                                 dataExportContent(
+                                    { navController.popBackStack() },
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletRoutes.WEBDAV_SYNC) {
+                                webDavSyncContent(
                                     { navController.popBackStack() },
                                     showMessage,
                                 )
