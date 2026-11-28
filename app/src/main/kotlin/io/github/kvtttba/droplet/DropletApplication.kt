@@ -5,9 +5,13 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import dagger.hilt.android.HiltAndroidApp
+import io.github.kvtttba.droplet.core.database.LedgerTransactionWriter
+import io.github.kvtttba.droplet.core.database.repository.BudgetRepository
 import io.github.kvtttba.droplet.core.database.repository.DebtRepository
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
 import io.github.kvtttba.droplet.core.database.repository.LoanRepository
+import io.github.kvtttba.droplet.core.database.repository.RecurringRuleRepository
+import io.github.kvtttba.droplet.core.security.BudgetAndRecurringPreferencesRepository
 import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DebtReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
@@ -15,11 +19,14 @@ import io.github.kvtttba.droplet.di.ApplicationScope
 import io.github.kvtttba.droplet.notification.CreditCardReminderNotifier
 import io.github.kvtttba.droplet.notification.DebtReminderNotifier
 import io.github.kvtttba.droplet.notification.LoanReminderNotifier
+import io.github.kvtttba.droplet.notification.PlanningAlertNotifier
 import io.github.kvtttba.droplet.security.AppLockCoordinator
+import io.github.kvtttba.droplet.worker.BudgetAlertEvaluator
 import io.github.kvtttba.droplet.worker.CreditCardReminderScheduler
 import io.github.kvtttba.droplet.worker.DebtReminderScheduler
 import io.github.kvtttba.droplet.worker.LoanScheduleScheduler
 import io.github.kvtttba.droplet.worker.MarketSyncScheduler
+import io.github.kvtttba.droplet.worker.RecurringAndBudgetScheduler
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
@@ -73,6 +80,27 @@ class DropletApplication : Application() {
     lateinit var debtReminderScheduler: DebtReminderScheduler
 
     @Inject
+    lateinit var ledgerTransactionWriter: LedgerTransactionWriter
+
+    @Inject
+    lateinit var budgetRepository: BudgetRepository
+
+    @Inject
+    lateinit var recurringRuleRepository: RecurringRuleRepository
+
+    @Inject
+    lateinit var budgetAndRecurringPreferencesRepository: BudgetAndRecurringPreferencesRepository
+
+    @Inject
+    lateinit var planningAlertNotifier: PlanningAlertNotifier
+
+    @Inject
+    lateinit var budgetAlertEvaluator: BudgetAlertEvaluator
+
+    @Inject
+    lateinit var recurringAndBudgetScheduler: RecurringAndBudgetScheduler
+
+    @Inject
     @ApplicationScope
     lateinit var applicationScope: CoroutineScope
 
@@ -92,6 +120,12 @@ class DropletApplication : Application() {
         creditCardReminderNotifier.ensureNotificationChannel()
         loanReminderNotifier.ensureNotificationChannel()
         debtReminderNotifier.ensureNotificationChannel()
+        planningAlertNotifier.ensureNotificationChannel()
+        ledgerTransactionWriter.addOnTransactionCommittedListener {
+            applicationScope.launch {
+                runCatching { budgetAlertEvaluator.evaluateAndNotify() }
+            }
+        }
         ProcessLifecycleOwner.get().lifecycle.addObserver(processLifecycleObserver)
         applicationScope.launch {
             ledgerRepository.ensureSeeded()
@@ -132,6 +166,23 @@ class DropletApplication : Application() {
                 enabled && hasDueDebts
             }.distinctUntilChanged().collect { shouldSchedule ->
                 debtReminderScheduler.syncSchedule(shouldSchedule = shouldSchedule)
+            }
+        }
+        applicationScope.launch {
+            combine(
+                budgetRepository.observeBudgetOverview(includeDisabled = false)
+                    .map { it.enabledCount > 0 }
+                    .distinctUntilChanged(),
+                recurringRuleRepository.observeRulesWithStatus()
+                    .map { rules -> rules.any { !it.rule.isPaused && !it.isTerminated } }
+                    .distinctUntilChanged(),
+                budgetAndRecurringPreferencesRepository.preferences
+                    .map { it.budgetAlertsEnabled || it.recurringRemindersEnabled }
+                    .distinctUntilChanged(),
+            ) { hasEnabledBudgets, hasActiveRecurringRules, anyAlertsEnabled ->
+                hasActiveRecurringRules || (hasEnabledBudgets && anyAlertsEnabled)
+            }.distinctUntilChanged().collect { shouldSchedule ->
+                recurringAndBudgetScheduler.syncSchedule(shouldSchedule = shouldSchedule)
             }
         }
     }

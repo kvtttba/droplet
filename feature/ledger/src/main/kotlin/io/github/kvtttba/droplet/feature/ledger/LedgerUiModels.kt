@@ -2,6 +2,8 @@ package io.github.kvtttba.droplet.feature.ledger
 
 import io.github.kvtttba.droplet.core.database.dao.TagFilterMode
 import io.github.kvtttba.droplet.core.database.repository.LedgerTransactionRecord
+import io.github.kvtttba.droplet.core.database.repository.TransactionTemplateItem
+import io.github.kvtttba.droplet.core.domain.automation.BudgetProgress
 import io.github.kvtttba.droplet.core.domain.debt.ExpenseRefundSummary
 import io.github.kvtttba.droplet.core.domain.debt.ReimbursementItemSummary
 import io.github.kvtttba.droplet.core.model.Account
@@ -112,6 +114,8 @@ data class LedgerUiState(
     val monthlyBalance: Money = Money.zero(Currency.DEFAULT),
     val monthlyIncome: Money = Money.zero(Currency.DEFAULT),
     val monthlyExpense: Money = Money.zero(Currency.DEFAULT),
+    val monthlyOverallBudget: BudgetProgress? = null,
+    val quickTemplates: List<TransactionTemplateItem> = emptyList(),
     val transactionCount: Int = 0,
     val filterState: LedgerFilterState = LedgerFilterState(),
     val dayGroups: List<LedgerDayGroup> = emptyList(),

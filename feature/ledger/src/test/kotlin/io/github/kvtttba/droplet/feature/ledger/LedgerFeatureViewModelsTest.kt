@@ -6,22 +6,32 @@ import androidx.test.core.app.ApplicationProvider
 import io.github.kvtttba.droplet.core.database.DropletDatabase
 import io.github.kvtttba.droplet.core.database.LedgerTransactionWriter
 import io.github.kvtttba.droplet.core.database.dao.TagFilterMode
+import io.github.kvtttba.droplet.core.database.repository.BudgetRepository
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
+import io.github.kvtttba.droplet.core.database.repository.LocalBudgetRepository
 import io.github.kvtttba.droplet.core.database.repository.LocalLedgerRepository
 import io.github.kvtttba.droplet.core.database.repository.LocalReimbursementAndRefundRepository
+import io.github.kvtttba.droplet.core.database.repository.LocalTemplateRepository
+import io.github.kvtttba.droplet.core.database.repository.RecordRefundRequest
 import io.github.kvtttba.droplet.core.database.repository.ReimbursementAndRefundRepository
+import io.github.kvtttba.droplet.core.database.repository.SaveBudgetRequest
+import io.github.kvtttba.droplet.core.database.repository.SaveTemplateRequest
 import io.github.kvtttba.droplet.core.database.repository.SettleReimbursementRequest
+import io.github.kvtttba.droplet.core.database.repository.TemplateRepository
 import io.github.kvtttba.droplet.core.database.seed.DefaultLedgerSeeder
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
 import io.github.kvtttba.droplet.core.domain.PrivacyAmountFormatter
+import io.github.kvtttba.droplet.core.domain.automation.RecurringPayload
 import io.github.kvtttba.droplet.core.domain.ledger.LedgerEngine
 import io.github.kvtttba.droplet.core.domain.ledger.TransactionMeta
 import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AccountType
+import io.github.kvtttba.droplet.core.model.BudgetPeriod
 import io.github.kvtttba.droplet.core.model.Currency
 import io.github.kvtttba.droplet.core.model.Money
 import io.github.kvtttba.droplet.core.model.ReimburseState
 import io.github.kvtttba.droplet.core.model.SystemAccounts
+import io.github.kvtttba.droplet.core.model.TransactionDisplayType
 import io.github.kvtttba.droplet.core.model.TransactionStatus
 import io.github.kvtttba.droplet.feature.ledger.editor.EditorTab
 import io.github.kvtttba.droplet.feature.ledger.editor.PostingDirection
@@ -61,6 +71,8 @@ class LedgerFeatureViewModelsTest {
     private lateinit var database: DropletDatabase
     private lateinit var repository: LedgerRepository
     private lateinit var reimbursementAndRefundRepository: ReimbursementAndRefundRepository
+    private lateinit var budgetRepository: BudgetRepository
+    private lateinit var templateRepository: TemplateRepository
     private lateinit var engine: LedgerEngine
     private val testDispatcher = UnconfinedTestDispatcher()
 
@@ -84,6 +96,16 @@ class LedgerFeatureViewModelsTest {
             seeder = seeder,
             ledgerEngine = engine,
         )
+        budgetRepository = LocalBudgetRepository(
+            database = database,
+            seeder = seeder,
+        )
+        templateRepository = LocalTemplateRepository(
+            database = database,
+            transactionWriter = writer,
+            seeder = seeder,
+            ledgerEngine = engine,
+        )
     }
 
     @After
@@ -100,11 +122,11 @@ class LedgerFeatureViewModelsTest {
 
         repository.ensureSeeded(occurredAt)
 
-        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository)
+        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository, budgetRepository, templateRepository)
         ledgerVm.selectMonth(month)
 
         // 1. Create an expense via TransactionEditorViewModel
-        val editorVm = TransactionEditorViewModel(repository, engine, SavedStateHandle())
+        val editorVm = TransactionEditorViewModel(repository, engine, templateRepository, SavedStateHandle())
         editorVm.uiState.awaitFirst { it.operationalAccounts.isNotEmpty() }
 
         editorVm.selectTab(EditorTab.EXPENSE)
@@ -132,6 +154,7 @@ class LedgerFeatureViewModelsTest {
         val editVm = TransactionEditorViewModel(
             repository = repository,
             ledgerEngine = engine,
+            templateRepository = templateRepository,
             savedStateHandle = SavedStateHandle(mapOf("transactionId" to createdItem.id)),
         )
         editVm.uiState.awaitFirst { it.amountText == "38.5" || it.amountText == "38.50" }
@@ -201,7 +224,7 @@ class LedgerFeatureViewModelsTest {
             payee = "网约车",
         )
 
-        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository)
+        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository, budgetRepository, templateRepository)
         ledgerVm.selectMonth(month)
 
         val initial = ledgerVm.uiState.awaitFirst { it.transactionCount == 2 }
@@ -277,7 +300,7 @@ class LedgerFeatureViewModelsTest {
         assertEquals(Money.fromDecimalString("-500.00", Currency.USD).amountMinor, equityOpenBal.balanceMinor)
 
         // Cross-currency transfer: 7250 CNY -> 1000 USD (implied rate 1 USD = 7.25 CNY)
-        val editorVm = TransactionEditorViewModel(repository, engine, SavedStateHandle())
+        val editorVm = TransactionEditorViewModel(repository, engine, templateRepository, SavedStateHandle())
         editorVm.uiState.awaitFirst { it.operationalAccounts.any { a -> a.id == usdAccount.id } }
 
         editorVm.selectTab(EditorTab.TRANSFER)
@@ -312,7 +335,7 @@ class LedgerFeatureViewModelsTest {
         val now = month.atDay(25).atTime(10, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         repository.ensureSeeded(now)
 
-        val editorVm = TransactionEditorViewModel(repository, engine, SavedStateHandle())
+        val editorVm = TransactionEditorViewModel(repository, engine, templateRepository, SavedStateHandle())
         editorVm.uiState.awaitFirst { it.allSelectableAccounts.isNotEmpty() }
 
         editorVm.toggleSplitMode()
@@ -351,7 +374,7 @@ class LedgerFeatureViewModelsTest {
         editorVm.uiState.awaitFirst { it.savedSuccessfully }
 
         // Verify LedgerViewModel shows +15,000 income, -3,000 expense, +12,000 balance
-        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository)
+        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository, budgetRepository, templateRepository)
         ledgerVm.selectMonth(month)
         val summary = ledgerVm.uiState.awaitFirst { it.transactionCount == 1 }
         assertEquals(Money.fromDecimalString("15000.00", Currency.CNY), summary.monthlyIncome)
@@ -433,7 +456,7 @@ class LedgerFeatureViewModelsTest {
         repository.saveTransaction(expense)
         repository.saveTransaction(reimburseAdvance)
 
-        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository)
+        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository, budgetRepository, templateRepository)
         ledgerVm.selectMonth(month)
 
         val initial = ledgerVm.uiState.awaitFirst { it.transactionCount == 2 }
@@ -502,6 +525,62 @@ class LedgerFeatureViewModelsTest {
         assertEquals(Money.fromDecimalString("150.00", Currency.CNY), afterSettle.monthlyExpense)
     }
 
+    @Test
+    fun ledgerBudgetProgressAndTemplatePrefillSyncWithRoom() = runBlocking {
+        val month = YearMonth.now()
+        val occurredAt = month.atDay(1).atTime(10, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        repository.ensureSeeded(occurredAt)
+
+        budgetRepository.saveBudget(
+            SaveBudgetRequest(
+                period = BudgetPeriod.MONTHLY,
+                categoryAccountId = null,
+                limitAmountMinor = Money.fromDecimalString("500.00").amountMinor,
+                warnThresholdPct = 80,
+            ),
+        )
+        val tpl = templateRepository.saveTemplate(
+            SaveTemplateRequest(
+                name = "通勤地铁",
+                payload = RecurringPayload(
+                    displayType = TransactionDisplayType.EXPENSE,
+                    amountMinor = Money.fromDecimalString("6.00").amountMinor,
+                    categoryAccountId = DefaultSeedCatalog.AccountIds.EXP_TRANSPORT_TRANSIT,
+                    accountId = DefaultSeedCatalog.AccountIds.ALIPAY,
+                    payee = "城市地铁",
+                    tagIds = listOf(DefaultSeedCatalog.TagIds.WORKDAY),
+                    note = "通勤",
+                ),
+            ),
+        )
+
+        // Prefill TransactionEditorViewModel from templateId and save -> increments usage & updates budget
+        val prefillVm = TransactionEditorViewModel(
+            repository = repository,
+            ledgerEngine = engine,
+            templateRepository = templateRepository,
+            savedStateHandle = SavedStateHandle(mapOf(TransactionEditorViewModel.NAV_ARG_TEMPLATE_ID to tpl.id)),
+        )
+        val prefilled = prefillVm.uiState.awaitFirst { it.amountText == "6" && it.payee == "城市地铁" }
+        assertEquals(DefaultSeedCatalog.AccountIds.EXP_TRANSPORT_TRANSIT, prefilled.selectedCategoryId)
+        assertEquals(DefaultSeedCatalog.AccountIds.ALIPAY, prefilled.selectedAccountId)
+        assertTrue(DefaultSeedCatalog.TagIds.WORKDAY in prefilled.selectedTagIds)
+
+        prefillVm.onOccurredAtChange(occurredAt)
+        prefillVm.save()
+        prefillVm.uiState.awaitFirst { it.savedSuccessfully }
+
+        val updatedTpl = templateRepository.getTemplateById(tpl.id)!!
+        assertEquals(1, updatedTpl.template.useCount)
+
+        val ledgerVm = LedgerViewModel(repository, reimbursementAndRefundRepository, budgetRepository, templateRepository)
+        val state = ledgerVm.uiState.awaitFirst {
+            it.monthlyOverallBudget?.spentAmount == Money.fromDecimalString("6.00") &&
+                it.quickTemplates.size == 1
+        }
+        assertEquals(Money.fromDecimalString("500.00"), state.monthlyOverallBudget?.budget?.limitAmount)
+    }
+
     private suspend fun saveExpense(
         amount: String,
         categoryId: String,
@@ -510,7 +589,7 @@ class LedgerFeatureViewModelsTest {
         tagIds: List<String>,
         payee: String,
     ) {
-        val vm = TransactionEditorViewModel(repository, engine, SavedStateHandle())
+        val vm = TransactionEditorViewModel(repository, engine, templateRepository, SavedStateHandle())
         vm.uiState.awaitFirst { it.operationalAccounts.isNotEmpty() }
         vm.selectTab(EditorTab.EXPENSE)
         vm.onAmountChange(amount)

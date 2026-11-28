@@ -38,6 +38,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import io.github.kvtttba.droplet.BuildConfig
+import io.github.kvtttba.droplet.core.domain.automation.BudgetProgress
 import io.github.kvtttba.droplet.core.security.AppLockState
 import io.github.kvtttba.droplet.core.security.AppThemePreference
 import io.github.kvtttba.droplet.core.security.PrivacyPreferences
@@ -83,11 +84,15 @@ import io.github.kvtttba.droplet.feature.ledger.LedgerRoute
 import io.github.kvtttba.droplet.feature.ledger.LedgerScreen
 import io.github.kvtttba.droplet.feature.ledger.LedgerUiState
 import io.github.kvtttba.droplet.feature.ledger.editor.TransactionEditorRoute
+import io.github.kvtttba.droplet.feature.ledger.editor.TransactionEditorViewModel
 import io.github.kvtttba.droplet.feature.ledger.manage.AccountManagementRoute
 import io.github.kvtttba.droplet.feature.ledger.manage.CategoryTagManagementRoute
 import io.github.kvtttba.droplet.feature.settings.AiSettingsRoute
 import io.github.kvtttba.droplet.feature.settings.AiSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.AiSettingsUiState
+import io.github.kvtttba.droplet.feature.settings.BudgetManagementRoute
+import io.github.kvtttba.droplet.feature.settings.BudgetManagementScreen
+import io.github.kvtttba.droplet.feature.settings.BudgetManagementUiState
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsRoute
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsUiState
@@ -97,8 +102,15 @@ import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityRoute
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityScreen
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityUiState
+import io.github.kvtttba.droplet.feature.settings.RecurringRulesRoute
+import io.github.kvtttba.droplet.feature.settings.RecurringRulesScreen
+import io.github.kvtttba.droplet.feature.settings.RecurringRulesUiState
 import io.github.kvtttba.droplet.feature.settings.SettingsScreen
+import io.github.kvtttba.droplet.feature.settings.TemplateManagementRoute
+import io.github.kvtttba.droplet.feature.settings.TemplateManagementScreen
+import io.github.kvtttba.droplet.feature.settings.TemplateManagementUiState
 import io.github.kvtttba.droplet.feature.stats.StatsScreen
+import io.github.kvtttba.droplet.notification.PlanningAlertNotificationPublisher
 import kotlinx.coroutines.launch
 
 enum class DropletTab(
@@ -134,7 +146,8 @@ enum class DropletTab(
 }
 
 object DropletRoutes {
-    const val TRANSACTION_EDITOR_PATTERN = "transaction_editor?transactionId={transactionId}"
+    const val TRANSACTION_EDITOR_PATTERN =
+        "transaction_editor?transactionId={transactionId}&${TransactionEditorViewModel.NAV_ARG_TEMPLATE_ID}={${TransactionEditorViewModel.NAV_ARG_TEMPLATE_ID}}"
     const val INVESTMENT_DETAIL_PATTERN = "investment_detail/{${InvestmentDetailViewModel.NAV_ARG_ASSET_ID}}"
     const val CREDIT_CARD_DETAIL_PATTERN = "credit_card_detail/{${CreditCardDetailViewModel.NAV_ARG_ACCOUNT_ID}}"
     const val LOAN_DETAIL_PATTERN = "loan_detail/{${LoanDetailViewModel.NAV_ARG_PLAN_ID}}"
@@ -146,15 +159,30 @@ object DropletRoutes {
     const val MARKET_SYNC_SETTINGS = "market_sync_settings"
     const val CREDIT_CARD_REMINDER_SETTINGS = "credit_card_reminder_settings"
     const val AI_SETTINGS = "ai_settings"
+    const val BUDGET_MANAGEMENT = "budget_management"
+    const val RECURRING_RULES = "recurring_rules"
+    const val TEMPLATE_MANAGEMENT = "template_management"
     const val AI_CAPTURE_PATTERN = "ai_capture?${AiCaptureViewModel.NAV_ARG_TAB}={${AiCaptureViewModel.NAV_ARG_TAB}}"
     const val AI_DRAFT_REVIEW_PATTERN = "ai_draft_review/{${AiDraftReviewViewModel.NAV_ARG_DRAFT_ID}}"
 
-    fun transactionEditor(transactionId: String? = null): String =
-        if (transactionId.isNullOrBlank()) {
+    fun transactionEditor(
+        transactionId: String? = null,
+        templateId: String? = null,
+    ): String {
+        val params = buildList {
+            if (!transactionId.isNullOrBlank()) {
+                add("transactionId=${Uri.encode(transactionId)}")
+            }
+            if (!templateId.isNullOrBlank()) {
+                add("${TransactionEditorViewModel.NAV_ARG_TEMPLATE_ID}=${Uri.encode(templateId)}")
+            }
+        }
+        return if (params.isEmpty()) {
             "transaction_editor"
         } else {
-            "transaction_editor?transactionId=${Uri.encode(transactionId)}"
+            "transaction_editor?${params.joinToString("&")}"
         }
+    }
 
     fun investmentDetail(assetId: String): String =
         "investment_detail/${Uri.encode(assetId)}"
@@ -199,6 +227,10 @@ fun DropletApp(
     marketSyncSummary: String = "每 12 小时 · 直连",
     creditCardReminderSummary: String = "已开启 · 默认提前 3 天提醒",
     aiConfigSummary: String = "未配置 · 点击设置 OpenAI Compatible 接口",
+    budgetSummary: String = "设置月/年总预算与分类消耗预警",
+    recurringSummary: String = "房租、工资与订阅自动入账或到期提醒",
+    templateSummary: String = "高频消费一键入账或预填表单",
+    monthlyBudgetProgress: BudgetProgress? = null,
     pendingAiDraftCount: Int = 0,
     pendingCreditCardAccountId: String? = null,
     onConsumePendingCreditCardAccountId: () -> Unit = {},
@@ -208,6 +240,8 @@ fun DropletApp(
     onConsumePendingDebtProfileId: () -> Unit = {},
     pendingAiSharePayload: PendingAiSharePayload? = null,
     onConsumePendingAiSharePayload: () -> Unit = {},
+    pendingPlanningDestination: String? = null,
+    onConsumePendingPlanningDestination: () -> Unit = {},
     initialTab: DropletTab = DropletTab.LEDGER,
     initialShowQuickCapture: Boolean = false,
     onThemeModeChange: (ThemeMode) -> Unit = {},
@@ -241,6 +275,10 @@ fun DropletApp(
         marketSyncSummary = marketSyncSummary,
         creditCardReminderSummary = creditCardReminderSummary,
         aiConfigSummary = aiConfigSummary,
+        budgetSummary = budgetSummary,
+        recurringSummary = recurringSummary,
+        templateSummary = templateSummary,
+        monthlyBudgetProgress = monthlyBudgetProgress,
         pendingAiDraftCount = pendingAiDraftCount,
         pendingCreditCardAccountId = pendingCreditCardAccountId,
         onConsumePendingCreditCardAccountId = onConsumePendingCreditCardAccountId,
@@ -250,6 +288,8 @@ fun DropletApp(
         onConsumePendingDebtProfileId = onConsumePendingDebtProfileId,
         pendingAiSharePayload = pendingAiSharePayload,
         onConsumePendingAiSharePayload = onConsumePendingAiSharePayload,
+        pendingPlanningDestination = pendingPlanningDestination,
+        onConsumePendingPlanningDestination = onConsumePendingPlanningDestination,
         isAppLocked = lockState.isOverlayVisible,
         isAuthenticating = lockState.isAuthenticating,
         lockErrorMessage = lockState.lastErrorMessage,
@@ -260,12 +300,14 @@ fun DropletApp(
         onToggleAmountsHidden = onToggleAmountsHidden,
         onRequestUnlock = onRequestUnlock,
         onLockOverlayBackPressed = onLockOverlayBackPressed,
-        ledgerContent = { onToggleHidden, onCreateTx, onEditTx, onOpenReimbursements, onShowMessage ->
+        ledgerContent = { onToggleHidden, onCreateTx, onEditTx, onOpenReimbursements, onOpenBudgets, onOpenTemplates, onShowMessage ->
             LedgerRoute(
                 onToggleAmountsHidden = onToggleHidden,
                 onCreateTransaction = onCreateTx,
                 onEditTransaction = onEditTx,
                 onOpenReimbursementList = onOpenReimbursements,
+                onOpenBudgetManagement = onOpenBudgets,
+                onOpenTemplateManagement = onOpenTemplates,
                 onShowMessage = onShowMessage,
             )
         },
@@ -378,6 +420,28 @@ fun DropletApp(
                 onShowMessage = onShowMessage,
             )
         },
+        budgetManagementContent = { onBack, onToggleHidden, onShowMessage ->
+            BudgetManagementRoute(
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+                onShowMessage = onShowMessage,
+            )
+        },
+        recurringRulesContent = { onBack, onToggleHidden, onShowMessage ->
+            RecurringRulesRoute(
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+                onShowMessage = onShowMessage,
+            )
+        },
+        templateManagementContent = { onBack, onToggleHidden, onPrefillEditor, onShowMessage ->
+            TemplateManagementRoute(
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+                onOpenEditorWithTemplate = onPrefillEditor,
+                onShowMessage = onShowMessage,
+            )
+        },
     )
 }
 
@@ -407,20 +471,27 @@ fun DropletAppShell(
     aiSettingsPreviewState: AiSettingsUiState? = null,
     aiCapturePreviewState: AiCaptureUiState? = null,
     aiDraftReviewPreviewState: AiDraftReviewUiState? = null,
+    budgetManagementPreviewState: BudgetManagementUiState? = null,
+    recurringRulesPreviewState: RecurringRulesUiState? = null,
+    templateManagementPreviewState: TemplateManagementUiState? = null,
     initialPendingAiDraftCount: Int = 0,
     ledgerContent: @Composable (
         onToggleAmountsHidden: () -> Unit,
         onCreateTransaction: () -> Unit,
         onEditTransaction: (String) -> Unit,
         onOpenReimbursementList: () -> Unit,
+        onOpenBudgetManagement: () -> Unit,
+        onOpenTemplateManagement: () -> Unit,
         onShowMessage: (String) -> Unit,
-    ) -> Unit = { onToggleHidden, onCreateTx, onEditTx, onOpenReimbursements, _ ->
+    ) -> Unit = { onToggleHidden, onCreateTx, onEditTx, onOpenReimbursements, onOpenBudgets, onOpenTemplates, _ ->
         LedgerScreen(
             uiState = ledgerPreviewState ?: LedgerUiState(),
             onToggleAmountsHidden = onToggleHidden,
             onCreateTransaction = onCreateTx,
             onEditTransaction = onEditTx,
             onOpenReimbursementList = onOpenReimbursements,
+            onOpenBudgetManagement = onOpenBudgets,
+            onOpenTemplateManagement = onOpenTemplates,
         )
     },
     assetsContent: @Composable (
@@ -475,6 +546,10 @@ fun DropletAppShell(
         creditCardReminderSummary = "已开启 · 默认提前 3 天提醒",
         aiConfigSummary = aiSettingsPreviewState?.savedConfig?.formatSummary()
             ?: "未配置 · 点击设置 OpenAI Compatible 接口",
+        budgetSummary = "设置月/年总预算与分类消耗预警",
+        recurringSummary = "房租、工资与订阅自动入账或到期提醒",
+        templateSummary = "高频消费一键入账或预填表单",
+        monthlyBudgetProgress = null,
         pendingAiDraftCount = initialPendingAiDraftCount,
         pendingCreditCardAccountId = null,
         onConsumePendingCreditCardAccountId = {},
@@ -484,6 +559,8 @@ fun DropletAppShell(
         onConsumePendingDebtProfileId = {},
         pendingAiSharePayload = null,
         onConsumePendingAiSharePayload = {},
+        pendingPlanningDestination = null,
+        onConsumePendingPlanningDestination = {},
         isAppLocked = isLocked,
         isAuthenticating = false,
         lockErrorMessage = null,
@@ -582,6 +659,28 @@ fun DropletAppShell(
                 onToggleAmountsHidden = onToggleHidden,
             )
         },
+        budgetManagementContent = { onBack, onToggleHidden, _ ->
+            BudgetManagementScreen(
+                uiState = budgetManagementPreviewState ?: BudgetManagementUiState(),
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+            )
+        },
+        recurringRulesContent = { onBack, onToggleHidden, _ ->
+            RecurringRulesScreen(
+                uiState = recurringRulesPreviewState ?: RecurringRulesUiState(),
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+            )
+        },
+        templateManagementContent = { onBack, onToggleHidden, onPrefillEditor, _ ->
+            TemplateManagementScreen(
+                uiState = templateManagementPreviewState ?: TemplateManagementUiState(),
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+                onPrefillEditor = onPrefillEditor,
+            )
+        },
     )
 }
 
@@ -596,6 +695,10 @@ private fun DropletAppContent(
     marketSyncSummary: String,
     creditCardReminderSummary: String,
     aiConfigSummary: String,
+    budgetSummary: String,
+    recurringSummary: String,
+    templateSummary: String,
+    monthlyBudgetProgress: BudgetProgress?,
     pendingAiDraftCount: Int,
     pendingCreditCardAccountId: String?,
     onConsumePendingCreditCardAccountId: () -> Unit,
@@ -605,6 +708,8 @@ private fun DropletAppContent(
     onConsumePendingDebtProfileId: () -> Unit,
     pendingAiSharePayload: PendingAiSharePayload?,
     onConsumePendingAiSharePayload: () -> Unit,
+    pendingPlanningDestination: String?,
+    onConsumePendingPlanningDestination: () -> Unit,
     isAppLocked: Boolean,
     isAuthenticating: Boolean,
     lockErrorMessage: String?,
@@ -620,6 +725,8 @@ private fun DropletAppContent(
         onCreateTransaction: () -> Unit,
         onEditTransaction: (String) -> Unit,
         onOpenReimbursementList: () -> Unit,
+        onOpenBudgetManagement: () -> Unit,
+        onOpenTemplateManagement: () -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
     assetsContent: @Composable (
@@ -698,6 +805,22 @@ private fun DropletAppContent(
         onToggleAmountsHidden: () -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
+    budgetManagementContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onToggleAmountsHidden: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    recurringRulesContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onToggleAmountsHidden: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    templateManagementContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onToggleAmountsHidden: () -> Unit,
+        onOpenEditorWithTemplate: (String) -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
 ) {
     var showQuickCaptureSheet by rememberSaveable { mutableStateOf(initialShowQuickCapture) }
     var hasUnlockedAtLeastOnce by rememberSaveable { mutableStateOf(!isAppLocked) }
@@ -715,9 +838,9 @@ private fun DropletAppContent(
             snackbarHostState.showSnackbar(message)
         }
     }
-    val openTransactionEditor: (String?) -> Unit = { txId ->
+    val openTransactionEditor: (String?, String?) -> Unit = { txId, templateId ->
         snackbarHostState.currentSnackbarData?.dismiss()
-        navController.navigate(DropletRoutes.transactionEditor(txId))
+        navController.navigate(DropletRoutes.transactionEditor(txId, templateId))
     }
 
     DropletTheme(
@@ -760,6 +883,21 @@ private fun DropletAppContent(
                             ) {
                                 launchSingleTop = true
                             }
+                        }
+                    }
+                    LaunchedEffect(pendingPlanningDestination, isAppLocked) {
+                        if (!pendingPlanningDestination.isNullOrBlank() && !isAppLocked) {
+                            val targetRoute = when (pendingPlanningDestination) {
+                                PlanningAlertNotificationPublisher.DEST_BUDGETS -> DropletRoutes.BUDGET_MANAGEMENT
+                                PlanningAlertNotificationPublisher.DEST_RECURRING -> DropletRoutes.RECURRING_RULES
+                                else -> null
+                            }
+                            if (targetRoute != null) {
+                                navController.navigate(targetRoute) {
+                                    launchSingleTop = true
+                                }
+                            }
+                            onConsumePendingPlanningDestination()
                         }
                     }
 
@@ -828,9 +966,11 @@ private fun DropletAppContent(
                             composable(DropletTab.LEDGER.route) {
                                 ledgerContent(
                                     onToggleAmountsHidden,
-                                    { openTransactionEditor(null) },
-                                    { txId -> openTransactionEditor(txId) },
+                                    { openTransactionEditor(null, null) },
+                                    { txId -> openTransactionEditor(txId, null) },
                                     { navController.navigate(DropletRoutes.REIMBURSEMENT_LIST) },
+                                    { navController.navigate(DropletRoutes.BUDGET_MANAGEMENT) },
+                                    { navController.navigate(DropletRoutes.TEMPLATE_MANAGEMENT) },
                                     showMessage,
                                 )
                             }
@@ -849,6 +989,10 @@ private fun DropletAppContent(
                             composable(DropletTab.STATS.route) {
                                 StatsScreen(
                                     onToggleAmountsHidden = onToggleAmountsHidden,
+                                    monthlyBudgetProgress = monthlyBudgetProgress,
+                                    onOpenBudgetManagement = {
+                                        navController.navigate(DropletRoutes.BUDGET_MANAGEMENT)
+                                    },
                                 )
                             }
                             composable(DropletTab.SETTINGS.route) {
@@ -876,11 +1020,23 @@ private fun DropletAppContent(
                                     onOpenAiSettings = {
                                         navController.navigate(DropletRoutes.AI_SETTINGS)
                                     },
+                                    onOpenBudgetManagement = {
+                                        navController.navigate(DropletRoutes.BUDGET_MANAGEMENT)
+                                    },
+                                    onOpenRecurringRules = {
+                                        navController.navigate(DropletRoutes.RECURRING_RULES)
+                                    },
+                                    onOpenTemplateManagement = {
+                                        navController.navigate(DropletRoutes.TEMPLATE_MANAGEMENT)
+                                    },
                                     biometricLockEnabled = biometricLockEnabled,
                                     flagSecureEnabled = flagSecureEnabled,
                                     marketSyncSummary = marketSyncSummary,
                                     creditCardReminderSummary = creditCardReminderSummary,
                                     aiConfigSummary = aiConfigSummary,
+                                    budgetSummary = budgetSummary,
+                                    recurringSummary = recurringSummary,
+                                    templateSummary = templateSummary,
                                     versionLabel = versionLabel,
                                 )
                             }
@@ -955,6 +1111,11 @@ private fun DropletAppContent(
                                         nullable = true
                                         defaultValue = null
                                     },
+                                    navArgument(TransactionEditorViewModel.NAV_ARG_TEMPLATE_ID) {
+                                        type = NavType.StringType
+                                        nullable = true
+                                        defaultValue = null
+                                    },
                                 ),
                             ) {
                                 editorContent(
@@ -999,6 +1160,28 @@ private fun DropletAppContent(
                             composable(DropletRoutes.AI_SETTINGS) {
                                 aiSettingsContent(
                                     { navController.popBackStack() },
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletRoutes.BUDGET_MANAGEMENT) {
+                                budgetManagementContent(
+                                    { navController.popBackStack() },
+                                    onToggleAmountsHidden,
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletRoutes.RECURRING_RULES) {
+                                recurringRulesContent(
+                                    { navController.popBackStack() },
+                                    onToggleAmountsHidden,
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletRoutes.TEMPLATE_MANAGEMENT) {
+                                templateManagementContent(
+                                    { navController.popBackStack() },
+                                    onToggleAmountsHidden,
+                                    { templateId -> openTransactionEditor(null, templateId) },
                                     showMessage,
                                 )
                             }
@@ -1062,7 +1245,7 @@ private fun DropletAppContent(
                                 showQuickCaptureSheet = false
                                 snackbarHostState.currentSnackbarData?.dismiss()
                                 when (mode) {
-                                    QuickCaptureMode.MANUAL -> openTransactionEditor(null)
+                                    QuickCaptureMode.MANUAL -> openTransactionEditor(null, null)
                                     QuickCaptureMode.IMAGE -> navController.navigate(
                                         DropletRoutes.aiCapture(AiCaptureTab.IMAGE),
                                     )

@@ -9,6 +9,7 @@ import io.github.kvtttba.droplet.core.domain.ledger.LedgerValidator
 import io.github.kvtttba.droplet.core.model.ReimburseState
 import io.github.kvtttba.droplet.core.model.Transaction
 import io.github.kvtttba.droplet.core.model.TransactionStatus
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Strongly consistent transactional write gateway for double-entry ledger mutations.
@@ -23,6 +24,19 @@ class LedgerTransactionWriter(
 ) {
     private val accountDao = database.accountDao()
     private val transactionDao = database.transactionDao()
+    private val committedListeners = CopyOnWriteArrayList<() -> Unit>()
+
+    /**
+     * Registers a lightweight post-commit observer invoked after a transaction write commits
+     * cleanly (e.g. for on-demand budget threshold alert evaluation).
+     */
+    fun addOnTransactionCommittedListener(listener: () -> Unit) {
+        committedListeners.addIfAbsent(listener)
+    }
+
+    fun removeOnTransactionCommittedListener(listener: () -> Unit) {
+        committedListeners.remove(listener)
+    }
 
     /**
      * Validates [transaction] against live database accounts and atomically upserts its header,
@@ -38,6 +52,7 @@ class LedgerTransactionWriter(
                 allowArchivedAccounts = allowArchivedAccounts,
             )
         }
+        notifyCommittedListeners()
     }
 
     /**
@@ -58,6 +73,7 @@ class LedgerTransactionWriter(
                 )
             }
         }
+        notifyCommittedListeners()
     }
 
     /**
@@ -105,6 +121,13 @@ class LedgerTransactionWriter(
                 status = TransactionStatus.POSTED,
                 updatedAt = updatedAt,
             )
+        }
+        notifyCommittedListeners()
+    }
+
+    private fun notifyCommittedListeners() {
+        for (listener in committedListeners) {
+            runCatching { listener() }
         }
     }
 

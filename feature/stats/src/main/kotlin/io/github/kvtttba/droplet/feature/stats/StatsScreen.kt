@@ -1,6 +1,7 @@
 package io.github.kvtttba.droplet.feature.stats
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,6 +32,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import io.github.kvtttba.droplet.core.domain.automation.BudgetAlertLevel
+import io.github.kvtttba.droplet.core.domain.automation.BudgetProgress
 import io.github.kvtttba.droplet.core.model.Currency
 import io.github.kvtttba.droplet.core.model.Money
 import io.github.kvtttba.droplet.core.ui.component.DropletCard
@@ -46,6 +49,8 @@ private val periodOptions = listOf("月度", "年度", "自定义")
 @Composable
 fun StatsScreen(
     onToggleAmountsHidden: () -> Unit,
+    monthlyBudgetProgress: BudgetProgress? = null,
+    onOpenBudgetManagement: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val amountsHidden = LocalAmountsHidden.current
@@ -105,7 +110,37 @@ fun StatsScreen(
         }
 
         item {
-            DropletCard {
+            val budget = monthlyBudgetProgress
+            val usedMoney = budget?.spentAmount ?: Money.fromDecimalString("8513.50", Currency.CNY)
+            val limitMoney = budget?.budget?.limitAmount ?: Money.fromDecimalString("15000.00", Currency.CNY)
+            val progressValue = budget?.progressFraction ?: 0.56f
+            val badgeText = when {
+                budget == null -> "已用 56%"
+                budget.alertLevel == BudgetAlertLevel.EXCEEDED -> "已超支 ${budget.usedPercentageInt}%"
+                budget.alertLevel == BudgetAlertLevel.WARNING -> "预警 ${budget.usedPercentageInt}%"
+                else -> "已用 ${budget.usedPercentageInt}%"
+            }
+            val badgeBg = when (budget?.alertLevel) {
+                BudgetAlertLevel.EXCEEDED -> semantic.expenseContainer
+                BudgetAlertLevel.WARNING -> semantic.warningContainer
+                else -> semantic.incomeContainer
+            }
+            val badgeFg = when (budget?.alertLevel) {
+                BudgetAlertLevel.EXCEEDED -> semantic.expense
+                BudgetAlertLevel.WARNING -> semantic.warning
+                else -> semantic.income
+            }
+            val barColor = when (budget?.alertLevel) {
+                BudgetAlertLevel.EXCEEDED -> semantic.expense
+                BudgetAlertLevel.WARNING -> semantic.warning
+                else -> MaterialTheme.colorScheme.primary
+            }
+
+            DropletCard(
+                modifier = Modifier
+                    .clickable(onClick = onOpenBudgetManagement)
+                    .testTag("stats_budget_card"),
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -117,9 +152,9 @@ fun StatsScreen(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     DropletPillBadge(
-                        text = "已用 56%",
-                        containerColor = semantic.incomeContainer,
-                        contentColor = semantic.income,
+                        text = badgeText,
+                        containerColor = badgeBg,
+                        contentColor = badgeFg,
                     )
                 }
                 Spacer(modifier = Modifier.height(10.dp))
@@ -129,7 +164,7 @@ fun StatsScreen(
                     verticalAlignment = Alignment.Bottom,
                 ) {
                     PrivacyAmountText(
-                        money = Money.fromDecimalString("8513.50", Currency.CNY),
+                        money = usedMoney,
                         style = MaterialTheme.typography.headlineSmall,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -143,7 +178,7 @@ fun StatsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         PrivacyAmountText(
-                            money = Money.fromDecimalString("15000.00", Currency.CNY),
+                            money = limitMoney,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -151,12 +186,12 @@ fun StatsScreen(
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 LinearProgressIndicator(
-                    progress = { 0.56f },
+                    progress = { progressValue },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(RoundedCornerShape(999.dp)),
-                    color = MaterialTheme.colorScheme.primary,
+                    color = barColor,
                     trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     strokeCap = StrokeCap.Round,
                 )

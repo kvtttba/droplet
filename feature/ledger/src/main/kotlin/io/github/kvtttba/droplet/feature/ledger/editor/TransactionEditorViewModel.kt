@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
+import io.github.kvtttba.droplet.core.database.repository.TemplateRepository
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
 import io.github.kvtttba.droplet.core.domain.PrivacyAmountFormatter
 import io.github.kvtttba.droplet.core.domain.ledger.DiscountMode
@@ -41,11 +42,15 @@ import kotlinx.coroutines.launch
 class TransactionEditorViewModel @Inject constructor(
     private val repository: LedgerRepository,
     private val ledgerEngine: LedgerEngine,
+    private val templateRepository: TemplateRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val initialTransactionId: String? =
         savedStateHandle.get<String>("transactionId")?.takeIf { it.isNotBlank() }
+
+    private val initialTemplateId: String? =
+        savedStateHandle.get<String>(NAV_ARG_TEMPLATE_ID)?.takeIf { it.isNotBlank() }
 
     private val _uiState = MutableStateFlow(
         TransactionEditorUiState(
@@ -59,6 +64,7 @@ class TransactionEditorViewModel @Inject constructor(
     private var cachedRateTable: ExchangeRateTable = ExchangeRateTable.empty()
     private var editingCreatedAt: Long? = null
     private var loadedExistingTransaction: Boolean = false
+    private var loadedTemplatePrefill: Boolean = false
     private var rowCounter: Int = 0
 
     init {
@@ -163,6 +169,14 @@ class TransactionEditorViewModel @Inject constructor(
                 if (initialTransactionId != null && !loadedExistingTransaction && snap.allAccounts.isNotEmpty()) {
                     loadedExistingTransaction = true
                     loadExistingTransaction(initialTransactionId, snap.allAccounts)
+                } else if (
+                    initialTransactionId == null &&
+                    initialTemplateId != null &&
+                    !loadedTemplatePrefill &&
+                    snap.allAccounts.isNotEmpty()
+                ) {
+                    loadedTemplatePrefill = true
+                    loadTemplatePrefill(initialTemplateId, snap.allAccounts)
                 }
             }
         }
@@ -549,6 +563,9 @@ class TransactionEditorViewModel @Inject constructor(
                     transaction = tx,
                     allowArchivedAccounts = snapshot.isEditing,
                 )
+                if (initialTransactionId == null && initialTemplateId != null) {
+                    runCatching { templateRepository.recordTemplateUsage(initialTemplateId) }
+                }
             }.onSuccess {
                 _uiState.update { it.copy(isSaving = false, savedSuccessfully = true, errorMessage = null) }
             }.onFailure { err ->
@@ -564,6 +581,46 @@ class TransactionEditorViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    private suspend fun loadTemplatePrefill(
+        templateId: String,
+        allAccounts: List<Account>,
+    ) {
+        val item = templateRepository.getTemplateById(templateId) ?: return
+        val payload = item.payload ?: return
+        val accountsById = allAccounts.associateBy { it.id }
+
+        val targetTab = when (payload.displayType) {
+            TransactionDisplayType.INCOME -> EditorTab.INCOME
+            TransactionDisplayType.TRANSFER -> EditorTab.TRANSFER
+            else -> EditorTab.EXPENSE
+        }
+        val categoryAccount = payload.categoryAccountId?.let { accountsById[it] }
+        val amountStr = payload.amount.toBigDecimal().stripTrailingZeros().toPlainString()
+        val counterStr = payload.targetAmount?.toBigDecimal()?.stripTrailingZeros()?.toPlainString().orEmpty()
+
+        _uiState.update { current ->
+            val updated = current.copy(
+                activeTab = targetTab,
+                isSplitMode = false,
+                amountText = amountStr,
+                transactionCurrency = payload.currency,
+                counterAmountText = counterStr,
+                manualRateText = defaultRateTextFor(payload.currency, cachedRateTable),
+                selectedAccountId = payload.accountId,
+                selectedTargetAccountId = payload.targetAccountId ?: current.selectedTargetAccountId,
+                selectedCategoryId = payload.categoryAccountId ?: current.selectedCategoryId,
+                selectedParentCategoryId = categoryAccount?.parentId ?: categoryAccount?.id ?: current.selectedParentCategoryId,
+                isReimbursable = payload.isReimbursable,
+                showAdvancedOptions = payload.isReimbursable,
+                payee = payload.payee.orEmpty(),
+                note = payload.note.orEmpty(),
+                selectedTagIds = payload.tagIds.toSet(),
+                errorMessage = null,
+            )
+            recomputeDerivedState(updated)
+        }
     }
 
     private suspend fun loadExistingTransaction(
@@ -1247,6 +1304,8 @@ class TransactionEditorViewModel @Inject constructor(
     )
 
     companion object {
+        const val NAV_ARG_TEMPLATE_ID: String = "templateId"
+
         fun parsePositiveMoneyOrNull(raw: String, currency: Currency): Money? {
             val trimmed = raw.trim()
             if (trimmed.isEmpty()) return null

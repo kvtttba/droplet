@@ -360,6 +360,22 @@ interface TransactionDao {
     ): Flow<List<TransactionWithDetails>>
 
     @Transaction
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE status = :status
+          AND occurred_at >= :startInclusive
+          AND occurred_at < :endExclusive
+        ORDER BY occurred_at DESC, created_at DESC, id DESC
+        """,
+    )
+    suspend fun getInDateRange(
+        startInclusive: Long,
+        endExclusive: Long,
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): List<TransactionWithDetails>
+
+    @Transaction
     @RawQuery(
         observedEntities = [
             TransactionEntity::class,
