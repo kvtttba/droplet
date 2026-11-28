@@ -12,6 +12,8 @@ import androidx.compose.ui.test.performScrollToKey
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.kvtttba.droplet.core.ai.AiConnectionTestResult
+import io.github.kvtttba.droplet.core.ai.AiDraftAttachmentRef
+import io.github.kvtttba.droplet.core.ai.AiUncertainFieldKeys
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementCalculator
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
@@ -34,6 +36,8 @@ import io.github.kvtttba.droplet.core.domain.loan.LoanScheduleCalculator
 import io.github.kvtttba.droplet.core.model.Account
 import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AccountType
+import io.github.kvtttba.droplet.core.model.AiDraftInputType
+import io.github.kvtttba.droplet.core.model.AiDraftStatus
 import io.github.kvtttba.droplet.core.model.AssetClass
 import io.github.kvtttba.droplet.core.model.Currency
 import io.github.kvtttba.droplet.core.model.DebtProfile
@@ -61,7 +65,15 @@ import io.github.kvtttba.droplet.core.security.RelockTimeout
 import io.github.kvtttba.droplet.core.security.VoiceEngineMode
 import io.github.kvtttba.droplet.core.ui.theme.DropletTheme
 import io.github.kvtttba.droplet.core.ui.theme.ThemeMode
+import io.github.kvtttba.droplet.feature.aicapture.AiCaptureScreen
+import io.github.kvtttba.droplet.feature.aicapture.AiCaptureTab
+import io.github.kvtttba.droplet.feature.aicapture.AiCaptureUiState
+import io.github.kvtttba.droplet.feature.aicapture.AiDraftReviewScreen
+import io.github.kvtttba.droplet.feature.aicapture.AiDraftReviewUiState
+import io.github.kvtttba.droplet.feature.aicapture.AiDraftSummaryItem
+import io.github.kvtttba.droplet.feature.aicapture.DraftCandidateEditorItem
 import io.github.kvtttba.droplet.feature.aicapture.QuickCaptureSheetContent
+import io.github.kvtttba.droplet.feature.aicapture.ReviewCategoryOption
 import io.github.kvtttba.droplet.feature.assets.AssetsUiState
 import io.github.kvtttba.droplet.feature.assets.CreditCardDetailScreen
 import io.github.kvtttba.droplet.feature.assets.CreditCardDetailUiState
@@ -447,6 +459,39 @@ class DropletAppScreenshotTest {
     }
 
     @Test
+    fun captureAiCaptureLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                AiCaptureScreen(uiState = sampleAiCaptureUiState())
+            }
+        }
+        composeRule.onNodeWithTag("screen_ai_capture").assertIsDisplayed()
+        composeRule.onNodeWithTag("ai_capture_model_badge").assertTextContains("gpt-4o-mini", substring = true)
+        composeRule.onNodeWithTag("ai_draft_card_0").assertIsDisplayed()
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/ai_capture_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun captureAiDraftReviewLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                AiDraftReviewScreen(uiState = sampleAiDraftReviewUiState())
+            }
+        }
+        composeRule.onNodeWithTag("screen_ai_draft_review").assertIsDisplayed()
+        composeRule.onNodeWithTag("ai_review_attention_badge").assertTextContains("1 笔需核对", substring = true)
+        composeRule.onNodeWithTag("ai_review_confidence_badge_1").assertTextContains("58%", substring = true)
+        composeRule.onNodeWithTag("ai_review_total_amount_0").assertTextContains("33.00", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/ai_draft_review_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
     fun captureStatsLight() {
         composeRule.setContent {
             DropletAppShell(
@@ -485,11 +530,15 @@ class DropletAppScreenshotTest {
         composeRule.setContent {
             DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
                 Surface {
-                    QuickCaptureSheetContent(onSelectMode = {})
+                    QuickCaptureSheetContent(
+                        onSelectMode = {},
+                        pendingDraftCount = 2,
+                    )
                 }
             }
         }
         composeRule.onNodeWithTag("quick_capture_sheet").assertIsDisplayed()
+        composeRule.onNodeWithTag("quick_capture_draft_inbox_badge").assertIsDisplayed()
         composeRule.onRoot().captureRoboImage(
             filePath = "src/test/snapshots/quick_capture_sheet_light.png",
             roborazziOptions = roborazziOptions,
@@ -733,6 +782,33 @@ class DropletAppScreenshotTest {
         composeRule.onNodeWithTag("ai_privacy_notice_banner").assertIsDisplayed()
         composeRule.onNodeWithTag("ai_settings_back_button").performClick()
         composeRule.onNodeWithTag("screen_settings").assertIsDisplayed()
+    }
+
+    @Test
+    fun interactiveShell_aiCaptureAndDraftReviewNavigationWork() {
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.LEDGER,
+                initialThemeMode = ThemeMode.LIGHT,
+                initialDynamicColor = false,
+                ledgerPreviewState = sampleLedgerUiState(),
+                aiCapturePreviewState = sampleAiCaptureUiState(),
+                aiDraftReviewPreviewState = sampleAiDraftReviewUiState(),
+                initialPendingAiDraftCount = 3,
+            )
+        }
+
+        composeRule.onNodeWithTag("fab_quick_add").performClick()
+        composeRule.onNodeWithTag("quick_capture_sheet").assertIsDisplayed()
+        composeRule.onNodeWithTag("quick_capture_natural_text").performClick()
+
+        composeRule.onNodeWithTag("screen_ai_capture").assertIsDisplayed()
+        composeRule.onNodeWithTag("ai_capture_list").performScrollToKey("draft_sample_draft_ready")
+        composeRule.onNodeWithTag("ai_draft_open_review_button_0").performClick()
+
+        composeRule.onNodeWithTag("screen_ai_draft_review").assertIsDisplayed()
+        composeRule.onNodeWithTag("ai_review_back_button").performClick()
+        composeRule.onNodeWithTag("screen_ai_capture").assertIsDisplayed()
     }
 
     companion object {
@@ -1824,6 +1900,119 @@ class DropletAppScreenshotTest {
                 textDraft = AiSlotDraftUiState.fromConfig(savedConfig.textEndpoint),
                 voiceDraft = AiSlotDraftUiState.fromConfig(savedConfig.voiceEndpoint),
                 voiceEngineMode = VoiceEngineMode.ANDROID_SYSTEM,
+            )
+        }
+
+        private fun sampleAiCaptureUiState(): AiCaptureUiState = AiCaptureUiState(
+            activeTab = AiCaptureTab.TEXT,
+            aiServiceConfig = sampleAiSettingsUiState().savedConfig,
+            textInput = "早饭8块微信，中午打车25刷信用卡",
+            activeDrafts = listOf(
+                AiDraftSummaryItem(
+                    id = "sample_draft_ready",
+                    inputType = AiDraftInputType.IMAGE,
+                    status = AiDraftStatus.READY,
+                    rawTextPreview = "微信支付账单长截图（已切分 3 段）",
+                    attachmentCount = 1,
+                    totalSliceCount = 3,
+                    candidateCount = 2,
+                    uncertainCandidateCount = 1,
+                    errorMessage = null,
+                    createdAtLabel = "11-27 12:30",
+                    createdAtEpochMs = fixedTimestampMs,
+                ),
+                AiDraftSummaryItem(
+                    id = "sample_draft_offline",
+                    inputType = AiDraftInputType.VOICE,
+                    status = AiDraftStatus.PENDING_ONLINE,
+                    rawTextPreview = "下午咖啡28元支付宝，超市买水果42.5元",
+                    attachmentCount = 0,
+                    totalSliceCount = 0,
+                    candidateCount = 0,
+                    uncertainCandidateCount = 0,
+                    errorMessage = "当前离线，联网后可一键重新发起 AI 解析",
+                    createdAtLabel = "11-27 11:45",
+                    createdAtEpochMs = fixedTimestampMs - 2_700_000L,
+                ),
+            ),
+        )
+
+        private fun sampleAiDraftReviewUiState(): AiDraftReviewUiState {
+            val expenseOptions = listOf(
+                ReviewCategoryOption(DefaultSeedCatalog.AccountIds.EXP_FOOD_BREAKFAST, "餐饮/早餐", "早餐"),
+                ReviewCategoryOption(DefaultSeedCatalog.AccountIds.EXP_FOOD_LUNCH, "餐饮/午餐", "午餐"),
+                ReviewCategoryOption(DefaultSeedCatalog.AccountIds.EXP_TRANSPORT_TAXI, "交通/打车", "打车"),
+            )
+            val incomeOptions = listOf(
+                ReviewCategoryOption(DefaultSeedCatalog.AccountIds.INC_WORK_SALARY, "职业收入/工资薪金", "工资薪金"),
+            )
+            return AiDraftReviewUiState(
+                isLoading = false,
+                draftId = "sample_draft_ready",
+                inputType = AiDraftInputType.IMAGE,
+                draftStatus = AiDraftStatus.READY,
+                rawText = "早饭8块微信，中午打车25刷信用卡",
+                attachments = listOf(
+                    AiDraftAttachmentRef(
+                        localRelPath = "receipts/sample_receipt.jpg",
+                        sha256 = "d".repeat(64),
+                        sizeBytes = 68_420L,
+                        width = 1080,
+                        height = 2400,
+                        sliceCount = 2,
+                    ),
+                ),
+                attachReceiptsToTransactions = true,
+                items = listOf(
+                    DraftCandidateEditorItem(
+                        localId = "review_item_0",
+                        selected = true,
+                        expanded = false,
+                        displayType = TransactionDisplayType.EXPENSE,
+                        amountInput = "8.00",
+                        parsedAmount = Money.fromDecimalString("8.00", Currency.CNY),
+                        currency = Currency.CNY,
+                        occurredAtEpochMs = fixedTimestampMs,
+                        occurredAtLabel = "2026-11-27 08:15",
+                        matchedCategoryId = DefaultSeedCatalog.AccountIds.EXP_FOOD_BREAKFAST,
+                        matchedCategoryPath = "餐饮/早餐",
+                        matchedAccountId = DefaultSeedCatalog.AccountIds.WECHAT,
+                        matchedAccountName = "微信零钱",
+                        payee = "街角豆浆铺",
+                        note = "早饭",
+                        selectedTagIds = listOf(DefaultSeedCatalog.TagIds.WORKDAY),
+                        confidenceDecimal = "0.94",
+                        uncertainFields = emptySet(),
+                    ),
+                    DraftCandidateEditorItem(
+                        localId = "review_item_1",
+                        selected = true,
+                        expanded = true,
+                        displayType = TransactionDisplayType.EXPENSE,
+                        amountInput = "25.00",
+                        parsedAmount = Money.fromDecimalString("25.00", Currency.CNY),
+                        currency = Currency.CNY,
+                        occurredAtEpochMs = fixedTimestampMs,
+                        occurredAtLabel = "2026-11-27 12:30",
+                        rawCategoryPath = "交通/出行",
+                        matchedCategoryId = DefaultSeedCatalog.AccountIds.EXP_TRANSPORT_TAXI,
+                        matchedCategoryPath = "交通/打车",
+                        matchedAccountId = DefaultSeedCatalog.AccountIds.CREDIT_CARD,
+                        matchedAccountName = "信用卡",
+                        payee = "网约车",
+                        note = "中午打车",
+                        selectedTagIds = listOf(DefaultSeedCatalog.TagIds.WORKDAY),
+                        confidenceDecimal = "0.58",
+                        uncertainFields = setOf(
+                            AiUncertainFieldKeys.CATEGORY_PATH,
+                            AiUncertainFieldKeys.ACCOUNT_NAME,
+                        ),
+                    ),
+                ),
+                operationalAccounts = sampleOperationalAccounts,
+                expenseCategories = expenseOptions,
+                incomeCategories = incomeOptions,
+                availableTags = sampleTags,
             )
         }
     }

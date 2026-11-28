@@ -2156,4 +2156,77 @@ object DropletIcons {
         }.build()
     }
 
+    val PhotoLibrary: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "PhotoLibrary",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+            autoMirror = false,
+        ).apply {
+            path(fill = SolidColor(Color.Black)) {
+                moveTo(22f, 16f)
+                verticalLineTo(4f)
+                curveToRelative(0f, -1.1f, -0.9f, -2f, -2f, -2f)
+                horizontalLineTo(8f)
+                curveToRelative(-1.1f, 0f, -2f, 0.9f, -2f, 2f)
+                verticalLineToRelative(12f)
+                curveToRelative(0f, 1.1f, 0.9f, 2f, 2f, 2f)
+                horizontalLineToRelative(12f)
+                curveToRelative(1.1f, 0f, 2f, -0.9f, 2f, -2f)
+                close()
+                moveTo(11f, 12f)
+                lineToRelative(2.03f, 2.71f)
+                lineTo(16f, 11f)
+                lineToRelative(4f, 5f)
+                horizontalLineTo(8f)
+                lineToRelative(3f, -4f)
+                close()
+                moveTo(2f, 6f)
+                verticalLineToRelative(14f)
+                curveToRelative(0f, 1.1f, 0.9f, 2f, 2f, 2f)
+                horizontalLineToRelative(14f)
+                verticalLineToRelative(-2f)
+                horizontalLineTo(4f)
+                verticalLineTo(6f)
+                horizontalLineTo(2f)
+                close()
+            }
+        }.build()
+    }
+
+    val Inbox: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Inbox",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+            autoMirror = false,
+        ).apply {
+            path(fill = SolidColor(Color.Black)) {
+                moveTo(19f, 3f)
+                horizontalLineTo(4.99f)
+                curveToRelative(-1.11f, 0f, -1.98f, 0.89f, -1.98f, 2f)
+                lineTo(3f, 19f)
+                curveToRelative(0f, 1.1f, 0.88f, 2f, 1.99f, 2f)
+                horizontalLineTo(19f)
+                curveToRelative(1.1f, 0f, 2f, -0.9f, 2f, -2f)
+                verticalLineTo(5f)
+                curveToRelative(0f, -1.11f, -0.9f, -2f, -2f, -2f)
+                close()
+                moveTo(19f, 15f)
+                horizontalLineToRelative(-4f)
+                curveToRelative(0f, 1.66f, -1.35f, 3f, -3f, 3f)
+                reflectiveCurveToRelative(-3f, -1.34f, -3f, -3f)
+                horizontalLineTo(4.99f)
+                verticalLineTo(5f)
+                horizontalLineTo(19f)
+                verticalLineToRelative(10f)
+                close()
+            }
+        }.build()
+    }
+
 }

@@ -44,6 +44,7 @@ dependencies {
     api(projects.core.model)
     api(projects.core.domain)
     api(projects.core.network)
+    api(projects.core.ai)
     api(libs.room.runtime)
     api(libs.room.ktx)
     ksp(libs.room.compiler)

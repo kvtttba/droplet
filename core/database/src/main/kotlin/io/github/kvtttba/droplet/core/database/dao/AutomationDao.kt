@@ -130,6 +130,9 @@ interface AiDraftDao {
     @Query("SELECT * FROM ai_drafts WHERE id = :draftId LIMIT 1")
     suspend fun getById(draftId: String): AiDraftEntity?
 
+    @Query("SELECT * FROM ai_drafts WHERE id = :draftId LIMIT 1")
+    fun observeById(draftId: String): Flow<AiDraftEntity?>
+
     @Query("SELECT * FROM ai_drafts ORDER BY created_at DESC, id DESC")
     fun observeAll(): Flow<List<AiDraftEntity>>
 
@@ -141,6 +144,14 @@ interface AiDraftDao {
         """,
     )
     fun observeByStatuses(statuses: List<AiDraftStatus>): Flow<List<AiDraftEntity>>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM ai_drafts
+        WHERE status IN (:statuses)
+        """,
+    )
+    fun observeCountByStatuses(statuses: List<AiDraftStatus>): Flow<Int>
 
     @Query(
         """
@@ -162,4 +173,7 @@ interface AiDraftDao {
 
     @Query("DELETE FROM ai_drafts WHERE id = :draftId")
     suspend fun deleteById(draftId: String)
+
+    @Query("DELETE FROM ai_drafts WHERE status = :status")
+    suspend fun deleteByStatus(status: AiDraftStatus)
 }

@@ -69,6 +69,19 @@ interface AccountDao {
     @Query(
         """
         SELECT * FROM accounts
+        WHERE (:includeArchived = 1 OR is_archived = 0)
+          AND (:includeSystem = 1 OR is_system = 0)
+        ORDER BY sort_order ASC, created_at ASC, id ASC
+        """,
+    )
+    suspend fun getAll(
+        includeArchived: Boolean = false,
+        includeSystem: Boolean = false,
+    ): List<AccountEntity>
+
+    @Query(
+        """
+        SELECT * FROM accounts
         WHERE type = :type
           AND (:includeArchived = 1 OR is_archived = 0)
           AND (:includeSystem = 1 OR is_system = 0)
