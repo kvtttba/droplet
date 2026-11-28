@@ -757,6 +757,66 @@ class DropletAppE2ETest {
         }
     }
 
+    @Test
+    fun test07_endToEndAiCaptureOfflineDraftReviewAndBatchCommit() {
+        // 1. From Ledger FAB Quick Capture sheet, open "一句话 AI 记账"
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("fab_quick_add").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("quick_capture_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("quick_capture_natural_text").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ai_capture"), timeoutMillis = 5_000)
+
+        // 2. Enter natural-language text and save offline to Draft Inbox (zero external network calls)
+        composeRule.onNodeWithTag("ai_text_input").performTextReplacement("测试早餐 18.50 微信")
+        Espresso.closeSoftKeyboard()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("ai_text_save_offline_button").assertIsEnabled().performClick()
+
+        // 3. Scroll to Draft Inbox, confirm PENDING_ONLINE badge, and tap "手动转草稿"
+        composeRule.onNodeWithTag("ai_capture_list").performScrollToNode(hasTestTag("ai_draft_card_0"))
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("ai_draft_status_badge_0")
+                    .assertTextContains("待联网解析", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("ai_capture_list")
+            .performScrollToNode(hasTestTag("ai_draft_manual_edit_button_0"))
+        composeRule.onNodeWithTag("ai_draft_manual_edit_button_0").performClick()
+
+        // 4. Verify Draft Batch Review screen opens with uncertain field badges highlighted & editor expanded
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ai_draft_review"), timeoutMillis = 5_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("ai_review_card_0"), timeoutMillis = 5_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("ai_review_uncertain_0_category_path"), timeoutMillis = 5_000)
+
+        // Verify extracted amount, pick category & account, fill payee, and commit atomically
+        composeRule.onNodeWithTag("ai_review_list")
+            .performScrollToNode(hasTestTag("ai_review_amount_input_0"))
+        composeRule.onNodeWithTag("ai_review_amount_input_0").assertTextContains("18.50", substring = true)
+
+        composeRule.onNodeWithTag("ai_review_list")
+            .performScrollToNode(hasTestTag("ai_review_category_0_早餐"))
+        composeRule.onNodeWithTag("ai_review_category_0_早餐").performClick()
+
+        composeRule.onNodeWithTag("ai_review_list")
+            .performScrollToNode(hasTestTag("ai_review_account_0_微信零钱"))
+        composeRule.onNodeWithTag("ai_review_account_0_微信零钱").performClick()
+
+        composeRule.onNodeWithTag("ai_review_list")
+            .performScrollToNode(hasTestTag("ai_review_payee_input_0"))
+        composeRule.onNodeWithTag("ai_review_payee_input_0").performTextReplacement("测试AI豆浆")
+        Espresso.closeSoftKeyboard()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("ai_review_total_amount_0").assertTextContains("18.50", substring = true)
+        composeRule.onNodeWithTag("ai_review_commit_button").assertIsEnabled().performClick()
+
+        // 5. Returns to Ledger and verifies real-time Room Flow displays committed AI transaction
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasText("测试AI豆浆", substring = true), timeoutMillis = 10_000)
+    }
+
     private fun isFlagSecureApplied(): Boolean {
         var applied = false
         composeRule.activityRule.scenario.onActivity { activity ->

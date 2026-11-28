@@ -29,4 +29,7 @@ interface AttachmentDao {
 
     @Query("SELECT COUNT(*) FROM attachments")
     suspend fun countAll(): Int
+
+    @Query("SELECT COUNT(*) FROM attachments WHERE local_rel_path = :localRelPath")
+    suspend fun countByLocalRelPath(localRelPath: String): Int
 }

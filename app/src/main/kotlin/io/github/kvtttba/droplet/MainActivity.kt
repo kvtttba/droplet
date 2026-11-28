@@ -13,6 +13,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import io.github.kvtttba.droplet.core.database.repository.AiDraftRepository
 import io.github.kvtttba.droplet.core.network.NetworkProxyConfig
 import io.github.kvtttba.droplet.core.network.NetworkProxyType
 import io.github.kvtttba.droplet.core.security.AiConfigPreferencesRepository
@@ -25,10 +26,12 @@ import io.github.kvtttba.droplet.core.security.LockStatus
 import io.github.kvtttba.droplet.core.security.MarketSyncPreferences
 import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.NetworkProxyPreferencesRepository
+import io.github.kvtttba.droplet.feature.aicapture.PendingAiSharePayload
 import io.github.kvtttba.droplet.notification.CreditCardReminderNotificationPublisher
 import io.github.kvtttba.droplet.notification.DebtReminderNotificationPublisher
 import io.github.kvtttba.droplet.notification.LoanReminderNotificationPublisher
 import io.github.kvtttba.droplet.security.AppLockCoordinator
+import io.github.kvtttba.droplet.share.ShareIntentParser
 import io.github.kvtttba.droplet.ui.DropletApp
 import io.github.kvtttba.droplet.ui.toAppThemePreference
 import javax.inject.Inject
@@ -58,9 +61,13 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var aiConfigPreferencesRepository: AiConfigPreferencesRepository
 
+    @Inject
+    lateinit var aiDraftRepository: AiDraftRepository
+
     private val pendingCreditCardAccountIdFlow = MutableStateFlow<String?>(null)
     private val pendingLoanPlanIdFlow = MutableStateFlow<String?>(null)
     private val pendingDebtProfileIdFlow = MutableStateFlow<String?>(null)
+    private val pendingAiSharePayloadFlow = MutableStateFlow<PendingAiSharePayload?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,9 +98,12 @@ class MainActivity : FragmentActivity() {
                 .collectAsStateWithLifecycle(initialValue = CreditCardReminderPreferences())
             val aiServiceConfig by aiConfigPreferencesRepository.config
                 .collectAsStateWithLifecycle(initialValue = AiServiceConfig())
+            val pendingAiDraftCount by aiDraftRepository.observeActiveDraftCount()
+                .collectAsStateWithLifecycle(initialValue = 0)
             val pendingCreditCardAccountId by pendingCreditCardAccountIdFlow.collectAsStateWithLifecycle()
             val pendingLoanPlanId by pendingLoanPlanIdFlow.collectAsStateWithLifecycle()
             val pendingDebtProfileId by pendingDebtProfileIdFlow.collectAsStateWithLifecycle()
+            val pendingAiSharePayload by pendingAiSharePayloadFlow.collectAsStateWithLifecycle()
 
             val marketSyncSummary = buildString {
                 append(marketSyncPrefs.refreshInterval.label)
@@ -137,12 +147,15 @@ class MainActivity : FragmentActivity() {
                 marketSyncSummary = marketSyncSummary,
                 creditCardReminderSummary = creditCardReminderSummary,
                 aiConfigSummary = aiServiceConfig.formatSummary(),
+                pendingAiDraftCount = pendingAiDraftCount,
                 pendingCreditCardAccountId = pendingCreditCardAccountId,
                 onConsumePendingCreditCardAccountId = { pendingCreditCardAccountIdFlow.value = null },
                 pendingLoanPlanId = pendingLoanPlanId,
                 onConsumePendingLoanPlanId = { pendingLoanPlanIdFlow.value = null },
                 pendingDebtProfileId = pendingDebtProfileId,
                 onConsumePendingDebtProfileId = { pendingDebtProfileIdFlow.value = null },
+                pendingAiSharePayload = pendingAiSharePayload,
+                onConsumePendingAiSharePayload = { pendingAiSharePayloadFlow.value = null },
                 onThemeModeChange = { mode ->
                     appLockCoordinator.setThemeMode(mode.toAppThemePreference())
                 },
@@ -179,6 +192,10 @@ class MainActivity : FragmentActivity() {
         )?.takeIf { it.isNotBlank() }
         if (debtProfileId != null) {
             pendingDebtProfileIdFlow.value = debtProfileId
+        }
+        val sharePayload = ShareIntentParser.parse(intent)
+        if (sharePayload != null) {
+            pendingAiSharePayloadFlow.value = sharePayload
         }
     }
 

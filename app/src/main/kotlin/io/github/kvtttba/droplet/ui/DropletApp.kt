@@ -45,6 +45,16 @@ import io.github.kvtttba.droplet.core.ui.component.LocalAmountsHidden
 import io.github.kvtttba.droplet.core.ui.icon.DropletIcons
 import io.github.kvtttba.droplet.core.ui.theme.DropletTheme
 import io.github.kvtttba.droplet.core.ui.theme.ThemeMode
+import io.github.kvtttba.droplet.feature.aicapture.AiCaptureRoute
+import io.github.kvtttba.droplet.feature.aicapture.AiCaptureScreen
+import io.github.kvtttba.droplet.feature.aicapture.AiCaptureTab
+import io.github.kvtttba.droplet.feature.aicapture.AiCaptureUiState
+import io.github.kvtttba.droplet.feature.aicapture.AiCaptureViewModel
+import io.github.kvtttba.droplet.feature.aicapture.AiDraftReviewRoute
+import io.github.kvtttba.droplet.feature.aicapture.AiDraftReviewScreen
+import io.github.kvtttba.droplet.feature.aicapture.AiDraftReviewUiState
+import io.github.kvtttba.droplet.feature.aicapture.AiDraftReviewViewModel
+import io.github.kvtttba.droplet.feature.aicapture.PendingAiSharePayload
 import io.github.kvtttba.droplet.feature.aicapture.QuickCaptureModalSheet
 import io.github.kvtttba.droplet.feature.aicapture.QuickCaptureMode
 import io.github.kvtttba.droplet.feature.assets.AssetsRoute
@@ -136,6 +146,8 @@ object DropletRoutes {
     const val MARKET_SYNC_SETTINGS = "market_sync_settings"
     const val CREDIT_CARD_REMINDER_SETTINGS = "credit_card_reminder_settings"
     const val AI_SETTINGS = "ai_settings"
+    const val AI_CAPTURE_PATTERN = "ai_capture?${AiCaptureViewModel.NAV_ARG_TAB}={${AiCaptureViewModel.NAV_ARG_TAB}}"
+    const val AI_DRAFT_REVIEW_PATTERN = "ai_draft_review/{${AiDraftReviewViewModel.NAV_ARG_DRAFT_ID}}"
 
     fun transactionEditor(transactionId: String? = null): String =
         if (transactionId.isNullOrBlank()) {
@@ -155,6 +167,12 @@ object DropletRoutes {
 
     fun debtDetail(profileId: String): String =
         "debt_detail/${Uri.encode(profileId)}"
+
+    fun aiCapture(tab: AiCaptureTab = AiCaptureTab.TEXT): String =
+        "ai_capture?${AiCaptureViewModel.NAV_ARG_TAB}=${Uri.encode(tab.routeKey)}"
+
+    fun aiDraftReview(draftId: String): String =
+        "ai_draft_review/${Uri.encode(draftId)}"
 }
 
 fun AppThemePreference.toThemeMode(): ThemeMode = when (this) {
@@ -181,12 +199,15 @@ fun DropletApp(
     marketSyncSummary: String = "每 12 小时 · 直连",
     creditCardReminderSummary: String = "已开启 · 默认提前 3 天提醒",
     aiConfigSummary: String = "未配置 · 点击设置 OpenAI Compatible 接口",
+    pendingAiDraftCount: Int = 0,
     pendingCreditCardAccountId: String? = null,
     onConsumePendingCreditCardAccountId: () -> Unit = {},
     pendingLoanPlanId: String? = null,
     onConsumePendingLoanPlanId: () -> Unit = {},
     pendingDebtProfileId: String? = null,
     onConsumePendingDebtProfileId: () -> Unit = {},
+    pendingAiSharePayload: PendingAiSharePayload? = null,
+    onConsumePendingAiSharePayload: () -> Unit = {},
     initialTab: DropletTab = DropletTab.LEDGER,
     initialShowQuickCapture: Boolean = false,
     onThemeModeChange: (ThemeMode) -> Unit = {},
@@ -220,12 +241,15 @@ fun DropletApp(
         marketSyncSummary = marketSyncSummary,
         creditCardReminderSummary = creditCardReminderSummary,
         aiConfigSummary = aiConfigSummary,
+        pendingAiDraftCount = pendingAiDraftCount,
         pendingCreditCardAccountId = pendingCreditCardAccountId,
         onConsumePendingCreditCardAccountId = onConsumePendingCreditCardAccountId,
         pendingLoanPlanId = pendingLoanPlanId,
         onConsumePendingLoanPlanId = onConsumePendingLoanPlanId,
         pendingDebtProfileId = pendingDebtProfileId,
         onConsumePendingDebtProfileId = onConsumePendingDebtProfileId,
+        pendingAiSharePayload = pendingAiSharePayload,
+        onConsumePendingAiSharePayload = onConsumePendingAiSharePayload,
         isAppLocked = lockState.isOverlayVisible,
         isAuthenticating = lockState.isAuthenticating,
         lockErrorMessage = lockState.lastErrorMessage,
@@ -336,6 +360,24 @@ fun DropletApp(
                 onShowMessage = onShowMessage,
             )
         },
+        aiCaptureContent = { onBack, onOpenDraftReview, onOpenAiSettings, onShowMessage ->
+            AiCaptureRoute(
+                onNavigateBack = onBack,
+                onOpenDraftReview = onOpenDraftReview,
+                onOpenAiSettings = onOpenAiSettings,
+                onShowMessage = onShowMessage,
+                pendingSharePayload = pendingAiSharePayload,
+                onConsumePendingSharePayload = onConsumePendingAiSharePayload,
+            )
+        },
+        aiDraftReviewContent = { onBack, onCommitted, onToggleHidden, onShowMessage ->
+            AiDraftReviewRoute(
+                onNavigateBack = onBack,
+                onCommitted = onCommitted,
+                onToggleAmountsHidden = onToggleHidden,
+                onShowMessage = onShowMessage,
+            )
+        },
     )
 }
 
@@ -363,6 +405,9 @@ fun DropletAppShell(
     marketSyncPreviewState: MarketSyncSettingsUiState? = null,
     creditCardReminderSettingsPreviewState: CreditCardReminderSettingsUiState? = null,
     aiSettingsPreviewState: AiSettingsUiState? = null,
+    aiCapturePreviewState: AiCaptureUiState? = null,
+    aiDraftReviewPreviewState: AiDraftReviewUiState? = null,
+    initialPendingAiDraftCount: Int = 0,
     ledgerContent: @Composable (
         onToggleAmountsHidden: () -> Unit,
         onCreateTransaction: () -> Unit,
@@ -430,12 +475,15 @@ fun DropletAppShell(
         creditCardReminderSummary = "已开启 · 默认提前 3 天提醒",
         aiConfigSummary = aiSettingsPreviewState?.savedConfig?.formatSummary()
             ?: "未配置 · 点击设置 OpenAI Compatible 接口",
+        pendingAiDraftCount = initialPendingAiDraftCount,
         pendingCreditCardAccountId = null,
         onConsumePendingCreditCardAccountId = {},
         pendingLoanPlanId = null,
         onConsumePendingLoanPlanId = {},
         pendingDebtProfileId = null,
         onConsumePendingDebtProfileId = {},
+        pendingAiSharePayload = null,
+        onConsumePendingAiSharePayload = {},
         isAppLocked = isLocked,
         isAuthenticating = false,
         lockErrorMessage = null,
@@ -519,6 +567,21 @@ fun DropletAppShell(
                 onNavigateBack = onBack,
             )
         },
+        aiCaptureContent = { onBack, onOpenDraftReview, onOpenAiSettings, _ ->
+            AiCaptureScreen(
+                uiState = aiCapturePreviewState ?: AiCaptureUiState(),
+                onNavigateBack = onBack,
+                onOpenDraftReview = onOpenDraftReview,
+                onOpenAiSettings = onOpenAiSettings,
+            )
+        },
+        aiDraftReviewContent = { onBack, _, onToggleHidden, _ ->
+            AiDraftReviewScreen(
+                uiState = aiDraftReviewPreviewState ?: AiDraftReviewUiState(isLoading = false),
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+            )
+        },
     )
 }
 
@@ -533,12 +596,15 @@ private fun DropletAppContent(
     marketSyncSummary: String,
     creditCardReminderSummary: String,
     aiConfigSummary: String,
+    pendingAiDraftCount: Int,
     pendingCreditCardAccountId: String?,
     onConsumePendingCreditCardAccountId: () -> Unit,
     pendingLoanPlanId: String?,
     onConsumePendingLoanPlanId: () -> Unit,
     pendingDebtProfileId: String?,
     onConsumePendingDebtProfileId: () -> Unit,
+    pendingAiSharePayload: PendingAiSharePayload?,
+    onConsumePendingAiSharePayload: () -> Unit,
     isAppLocked: Boolean,
     isAuthenticating: Boolean,
     lockErrorMessage: String?,
@@ -620,6 +686,18 @@ private fun DropletAppContent(
         onNavigateBack: () -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
+    aiCaptureContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onOpenDraftReview: (String) -> Unit,
+        onOpenAiSettings: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    aiDraftReviewContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onCommitted: (String) -> Unit,
+        onToggleAmountsHidden: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
 ) {
     var showQuickCaptureSheet by rememberSaveable { mutableStateOf(initialShowQuickCapture) }
     var hasUnlockedAtLeastOnce by rememberSaveable { mutableStateOf(!isAppLocked) }
@@ -671,6 +749,17 @@ private fun DropletAppContent(
                                 launchSingleTop = true
                             }
                             onConsumePendingDebtProfileId()
+                        }
+                    }
+                    LaunchedEffect(pendingAiSharePayload?.id, isAppLocked) {
+                        if (pendingAiSharePayload != null && !isAppLocked) {
+                            showQuickCaptureSheet = false
+                            snackbarHostState.currentSnackbarData?.dismiss()
+                            navController.navigate(
+                                DropletRoutes.aiCapture(pendingAiSharePayload.preferredTab),
+                            ) {
+                                launchSingleTop = true
+                            }
                         }
                     }
 
@@ -913,20 +1002,76 @@ private fun DropletAppContent(
                                     showMessage,
                                 )
                             }
+                            composable(
+                                route = DropletRoutes.AI_CAPTURE_PATTERN,
+                                arguments = listOf(
+                                    navArgument(AiCaptureViewModel.NAV_ARG_TAB) {
+                                        type = NavType.StringType
+                                        nullable = true
+                                        defaultValue = AiCaptureTab.TEXT.routeKey
+                                    },
+                                ),
+                            ) {
+                                aiCaptureContent(
+                                    { navController.popBackStack() },
+                                    { draftId ->
+                                        snackbarHostState.currentSnackbarData?.dismiss()
+                                        navController.navigate(DropletRoutes.aiDraftReview(draftId))
+                                    },
+                                    {
+                                        navController.navigate(DropletRoutes.AI_SETTINGS)
+                                    },
+                                    showMessage,
+                                )
+                            }
+                            composable(
+                                route = DropletRoutes.AI_DRAFT_REVIEW_PATTERN,
+                                arguments = listOf(
+                                    navArgument(AiDraftReviewViewModel.NAV_ARG_DRAFT_ID) {
+                                        type = NavType.StringType
+                                    },
+                                ),
+                            ) {
+                                aiDraftReviewContent(
+                                    { navController.popBackStack() },
+                                    { message ->
+                                        navController.navigate(DropletTab.LEDGER.route) {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                inclusive = false
+                                            }
+                                            launchSingleTop = true
+                                        }
+                                        showMessage(message)
+                                    },
+                                    onToggleAmountsHidden,
+                                    showMessage,
+                                )
+                            }
                         }
                     }
 
                     if (showQuickCaptureSheet && !isAppLocked) {
                         QuickCaptureModalSheet(
+                            pendingDraftCount = pendingAiDraftCount,
+                            onOpenDraftInbox = {
+                                showQuickCaptureSheet = false
+                                snackbarHostState.currentSnackbarData?.dismiss()
+                                navController.navigate(DropletRoutes.aiCapture(AiCaptureTab.TEXT))
+                            },
                             onSelectMode = { mode ->
                                 showQuickCaptureSheet = false
+                                snackbarHostState.currentSnackbarData?.dismiss()
                                 when (mode) {
-                                    QuickCaptureMode.MANUAL -> {
-                                        openTransactionEditor(null)
-                                    }
-                                    else -> {
-                                        showMessage("${mode.title} 将在 ${mode.milestoneTag} 切片接入")
-                                    }
+                                    QuickCaptureMode.MANUAL -> openTransactionEditor(null)
+                                    QuickCaptureMode.IMAGE -> navController.navigate(
+                                        DropletRoutes.aiCapture(AiCaptureTab.IMAGE),
+                                    )
+                                    QuickCaptureMode.VOICE -> navController.navigate(
+                                        DropletRoutes.aiCapture(AiCaptureTab.VOICE),
+                                    )
+                                    QuickCaptureMode.NATURAL_TEXT -> navController.navigate(
+                                        DropletRoutes.aiCapture(AiCaptureTab.TEXT),
+                                    )
                                 }
                             },
                             onDismissRequest = { showQuickCaptureSheet = false },

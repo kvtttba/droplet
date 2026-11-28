@@ -23,6 +23,7 @@ android {
 
     testOptions {
         unitTests {
+            isIncludeAndroidResources = true
             isReturnDefaultValues = true
         }
     }
@@ -30,6 +31,7 @@ android {
 
 dependencies {
     api(projects.core.model)
+    api(projects.core.domain)
     api(projects.core.security)
     implementation(projects.core.network)
     implementation(libs.okhttp)
@@ -37,6 +39,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.ext.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
 }

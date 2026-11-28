@@ -33,31 +33,31 @@ import io.github.kvtttba.droplet.core.ui.icon.DropletIcons
 enum class QuickCaptureMode(
     val title: String,
     val subtitle: String,
-    val milestoneTag: String,
+    val badgeLabel: String,
     val icon: ImageVector,
 ) {
     MANUAL(
         title = "手动记账",
         subtitle = "直观表单与可展开专业复式分录",
-        milestoneTag = "已可用",
+        badgeLabel = "表单",
         icon = DropletIcons.EditNote,
     ),
     IMAGE(
         title = "拍照 / 选图识别",
         subtitle = "消费小票、支付截图、多笔账单长截图",
-        milestoneTag = "M4.2",
+        badgeLabel = "已可用",
         icon = DropletIcons.PhotoCamera,
     ),
     VOICE(
         title = "语音记账",
         subtitle = "AI 接口或系统语音，一句话拆多笔",
-        milestoneTag = "M4.2",
+        badgeLabel = "双引擎",
         icon = DropletIcons.Mic,
     ),
     NATURAL_TEXT(
         title = "一句话 AI 记账",
         subtitle = "输入自然语言，预览草稿确认入账",
-        milestoneTag = "M4.2",
+        badgeLabel = "多笔拆单",
         icon = DropletIcons.AutoAwesome,
     ),
 }
@@ -67,6 +67,8 @@ enum class QuickCaptureMode(
 fun QuickCaptureModalSheet(
     onSelectMode: (QuickCaptureMode) -> Unit,
     onDismissRequest: () -> Unit,
+    pendingDraftCount: Int = 0,
+    onOpenDraftInbox: () -> Unit = {},
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -74,6 +76,8 @@ fun QuickCaptureModalSheet(
     ) {
         QuickCaptureSheetContent(
             onSelectMode = onSelectMode,
+            pendingDraftCount = pendingDraftCount,
+            onOpenDraftInbox = onOpenDraftInbox,
             modifier = Modifier.padding(bottom = 16.dp),
         )
     }
@@ -83,6 +87,8 @@ fun QuickCaptureModalSheet(
 fun QuickCaptureSheetContent(
     onSelectMode: (QuickCaptureMode) -> Unit,
     modifier: Modifier = Modifier,
+    pendingDraftCount: Int = 0,
+    onOpenDraftInbox: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -91,11 +97,44 @@ fun QuickCaptureSheetContent(
             .testTag("quick_capture_sheet"),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = "快捷记账",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "快捷记账",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (pendingDraftCount > 0) {
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .clickable { onOpenDraftInbox() }
+                        .testTag("quick_capture_draft_inbox_badge"),
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            imageVector = DropletIcons.Inbox,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = "草稿箱 · $pendingDraftCount",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                }
+            }
+        }
         Text(
             text = "所有智能识别结果均先生成预览草稿，经你核对后再复式入账。",
             style = MaterialTheme.typography.bodySmall,
@@ -144,7 +183,7 @@ fun QuickCaptureSheetContent(
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    DropletPillBadge(text = mode.milestoneTag)
+                    DropletPillBadge(text = mode.badgeLabel)
                 }
             }
         }
