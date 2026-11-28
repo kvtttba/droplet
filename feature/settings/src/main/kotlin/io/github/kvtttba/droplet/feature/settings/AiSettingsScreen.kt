@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -356,7 +357,9 @@ private fun AiDefaultEndpointCard(
                 text = badgeText,
                 containerColor = badgeContainer,
                 contentColor = badgeContent,
-                modifier = Modifier.testTag("ai_default_status_badge"),
+                modifier = Modifier
+                    .semantics(mergeDescendants = true) {}
+                    .testTag("ai_default_status_badge"),
             )
         }
 
@@ -656,7 +659,6 @@ private fun AiEndpointFormFields(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.testTag("${slotTagPrefix}_saved_key_badge"),
             ) {
                 Icon(
                     imageVector = DropletIcons.Lock,
@@ -668,6 +670,7 @@ private fun AiEndpointFormFields(
                     text = "已 Keystore 加密：${draft.savedApiKeyMasked}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("${slotTagPrefix}_saved_key_badge"),
                 )
             }
             TextButton(

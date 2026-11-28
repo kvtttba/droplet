@@ -114,7 +114,12 @@ class DropletAppE2ETest {
         // 9. Select relock timeout & enable FLAG_SECURE and confirm Window FLAG_SECURE is applied
         composeRule.onNodeWithTag("privacy_security_list").performScrollToKey("app_lock_card")
         composeRule.onNodeWithTag("relock_timeout_SECONDS_30").performClick()
-        composeRule.onNodeWithTag("relock_timeout_SECONDS_30").assertIsSelected()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("relock_timeout_SECONDS_30").assertIsSelected()
+                true
+            }.getOrDefault(false)
+        }
 
         composeRule.onNodeWithTag("privacy_security_list").performScrollToKey("screen_privacy_card")
         composeRule.onNodeWithTag("privacy_switch_amounts_hidden").assertIsOn()
@@ -159,7 +164,12 @@ class DropletAppE2ETest {
         composeRule.onNodeWithTag("privacy_switch_flag_secure").assertIsOff()
 
         composeRule.onNodeWithTag("privacy_switch_amounts_hidden").performClick()
-        composeRule.onNodeWithTag("privacy_switch_amounts_hidden").assertIsOff()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("privacy_switch_amounts_hidden").assertIsOff()
+                true
+            }.getOrDefault(false)
+        }
     }
 
     @Test

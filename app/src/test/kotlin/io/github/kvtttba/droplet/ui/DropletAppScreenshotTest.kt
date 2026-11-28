@@ -437,6 +437,9 @@ class DropletAppScreenshotTest {
         }
         composeRule.onNodeWithTag("screen_ai_settings").assertIsDisplayed()
         composeRule.onNodeWithTag("ai_privacy_notice_banner").assertIsDisplayed()
+        composeRule.onNodeWithTag("ai_default_status_badge").assertTextContains("已加密配置", substring = true)
+        composeRule.onNodeWithTag("ai_default_saved_key_badge").assertTextContains("••••0001", substring = true)
+        composeRule.onNodeWithTag("ai_hero_summary").assertTextContains("gpt-4o-mini", substring = true)
         composeRule.onRoot().captureRoboImage(
             filePath = "src/test/snapshots/ai_settings_light.png",
             roborazziOptions = roborazziOptions,
@@ -723,6 +726,8 @@ class DropletAppScreenshotTest {
         }
 
         composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.onNodeWithTag("settings_entry_ai_config")
+            .assertTextContains("gpt-4o-mini", substring = true)
         composeRule.onNodeWithTag("settings_entry_ai_config").performClick()
         composeRule.onNodeWithTag("screen_ai_settings").assertIsDisplayed()
         composeRule.onNodeWithTag("ai_privacy_notice_banner").assertIsDisplayed()
