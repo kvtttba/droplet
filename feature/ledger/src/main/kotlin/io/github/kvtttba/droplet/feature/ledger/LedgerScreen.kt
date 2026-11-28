@@ -41,6 +41,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -61,14 +62,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.kvtttba.droplet.core.database.dao.TagFilterMode
+import io.github.kvtttba.droplet.core.database.repository.TransactionTemplateItem
 import io.github.kvtttba.droplet.core.domain.PrivacyAmountFormatter
+import io.github.kvtttba.droplet.core.domain.automation.BudgetAlertLevel
+import io.github.kvtttba.droplet.core.domain.automation.BudgetProgress
 import io.github.kvtttba.droplet.core.domain.debt.ExpenseRefundSummary
 import io.github.kvtttba.droplet.core.domain.debt.ReimbursementItemSummary
 import io.github.kvtttba.droplet.core.model.Account
@@ -94,6 +100,8 @@ fun LedgerRoute(
     onCreateTransaction: () -> Unit,
     onEditTransaction: (String) -> Unit,
     onOpenReimbursementList: () -> Unit = {},
+    onOpenBudgetManagement: () -> Unit = {},
+    onOpenTemplateManagement: () -> Unit = {},
     onShowMessage: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: LedgerViewModel = hiltViewModel(),
@@ -124,6 +132,9 @@ fun LedgerRoute(
         onCreateTransaction = onCreateTransaction,
         onEditTransaction = onEditTransaction,
         onOpenReimbursementList = onOpenReimbursementList,
+        onOpenBudgetManagement = onOpenBudgetManagement,
+        onOpenTemplateManagement = onOpenTemplateManagement,
+        onPostQuickTemplate = viewModel::postQuickTemplate,
         onRecordRefund = viewModel::recordRefund,
         onVoidTransaction = viewModel::voidTransaction,
         onRestoreTransaction = viewModel::restoreTransaction,
@@ -151,6 +162,9 @@ fun LedgerScreen(
     onCreateTransaction: () -> Unit = {},
     onEditTransaction: (String) -> Unit = {},
     onOpenReimbursementList: () -> Unit = {},
+    onOpenBudgetManagement: () -> Unit = {},
+    onOpenTemplateManagement: () -> Unit = {},
+    onPostQuickTemplate: (String) -> Unit = {},
     onRecordRefund: (
         expenseTxId: String,
         refundToAccountId: String?,
@@ -315,6 +329,202 @@ fun LedgerScreen(
                             color = semantic.expense,
                             modifier = Modifier.testTag("ledger_monthly_expense"),
                         )
+                    }
+                }
+            }
+        }
+
+        // 2.5 Monthly Overall Budget Progress Card (only shown when user configured a monthly budget)
+        val monthlyBudget = uiState.monthlyOverallBudget
+        if (monthlyBudget != null && !uiState.filterState.hasExtraFilters) {
+            item(key = "monthly_budget_card") {
+                val barColor: Color
+                val badgeBg: Color
+                val badgeFg: Color
+                val badgeText: String
+                when (monthlyBudget.alertLevel) {
+                    BudgetAlertLevel.EXCEEDED -> {
+                        barColor = semantic.expense
+                        badgeBg = semantic.expenseContainer
+                        badgeFg = semantic.expense
+                        badgeText = "已超支 ${monthlyBudget.usedPercentageInt}%"
+                    }
+                    BudgetAlertLevel.WARNING -> {
+                        barColor = semantic.warning
+                        badgeBg = semantic.warningContainer
+                        badgeFg = semantic.warning
+                        badgeText = "预警 ${monthlyBudget.usedPercentageInt}%"
+                    }
+                    BudgetAlertLevel.NORMAL -> {
+                        barColor = MaterialTheme.colorScheme.primary
+                        badgeBg = semantic.incomeContainer
+                        badgeFg = semantic.income
+                        badgeText = "已用 ${monthlyBudget.usedPercentageInt}%"
+                    }
+                }
+                DropletCard(
+                    modifier = Modifier
+                        .clickable(onClick = onOpenBudgetManagement)
+                        .testTag("ledger_budget_progress_card"),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(
+                                imageVector = DropletIcons.Savings,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text(
+                                text = "本月总预算",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                        DropletPillBadge(
+                            text = badgeText,
+                            containerColor = badgeBg,
+                            contentColor = badgeFg,
+                            modifier = Modifier
+                                .semantics(mergeDescendants = true) {}
+                                .testTag("ledger_budget_pct_badge"),
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { monthlyBudget.progressFraction },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(7.dp)
+                            .clip(RoundedCornerShape(999.dp)),
+                        color = barColor,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        strokeCap = StrokeCap.Round,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "已用",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            PrivacyAmountText(
+                                money = monthlyBudget.spentAmount,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.testTag("ledger_budget_spent"),
+                            )
+                            Text(
+                                text = "/",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            PrivacyAmountText(
+                                money = monthlyBudget.budget.limitAmount,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.testTag("ledger_budget_limit"),
+                            )
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "日均可用",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            PrivacyAmountText(
+                                money = monthlyBudget.dailyAvailableAmount,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2.6 Quick Templates Strip (only shown when user has configured quick templates)
+        if (uiState.quickTemplates.isNotEmpty()) {
+            item(key = "quick_templates_bar") {
+                LazyRow(
+                    modifier = Modifier.testTag("ledger_quick_templates_bar"),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    items(
+                        items = uiState.quickTemplates.take(6),
+                        key = { "quick_tpl_${it.template.id}" },
+                    ) { tpl ->
+                        val payload = tpl.payload
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .clickable { onPostQuickTemplate(tpl.template.id) }
+                                .testTag("ledger_quick_template_${tpl.template.name}"),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Icon(
+                                    imageVector = DropletIcons.Bolt,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(15.dp),
+                                )
+                                Text(
+                                    text = tpl.template.name,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                                if (payload != null) {
+                                    PrivacyAmountText(
+                                        money = payload.amount,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    item(key = "quick_tpl_manage") {
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .clickable(onClick = onOpenTemplateManagement)
+                                .testTag("ledger_manage_templates_chip"),
+                        ) {
+                            Text(
+                                text = "模板管理",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            )
+                        }
                     }
                 }
             }

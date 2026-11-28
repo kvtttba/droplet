@@ -5,9 +5,13 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.kvtttba.droplet.core.database.dao.TagFilterMode
 import io.github.kvtttba.droplet.core.database.dao.TransactionFilter
+import io.github.kvtttba.droplet.core.database.repository.BudgetRepository
 import io.github.kvtttba.droplet.core.database.repository.LedgerRepository
 import io.github.kvtttba.droplet.core.database.repository.RecordRefundRequest
 import io.github.kvtttba.droplet.core.database.repository.ReimbursementAndRefundRepository
+import io.github.kvtttba.droplet.core.database.repository.TemplateRepository
+import io.github.kvtttba.droplet.core.database.repository.TransactionTemplateItem
+import io.github.kvtttba.droplet.core.domain.automation.BudgetProgress
 import io.github.kvtttba.droplet.core.domain.debt.ExpenseRefundSummary
 import io.github.kvtttba.droplet.core.domain.debt.ReimbursementItemSummary
 import io.github.kvtttba.droplet.core.model.AccountSubType
@@ -35,6 +39,8 @@ import kotlinx.coroutines.launch
 class LedgerViewModel @Inject constructor(
     private val repository: LedgerRepository,
     private val reimbursementAndRefundRepository: ReimbursementAndRefundRepository,
+    private val budgetRepository: BudgetRepository,
+    private val templateRepository: TemplateRepository,
 ) : ViewModel() {
 
     private val baseCurrency: Currency = Currency.DEFAULT
@@ -78,11 +84,16 @@ class LedgerViewModel @Inject constructor(
                 filter = txFilter.copy(statuses = setOf(TransactionStatus.POSTED)),
             )
         }
+        val budgetProgressFlow = budgetRepository.observeMonthlyOverallBudgetProgress(
+            month = month,
+            currency = baseCurrency,
+        )
         combine(
             transactionsWithRefundsFlow,
             summaryFlow,
             reimbursementSummariesByAdvanceIdFlow,
-        ) { (records, refundMap), summary, reimburseMap ->
+            budgetProgressFlow,
+        ) { (records, refundMap), summary, reimburseMap, monthlyBudget ->
             QuerySnapshot(
                 month = month,
                 filterState = filterState,
@@ -90,6 +101,7 @@ class LedgerViewModel @Inject constructor(
                 summary = summary,
                 refundSummariesByExpenseId = refundMap,
                 reimbursementSummariesByAdvanceId = reimburseMap,
+                monthlyOverallBudget = monthlyBudget,
             )
         }
     }
@@ -97,8 +109,9 @@ class LedgerViewModel @Inject constructor(
     private val catalogFlow = combine(
         repository.observeAllAccounts(includeArchived = true, includeSystem = true),
         repository.observeTags(includeArchived = false),
-    ) { accounts, tags ->
-        accounts to tags
+        templateRepository.observeTemplates(),
+    ) { accounts, tags, templates ->
+        Triple(accounts, tags, templates)
     }
 
     private val runtimeFlow = combine(
@@ -112,7 +125,7 @@ class LedgerViewModel @Inject constructor(
         ledgerSnapshotFlow,
         catalogFlow,
         runtimeFlow,
-    ) { snapshot, (allAccounts, tags), (message, isSubmittingRefund) ->
+    ) { snapshot, (allAccounts, tags, templates), (message, isSubmittingRefund) ->
         val month = snapshot.month
         val filterState = snapshot.filterState
         val records = snapshot.records
@@ -141,6 +154,8 @@ class LedgerViewModel @Inject constructor(
             monthlyBalance = Money(summary.netSavingsBaseMinor, baseCurrency),
             monthlyIncome = Money(summary.netIncomeBaseMinor, baseCurrency),
             monthlyExpense = Money(summary.netExpenseBaseMinor, baseCurrency),
+            monthlyOverallBudget = snapshot.monthlyOverallBudget,
+            quickTemplates = templates,
             transactionCount = records.size,
             filterState = filterState,
             dayGroups = LedgerItemMapper.groupByDay(
@@ -333,6 +348,20 @@ class LedgerViewModel @Inject constructor(
         }
     }
 
+    fun postQuickTemplate(templateId: String) {
+        viewModelScope.launch {
+            runCatching {
+                val item = templateRepository.getTemplateById(templateId)
+                templateRepository.postFromTemplate(templateId)
+                item?.template?.name ?: "快捷模板"
+            }.onSuccess { name ->
+                userMessageFlow.value = "已通过「$name」一键入账"
+            }.onFailure { err ->
+                userMessageFlow.value = err.message ?: "快捷模板入账失败"
+            }
+        }
+    }
+
     fun clearUserMessage() {
         userMessageFlow.value = null
     }
@@ -372,5 +401,6 @@ class LedgerViewModel @Inject constructor(
         val summary: io.github.kvtttba.droplet.core.database.dao.PeriodSummaryRow,
         val refundSummariesByExpenseId: Map<String, ExpenseRefundSummary>,
         val reimbursementSummariesByAdvanceId: Map<String, ReimbursementItemSummary>,
+        val monthlyOverallBudget: BudgetProgress?,
     )
 }

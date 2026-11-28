@@ -53,12 +53,18 @@ fun SettingsScreen(
     onOpenMarketSyncSettings: () -> Unit = {},
     onOpenCreditCardReminders: () -> Unit = {},
     onOpenAiSettings: () -> Unit = {},
+    onOpenBudgetManagement: () -> Unit = {},
+    onOpenRecurringRules: () -> Unit = {},
+    onOpenTemplateManagement: () -> Unit = {},
     biometricLockEnabled: Boolean = false,
     flagSecureEnabled: Boolean = false,
     marketSyncSummary: String = "后台自动刷新 · 可选 HTTP/SOCKS 代理",
     creditCardReminderSummary: String = "已开启 · 默认提前 3 天提醒",
     aiConfigSummary: String = "未配置 · 点击设置 OpenAI Compatible 接口",
-    versionLabel: String = "v0.1.0-m4.1",
+    budgetSummary: String = "设置月/年总预算与分类消耗预警",
+    recurringSummary: String = "房租、工资与订阅自动入账或到期提醒",
+    templateSummary: String = "高频消费一键入账或预填表单",
+    versionLabel: String = "v0.1.0-m5.1",
     modifier: Modifier = Modifier,
 ) {
     val amountsHidden = LocalAmountsHidden.current
@@ -146,6 +152,44 @@ fun SettingsScreen(
                     subtitle = "自定义收支大类/小类图标与多标签配色",
                     onClick = onOpenCategoryTagManagement,
                     modifier = Modifier.testTag("settings_entry_categories_tags"),
+                )
+            }
+        }
+
+        item {
+            DropletSectionHeader(title = "预算与效率工具")
+        }
+
+        item(key = "settings_planning_card") {
+            DropletCard(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
+                SettingsItemRow(
+                    icon = DropletIcons.Savings,
+                    title = "预算管理",
+                    subtitle = budgetSummary,
+                    onClick = onOpenBudgetManagement,
+                    modifier = Modifier.testTag("settings_entry_budgets"),
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 48.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                )
+                SettingsItemRow(
+                    icon = DropletIcons.Repeat,
+                    title = "周期记账",
+                    subtitle = recurringSummary,
+                    onClick = onOpenRecurringRules,
+                    modifier = Modifier.testTag("settings_entry_recurring_rules"),
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 48.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                )
+                SettingsItemRow(
+                    icon = DropletIcons.Bolt,
+                    title = "快捷模板",
+                    subtitle = templateSummary,
+                    onClick = onOpenTemplateManagement,
+                    modifier = Modifier.testTag("settings_entry_templates"),
                 )
             }
         }
@@ -252,15 +296,6 @@ fun SettingsScreen(
                     subtitle = aiConfigSummary,
                     onClick = onOpenAiSettings,
                     modifier = Modifier.testTag("settings_entry_ai_config"),
-                )
-                HorizontalDivider(
-                    modifier = Modifier.padding(start = 48.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                )
-                SettingsItemRow(
-                    icon = DropletIcons.Repeat,
-                    title = "预算、周期记账与快捷模板",
-                    subtitle = "分类预算预警 · 自动入账规则 · M5.1",
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 48.dp),

@@ -817,6 +817,106 @@ class DropletAppE2ETest {
         composeRule.waitUntilAtLeastOneExists(hasText("测试AI豆浆", substring = true), timeoutMillis = 10_000)
     }
 
+    @Test
+    fun test08_endToEndBudgetAlertRecurringAutoPostAndQuickTemplate() {
+        // 1. From Settings -> Budget Management, create a monthly overall budget (¥1,000, 80% warn)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("nav_tab_settings"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("nav_tab_settings").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_planning_card")
+        composeRule.onNodeWithTag("settings_entry_budgets").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_budget_management"), timeoutMillis = 5_000)
+
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("budget_create_overall_button"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("budget_create_overall_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("budget_editor_sheet"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("budget_sheet_amount_input").performTextReplacement("1000")
+        composeRule.onNodeWithTag("budget_sheet_warn_80").performScrollTo().performClick()
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("budget_sheet_save_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("budget_editor_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("budget_overall_card"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("budget_overall_limit").assertTextContains("1,000.00", substring = true)
+
+        // 2. Return to Settings -> Recurring Rules: create rule and verify pause / resume toggle
+        composeRule.onNodeWithTag("budget_back_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_planning_card")
+        composeRule.onNodeWithTag("settings_entry_recurring_rules").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_recurring_rules"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("recurring_add_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("recurring_editor_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("recurring_sheet_name_input").performTextReplacement("测试每月房租")
+        composeRule.onNodeWithTag("recurring_sheet_amount_input").performTextReplacement("2500")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("recurring_sheet_save_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("recurring_editor_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("recurring_rules_list")
+            .performScrollToNode(hasTestTag("recurring_rule_card_测试每月房租"))
+        composeRule.onNodeWithTag("recurring_rule_status_测试每月房租")
+            .assertTextContains("自动入账", substring = true)
+
+        // Pause -> status updates to 已暂停 -> Resume -> returns to 自动入账
+        composeRule.onNodeWithTag("recurring_pause_switch_测试每月房租").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("recurring_rule_status_测试每月房租")
+                    .assertTextContains("已暂停", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("recurring_pause_switch_测试每月房租").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("recurring_rule_status_测试每月房租")
+                    .assertTextContains("自动入账", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // 3. Return to Settings -> Quick Templates: create "通勤地铁" and one-tap direct post
+        composeRule.onNodeWithTag("recurring_back_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_planning_card")
+        composeRule.onNodeWithTag("settings_entry_templates").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_template_management"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("template_add_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("template_editor_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("template_sheet_name_input").performTextReplacement("通勤地铁")
+        composeRule.onNodeWithTag("template_sheet_amount_input").performTextReplacement("6")
+        composeRule.onNodeWithTag("template_sheet_payee_input").performScrollTo().performTextReplacement("测试地铁通勤")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("template_sheet_save_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("template_editor_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("template_management_list")
+            .performScrollToNode(hasTestTag("template_card_通勤地铁"))
+        composeRule.onNodeWithTag("template_post_button_通勤地铁").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasText("已用 1 次", substring = true), timeoutMillis = 10_000)
+
+        // 4. Return to Ledger tab and confirm posted transaction + live monthly budget progress card
+        composeRule.onNodeWithTag("template_back_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("nav_tab_ledger").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 10_000)
+
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("ledger_budget_progress_card"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("ledger_budget_progress_card").assertTextContains("1,000.00", substring = true)
+        composeRule.waitUntilAtLeastOneExists(hasText("测试地铁通勤", substring = true), timeoutMillis = 10_000)
+    }
+
     private fun isFlagSecureApplied(): Boolean {
         var applied = false
         composeRule.activityRule.scenario.onActivity { activity ->

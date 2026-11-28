@@ -14,7 +14,14 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.kvtttba.droplet.core.ai.AiConnectionTestResult
 import io.github.kvtttba.droplet.core.ai.AiDraftAttachmentRef
 import io.github.kvtttba.droplet.core.ai.AiUncertainFieldKeys
+import io.github.kvtttba.droplet.core.database.repository.RecurringRuleItem
+import io.github.kvtttba.droplet.core.database.repository.TransactionTemplateItem
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
+import io.github.kvtttba.droplet.core.domain.automation.BudgetAlertLevel
+import io.github.kvtttba.droplet.core.domain.automation.BudgetPeriodRange
+import io.github.kvtttba.droplet.core.domain.automation.BudgetProgress
+import io.github.kvtttba.droplet.core.domain.automation.RecurringPayload
+import io.github.kvtttba.droplet.core.domain.automation.RecurringPayloadCodec
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementCalculator
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
 import io.github.kvtttba.droplet.core.domain.debt.DebtProfileSummary
@@ -39,6 +46,8 @@ import io.github.kvtttba.droplet.core.model.AccountType
 import io.github.kvtttba.droplet.core.model.AiDraftInputType
 import io.github.kvtttba.droplet.core.model.AiDraftStatus
 import io.github.kvtttba.droplet.core.model.AssetClass
+import io.github.kvtttba.droplet.core.model.Budget
+import io.github.kvtttba.droplet.core.model.BudgetPeriod
 import io.github.kvtttba.droplet.core.model.Currency
 import io.github.kvtttba.droplet.core.model.DebtProfile
 import io.github.kvtttba.droplet.core.model.DepositInterestMode
@@ -51,8 +60,11 @@ import io.github.kvtttba.droplet.core.model.LoanPlan
 import io.github.kvtttba.droplet.core.model.MarketQuote
 import io.github.kvtttba.droplet.core.model.Money
 import io.github.kvtttba.droplet.core.model.Quantity
+import io.github.kvtttba.droplet.core.model.RecurringFrequency
+import io.github.kvtttba.droplet.core.model.RecurringRule
 import io.github.kvtttba.droplet.core.model.TransactionDisplayType
 import io.github.kvtttba.droplet.core.model.TransactionStatus
+import io.github.kvtttba.droplet.core.model.TransactionTemplate
 import io.github.kvtttba.droplet.core.model.UnitPrice
 import io.github.kvtttba.droplet.core.network.NetworkProxyConfig
 import io.github.kvtttba.droplet.core.network.NetworkProxyType
@@ -92,11 +104,17 @@ import io.github.kvtttba.droplet.feature.assets.ReimbursementListUiState
 import io.github.kvtttba.droplet.feature.settings.AiSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.AiSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.AiSlotDraftUiState
+import io.github.kvtttba.droplet.feature.settings.BudgetManagementScreen
+import io.github.kvtttba.droplet.feature.settings.BudgetManagementUiState
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityScreen
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityUiState
+import io.github.kvtttba.droplet.feature.settings.RecurringRulesScreen
+import io.github.kvtttba.droplet.feature.settings.RecurringRulesUiState
+import io.github.kvtttba.droplet.feature.settings.TemplateManagementScreen
+import io.github.kvtttba.droplet.feature.settings.TemplateManagementUiState
 import io.github.kvtttba.droplet.feature.ledger.LedgerAmountTone
 import io.github.kvtttba.droplet.feature.ledger.LedgerDayGroup
 import io.github.kvtttba.droplet.feature.ledger.LedgerItemMapper
@@ -809,6 +827,85 @@ class DropletAppScreenshotTest {
         composeRule.onNodeWithTag("screen_ai_draft_review").assertIsDisplayed()
         composeRule.onNodeWithTag("ai_review_back_button").performClick()
         composeRule.onNodeWithTag("screen_ai_capture").assertIsDisplayed()
+    }
+
+    @Test
+    fun captureBudgetManagementLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                BudgetManagementScreen(
+                    uiState = sampleBudgetManagementUiState(),
+                    notificationPermissionGranted = true,
+                )
+            }
+        }
+        composeRule.onNodeWithTag("screen_budget_management").assertIsDisplayed()
+        composeRule.onNodeWithTag("budget_overall_spent").assertTextContains("4,280.00", substring = true)
+        composeRule.onNodeWithTag("budget_overall_status_badge").assertTextContains("86%", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/budget_management_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun captureRecurringRulesLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                RecurringRulesScreen(uiState = sampleRecurringRulesUiState())
+            }
+        }
+        composeRule.onNodeWithTag("screen_recurring_rules").assertIsDisplayed()
+        composeRule.onNodeWithTag("recurring_pending_count_badge").assertTextContains("待确认 1 期", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/recurring_rules_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun captureTemplateManagementLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                TemplateManagementScreen(uiState = sampleTemplateManagementUiState())
+            }
+        }
+        composeRule.onNodeWithTag("screen_template_management").assertIsDisplayed()
+        composeRule.onNodeWithTag("template_card_通勤地铁").assertIsDisplayed()
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/template_management_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun interactiveShell_budgetRecurringTemplateNavigationWork() {
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.SETTINGS,
+                initialThemeMode = ThemeMode.LIGHT,
+                initialDynamicColor = false,
+                budgetManagementPreviewState = sampleBudgetManagementUiState(),
+                recurringRulesPreviewState = sampleRecurringRulesUiState(),
+                templateManagementPreviewState = sampleTemplateManagementUiState(),
+            )
+        }
+
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_planning_card")
+        composeRule.onNodeWithTag("settings_entry_budgets").performClick()
+        composeRule.onNodeWithTag("screen_budget_management").assertIsDisplayed()
+        composeRule.onNodeWithTag("budget_back_button").performClick()
+
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_planning_card")
+        composeRule.onNodeWithTag("settings_entry_recurring_rules").performClick()
+        composeRule.onNodeWithTag("screen_recurring_rules").assertIsDisplayed()
+        composeRule.onNodeWithTag("recurring_back_button").performClick()
+
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_planning_card")
+        composeRule.onNodeWithTag("settings_entry_templates").performClick()
+        composeRule.onNodeWithTag("screen_template_management").assertIsDisplayed()
+        composeRule.onNodeWithTag("template_back_button").performClick()
+        composeRule.onNodeWithTag("screen_settings").assertIsDisplayed()
     }
 
     companion object {
@@ -2012,6 +2109,280 @@ class DropletAppScreenshotTest {
                 operationalAccounts = sampleOperationalAccounts,
                 expenseCategories = expenseOptions,
                 incomeCategories = incomeOptions,
+                availableTags = sampleTags,
+            )
+        }
+
+        private fun sampleBudgetManagementUiState(): BudgetManagementUiState {
+            val monthRange = BudgetPeriodRange(
+                period = BudgetPeriod.MONTHLY,
+                periodKey = "2026-11",
+                startInclusive = 0L,
+                endExclusive = 100L,
+                totalDays = 30,
+                elapsedDays = 26,
+                remainingDays = 5,
+            )
+            val overall = BudgetProgress(
+                budget = Budget(
+                    id = "sample:budget:total",
+                    period = BudgetPeriod.MONTHLY,
+                    categoryAccountId = null,
+                    limitAmountMinor = Money.fromDecimalString("5000.00").amountMinor,
+                    warnThresholdPct = 80,
+                ),
+                categoryName = null,
+                categoryIcon = null,
+                categoryColor = null,
+                periodRange = monthRange,
+                spentAmount = Money.fromDecimalString("4280.00"),
+                remainingAmount = Money.fromDecimalString("720.00"),
+                usedPercentageDecimal = "85.6",
+                usedPercentageInt = 86,
+                progressFraction = 0.856f,
+                dailyAvailableAmount = Money.fromDecimalString("144.00"),
+                alertLevel = BudgetAlertLevel.WARNING,
+            )
+            val foodBudget = BudgetProgress(
+                budget = Budget(
+                    id = "sample:budget:food",
+                    period = BudgetPeriod.MONTHLY,
+                    categoryAccountId = DefaultSeedCatalog.AccountIds.EXP_FOOD,
+                    limitAmountMinor = Money.fromDecimalString("1800.00").amountMinor,
+                    warnThresholdPct = 80,
+                ),
+                categoryName = "餐饮",
+                categoryIcon = "restaurant",
+                categoryColor = "#EF6C00",
+                periodRange = monthRange,
+                spentAmount = Money.fromDecimalString("1520.00"),
+                remainingAmount = Money.fromDecimalString("280.00"),
+                usedPercentageDecimal = "84.4",
+                usedPercentageInt = 84,
+                progressFraction = 0.844f,
+                dailyAvailableAmount = Money.fromDecimalString("56.00"),
+                alertLevel = BudgetAlertLevel.WARNING,
+            )
+            val shoppingBudget = BudgetProgress(
+                budget = Budget(
+                    id = "sample:budget:shopping",
+                    period = BudgetPeriod.MONTHLY,
+                    categoryAccountId = DefaultSeedCatalog.AccountIds.EXP_SHOPPING,
+                    limitAmountMinor = Money.fromDecimalString("1000.00").amountMinor,
+                    warnThresholdPct = 80,
+                ),
+                categoryName = "购物",
+                categoryIcon = "shopping_bag",
+                categoryColor = "#D81B60",
+                periodRange = monthRange,
+                spentAmount = Money.fromDecimalString("1120.00"),
+                remainingAmount = Money.fromDecimalString("-120.00"),
+                usedPercentageDecimal = "112.0",
+                usedPercentageInt = 112,
+                progressFraction = 1.0f,
+                dailyAvailableAmount = Money.zero(Currency.CNY),
+                alertLevel = BudgetAlertLevel.EXCEEDED,
+            )
+            val transportBudget = BudgetProgress(
+                budget = Budget(
+                    id = "sample:budget:transport",
+                    period = BudgetPeriod.MONTHLY,
+                    categoryAccountId = DefaultSeedCatalog.AccountIds.EXP_TRANSPORT,
+                    limitAmountMinor = Money.fromDecimalString("600.00").amountMinor,
+                    warnThresholdPct = 80,
+                ),
+                categoryName = "交通",
+                categoryIcon = "directions_subway",
+                categoryColor = "#1976D2",
+                periodRange = monthRange,
+                spentAmount = Money.fromDecimalString("240.00"),
+                remainingAmount = Money.fromDecimalString("360.00"),
+                usedPercentageDecimal = "40.0",
+                usedPercentageInt = 40,
+                progressFraction = 0.40f,
+                dailyAvailableAmount = Money.fromDecimalString("72.00"),
+                alertLevel = BudgetAlertLevel.NORMAL,
+            )
+            return BudgetManagementUiState(
+                selectedPeriod = BudgetPeriod.MONTHLY,
+                targetMonth = YearMonth.of(2026, 11),
+                monthlyOverall = overall,
+                monthlyCategoryBudgets = listOf(foodBudget, shoppingBudget, transportBudget),
+                expenseCategories = DefaultSeedCatalog.defaultExpenseCategories(fixedTimestampMs),
+                budgetAlertsEnabled = true,
+            )
+        }
+
+        private fun sampleRecurringRulesUiState(): RecurringRulesUiState {
+            val gymPayload = RecurringPayload(
+                displayType = TransactionDisplayType.EXPENSE,
+                amountMinor = Money.fromDecimalString("199.00").amountMinor,
+                categoryAccountId = DefaultSeedCatalog.AccountIds.EXP_ENTERTAINMENT_FITNESS,
+                accountId = DefaultSeedCatalog.AccountIds.CREDIT_CARD,
+                payee = "乐刻运动",
+            )
+            val rentPayload = RecurringPayload(
+                displayType = TransactionDisplayType.EXPENSE,
+                amountMinor = Money.fromDecimalString("3800.00").amountMinor,
+                categoryAccountId = DefaultSeedCatalog.AccountIds.EXP_HOUSING_RENT_MORTGAGE,
+                accountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+                payee = "房租自动划扣",
+            )
+            val salaryPayload = RecurringPayload(
+                displayType = TransactionDisplayType.INCOME,
+                amountMinor = Money.fromDecimalString("24000.00").amountMinor,
+                categoryAccountId = DefaultSeedCatalog.AccountIds.INC_WORK_SALARY,
+                accountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+                payee = "月度薪资",
+            )
+            val dueMs = LocalDate.of(2026, 11, 27).atTime(9, 0).toInstant(ZoneOffset.ofHours(8)).toEpochMilli()
+            val dec1Ms = LocalDate.of(2026, 12, 1).atTime(9, 0).toInstant(ZoneOffset.ofHours(8)).toEpochMilli()
+            val dec10Ms = LocalDate.of(2026, 12, 10).atTime(9, 0).toInstant(ZoneOffset.ofHours(8)).toEpochMilli()
+
+            return RecurringRulesUiState(
+                allRules = listOf(
+                    RecurringRuleItem(
+                        rule = RecurringRule(
+                            id = "sample:rec:gym",
+                            name = "健身房月卡",
+                            frequency = RecurringFrequency.MONTHLY,
+                            nextRunAt = dueMs,
+                            templatePayloadJson = RecurringPayloadCodec.encode(gymPayload),
+                            autoPost = false,
+                            isPaused = false,
+                        ),
+                        payload = gymPayload,
+                        accountName = "信用卡",
+                        categoryOrTargetName = "娱乐·运动健身",
+                        frequencyLabel = "每月",
+                        isDue = true,
+                        isPendingConfirmation = true,
+                        isTerminated = false,
+                    ),
+                    RecurringRuleItem(
+                        rule = RecurringRule(
+                            id = "sample:rec:rent",
+                            name = "每月房租",
+                            frequency = RecurringFrequency.MONTHLY,
+                            nextRunAt = dec1Ms,
+                            templatePayloadJson = RecurringPayloadCodec.encode(rentPayload),
+                            autoPost = true,
+                            isPaused = false,
+                        ),
+                        payload = rentPayload,
+                        accountName = "储蓄卡",
+                        categoryOrTargetName = "居住·房租房贷",
+                        frequencyLabel = "每月",
+                        isDue = false,
+                        isPendingConfirmation = false,
+                        isTerminated = false,
+                    ),
+                    RecurringRuleItem(
+                        rule = RecurringRule(
+                            id = "sample:rec:salary",
+                            name = "固定工资",
+                            frequency = RecurringFrequency.MONTHLY,
+                            nextRunAt = dec10Ms,
+                            templatePayloadJson = RecurringPayloadCodec.encode(salaryPayload),
+                            autoPost = true,
+                            isPaused = false,
+                        ),
+                        payload = salaryPayload,
+                        accountName = "储蓄卡",
+                        categoryOrTargetName = "职业收入·工资薪金",
+                        frequencyLabel = "每月",
+                        isDue = false,
+                        isPendingConfirmation = false,
+                        isTerminated = false,
+                    ),
+                ),
+                operationalAccounts = sampleOperationalAccounts,
+                expenseCategories = DefaultSeedCatalog.defaultExpenseCategories(fixedTimestampMs),
+                incomeCategories = DefaultSeedCatalog.defaultIncomeCategories(fixedTimestampMs),
+                availableTags = sampleTags,
+                recurringRemindersEnabled = true,
+            )
+        }
+
+        private fun sampleTemplateManagementUiState(): TemplateManagementUiState {
+            val metroPayload = RecurringPayload(
+                displayType = TransactionDisplayType.EXPENSE,
+                amountMinor = Money.fromDecimalString("6.00").amountMinor,
+                categoryAccountId = DefaultSeedCatalog.AccountIds.EXP_TRANSPORT_TRANSIT,
+                accountId = DefaultSeedCatalog.AccountIds.ALIPAY,
+                payee = "城市地铁",
+            )
+            val lunchPayload = RecurringPayload(
+                displayType = TransactionDisplayType.EXPENSE,
+                amountMinor = Money.fromDecimalString("32.00").amountMinor,
+                categoryAccountId = DefaultSeedCatalog.AccountIds.EXP_FOOD_LUNCH,
+                accountId = DefaultSeedCatalog.AccountIds.WECHAT,
+                payee = "园区食堂",
+            )
+            val coffeePayload = RecurringPayload(
+                displayType = TransactionDisplayType.EXPENSE,
+                amountMinor = Money.fromDecimalString("16.80").amountMinor,
+                categoryAccountId = DefaultSeedCatalog.AccountIds.EXP_FOOD_SNACKS,
+                accountId = DefaultSeedCatalog.AccountIds.CREDIT_CARD,
+                payee = "早安拿铁",
+            )
+            return TemplateManagementUiState(
+                templates = listOf(
+                    TransactionTemplateItem(
+                        template = TransactionTemplate(
+                            id = "sample:tpl:metro",
+                            name = "通勤地铁",
+                            displayType = TransactionDisplayType.EXPENSE,
+                            templatePayloadJson = RecurringPayloadCodec.encode(metroPayload),
+                            icon = "directions_subway",
+                            color = "#1976D2",
+                            sortOrder = 10,
+                            useCount = 38,
+                        ),
+                        payload = metroPayload,
+                        accountName = "支付宝",
+                        categoryOrTargetName = "交通·地铁公交",
+                        resolvedIcon = "directions_subway",
+                        resolvedColor = "#1976D2",
+                    ),
+                    TransactionTemplateItem(
+                        template = TransactionTemplate(
+                            id = "sample:tpl:lunch",
+                            name = "工作日午餐",
+                            displayType = TransactionDisplayType.EXPENSE,
+                            templatePayloadJson = RecurringPayloadCodec.encode(lunchPayload),
+                            icon = "restaurant",
+                            color = "#EF6C00",
+                            sortOrder = 20,
+                            useCount = 24,
+                        ),
+                        payload = lunchPayload,
+                        accountName = "微信零钱",
+                        categoryOrTargetName = "餐饮·午餐",
+                        resolvedIcon = "restaurant",
+                        resolvedColor = "#EF6C00",
+                    ),
+                    TransactionTemplateItem(
+                        template = TransactionTemplate(
+                            id = "sample:tpl:coffee",
+                            name = "日常咖啡",
+                            displayType = TransactionDisplayType.EXPENSE,
+                            templatePayloadJson = RecurringPayloadCodec.encode(coffeePayload),
+                            icon = "restaurant",
+                            color = "#8E24AA",
+                            sortOrder = 30,
+                            useCount = 15,
+                        ),
+                        payload = coffeePayload,
+                        accountName = "信用卡",
+                        categoryOrTargetName = "餐饮·零食饮料",
+                        resolvedIcon = "restaurant",
+                        resolvedColor = "#8E24AA",
+                    ),
+                ),
+                operationalAccounts = sampleOperationalAccounts,
+                expenseCategories = DefaultSeedCatalog.defaultExpenseCategories(fixedTimestampMs),
+                incomeCategories = DefaultSeedCatalog.defaultIncomeCategories(fixedTimestampMs),
                 availableTags = sampleTags,
             )
         }

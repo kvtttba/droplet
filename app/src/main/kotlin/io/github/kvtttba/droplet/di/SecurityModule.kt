@@ -17,8 +17,10 @@ import io.github.kvtttba.droplet.core.security.AndroidBiometricAuthenticator
 import io.github.kvtttba.droplet.core.security.AndroidKeystoreSecretKeyProvider
 import io.github.kvtttba.droplet.core.security.AppLockStateMachine
 import io.github.kvtttba.droplet.core.security.BiometricAuthenticator
+import io.github.kvtttba.droplet.core.security.BudgetAndRecurringPreferencesRepository
 import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreAiConfigPreferencesRepository
+import io.github.kvtttba.droplet.core.security.DataStoreBudgetAndRecurringPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreCreditCardReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreDebtReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreLoanReminderPreferencesRepository
@@ -62,6 +64,10 @@ annotation class DebtReminderDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class AiConfigDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class BudgetRecurringDataStore
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -239,4 +245,24 @@ object SecurityModule {
         dataStore = dataStore,
         secretCipher = secretCipher,
     )
+
+    @Provides
+    @Singleton
+    @BudgetRecurringDataStore
+    fun provideBudgetAndRecurringPreferencesDataStore(
+        @ApplicationContext context: Context,
+        @ApplicationScope applicationScope: CoroutineScope,
+    ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        scope = applicationScope,
+        produceFile = {
+            context.preferencesDataStoreFile(SecurityContract.BUDGET_RECURRING_PREFERENCES_FILE)
+        },
+    )
+
+    @Provides
+    @Singleton
+    fun provideBudgetAndRecurringPreferencesRepository(
+        @BudgetRecurringDataStore dataStore: DataStore<Preferences>,
+    ): BudgetAndRecurringPreferencesRepository =
+        DataStoreBudgetAndRecurringPreferencesRepository(dataStore)
 }

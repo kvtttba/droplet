@@ -14,6 +14,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.kvtttba.droplet.core.database.repository.AiDraftRepository
+import io.github.kvtttba.droplet.core.database.repository.BudgetOverview
+import io.github.kvtttba.droplet.core.database.repository.BudgetRepository
+import io.github.kvtttba.droplet.core.database.repository.RecurringRuleRepository
+import io.github.kvtttba.droplet.core.database.repository.TemplateRepository
 import io.github.kvtttba.droplet.core.network.NetworkProxyConfig
 import io.github.kvtttba.droplet.core.network.NetworkProxyType
 import io.github.kvtttba.droplet.core.security.AiConfigPreferencesRepository
@@ -30,10 +34,12 @@ import io.github.kvtttba.droplet.feature.aicapture.PendingAiSharePayload
 import io.github.kvtttba.droplet.notification.CreditCardReminderNotificationPublisher
 import io.github.kvtttba.droplet.notification.DebtReminderNotificationPublisher
 import io.github.kvtttba.droplet.notification.LoanReminderNotificationPublisher
+import io.github.kvtttba.droplet.notification.PlanningAlertNotificationPublisher
 import io.github.kvtttba.droplet.security.AppLockCoordinator
 import io.github.kvtttba.droplet.share.ShareIntentParser
 import io.github.kvtttba.droplet.ui.DropletApp
 import io.github.kvtttba.droplet.ui.toAppThemePreference
+import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -64,10 +70,20 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var aiDraftRepository: AiDraftRepository
 
+    @Inject
+    lateinit var budgetRepository: BudgetRepository
+
+    @Inject
+    lateinit var recurringRuleRepository: RecurringRuleRepository
+
+    @Inject
+    lateinit var templateRepository: TemplateRepository
+
     private val pendingCreditCardAccountIdFlow = MutableStateFlow<String?>(null)
     private val pendingLoanPlanIdFlow = MutableStateFlow<String?>(null)
     private val pendingDebtProfileIdFlow = MutableStateFlow<String?>(null)
     private val pendingAiSharePayloadFlow = MutableStateFlow<PendingAiSharePayload?>(null)
+    private val pendingPlanningDestinationFlow = MutableStateFlow<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,10 +116,17 @@ class MainActivity : FragmentActivity() {
                 .collectAsStateWithLifecycle(initialValue = AiServiceConfig())
             val pendingAiDraftCount by aiDraftRepository.observeActiveDraftCount()
                 .collectAsStateWithLifecycle(initialValue = 0)
+            val budgetOverview by budgetRepository.observeBudgetOverview(includeDisabled = true)
+                .collectAsStateWithLifecycle(initialValue = BudgetOverview(targetMonth = YearMonth.now()))
+            val recurringRules by recurringRuleRepository.observeRulesWithStatus()
+                .collectAsStateWithLifecycle(initialValue = emptyList())
+            val templates by templateRepository.observeTemplates()
+                .collectAsStateWithLifecycle(initialValue = emptyList())
             val pendingCreditCardAccountId by pendingCreditCardAccountIdFlow.collectAsStateWithLifecycle()
             val pendingLoanPlanId by pendingLoanPlanIdFlow.collectAsStateWithLifecycle()
             val pendingDebtProfileId by pendingDebtProfileIdFlow.collectAsStateWithLifecycle()
             val pendingAiSharePayload by pendingAiSharePayloadFlow.collectAsStateWithLifecycle()
+            val pendingPlanningDestination by pendingPlanningDestinationFlow.collectAsStateWithLifecycle()
 
             val marketSyncSummary = buildString {
                 append(marketSyncPrefs.refreshInterval.label)
@@ -128,6 +151,26 @@ class MainActivity : FragmentActivity() {
             } else {
                 "已关闭 · 点击开启本地提醒"
             }
+            val budgetSummary = when {
+                budgetOverview.progresses.isEmpty() -> "设置月/年总预算与分类消耗预警"
+                budgetOverview.monthlyOverall != null -> {
+                    val m = budgetOverview.monthlyOverall!!
+                    "已配 ${budgetOverview.enabledCount} 项 · 本月已用 ${m.usedPercentageInt}%"
+                }
+                else -> "已配 ${budgetOverview.enabledCount} 项启用预算"
+            }
+            val pendingRecurringCount = recurringRules.count { it.isPendingConfirmation }
+            val activeRecurringCount = recurringRules.count { !it.rule.isPaused && !it.isTerminated }
+            val recurringSummary = when {
+                recurringRules.isEmpty() -> "房租、工资与订阅自动入账或到期提醒"
+                pendingRecurringCount > 0 -> "$activeRecurringCount 条启用 · $pendingRecurringCount 期待确认"
+                else -> "$activeRecurringCount 条启用 · 共 ${recurringRules.size} 条规则"
+            }
+            val templateSummary = if (templates.isEmpty()) {
+                "高频消费一键入账或预填表单"
+            } else {
+                "已配 ${templates.size} 个模板 · 一键入账"
+            }
 
             LaunchedEffect(isHydrated, lockState.isOverlayVisible, lockState.status, lockState.lastErrorMessage) {
                 if (
@@ -147,6 +190,10 @@ class MainActivity : FragmentActivity() {
                 marketSyncSummary = marketSyncSummary,
                 creditCardReminderSummary = creditCardReminderSummary,
                 aiConfigSummary = aiServiceConfig.formatSummary(),
+                budgetSummary = budgetSummary,
+                recurringSummary = recurringSummary,
+                templateSummary = templateSummary,
+                monthlyBudgetProgress = budgetOverview.monthlyOverall,
                 pendingAiDraftCount = pendingAiDraftCount,
                 pendingCreditCardAccountId = pendingCreditCardAccountId,
                 onConsumePendingCreditCardAccountId = { pendingCreditCardAccountIdFlow.value = null },
@@ -156,6 +203,8 @@ class MainActivity : FragmentActivity() {
                 onConsumePendingDebtProfileId = { pendingDebtProfileIdFlow.value = null },
                 pendingAiSharePayload = pendingAiSharePayload,
                 onConsumePendingAiSharePayload = { pendingAiSharePayloadFlow.value = null },
+                pendingPlanningDestination = pendingPlanningDestination,
+                onConsumePendingPlanningDestination = { pendingPlanningDestinationFlow.value = null },
                 onThemeModeChange = { mode ->
                     appLockCoordinator.setThemeMode(mode.toAppThemePreference())
                 },
@@ -196,6 +245,12 @@ class MainActivity : FragmentActivity() {
         val sharePayload = ShareIntentParser.parse(intent)
         if (sharePayload != null) {
             pendingAiSharePayloadFlow.value = sharePayload
+        }
+        val planningDest = intent?.getStringExtra(
+            PlanningAlertNotificationPublisher.EXTRA_PLANNING_DESTINATION,
+        )?.takeIf { it.isNotBlank() }
+        if (planningDest != null) {
+            pendingPlanningDestinationFlow.value = planningDest
         }
     }
 
