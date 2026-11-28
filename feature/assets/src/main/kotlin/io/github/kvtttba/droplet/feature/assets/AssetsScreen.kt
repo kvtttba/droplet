@@ -56,6 +56,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementStatus
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
+import io.github.kvtttba.droplet.core.domain.debt.DebtProfileStatus
+import io.github.kvtttba.droplet.core.domain.debt.DebtProfileSummary
+import io.github.kvtttba.droplet.core.domain.debt.DebtSummaryCalculator
 import io.github.kvtttba.droplet.core.domain.investment.AccountValuation
 import io.github.kvtttba.droplet.core.domain.investment.AssetOverviewGroup
 import io.github.kvtttba.droplet.core.domain.investment.CurrencyDistribution
@@ -67,6 +70,7 @@ import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AssetClass
 import io.github.kvtttba.droplet.core.model.Currency
 import io.github.kvtttba.droplet.core.model.Money
+import io.github.kvtttba.droplet.core.model.ReimburseState
 import io.github.kvtttba.droplet.core.ui.component.DropletCard
 import io.github.kvtttba.droplet.core.ui.component.DropletHeroCard
 import io.github.kvtttba.droplet.core.ui.component.DropletPillBadge
@@ -87,6 +91,8 @@ fun AssetsRoute(
     onOpenInvestmentDetail: (String) -> Unit,
     onOpenCreditCardDetail: (String) -> Unit = {},
     onOpenLoanDetail: (String) -> Unit = {},
+    onOpenDebtDetail: (String) -> Unit = {},
+    onOpenReimbursementList: () -> Unit = {},
     onOpenMarketSyncSettings: () -> Unit = {},
     onShowMessage: (String) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -113,6 +119,8 @@ fun AssetsRoute(
         onOpenInvestmentDetail = onOpenInvestmentDetail,
         onOpenCreditCardDetail = onOpenCreditCardDetail,
         onOpenLoanDetail = onOpenLoanDetail,
+        onOpenDebtDetail = onOpenDebtDetail,
+        onOpenReimbursementList = onOpenReimbursementList,
         onOpenMarketSyncSettings = onOpenMarketSyncSettings,
         onToggleExcludedExpanded = viewModel::toggleExcludedExpanded,
         onDismissRefreshNotice = viewModel::dismissRefreshNotice,
@@ -123,6 +131,11 @@ fun AssetsRoute(
         },
         onCreateLoan = { form, callback ->
             viewModel.createLoanPlan(form) { result ->
+                callback(result.exceptionOrNull()?.message)
+            }
+        },
+        onCreateDebtProfile = { form, callback ->
+            viewModel.createDebtProfile(form) { result ->
                 callback(result.exceptionOrNull()?.message)
             }
         },
@@ -140,17 +153,21 @@ fun AssetsScreen(
     onOpenInvestmentDetail: (String) -> Unit = {},
     onOpenCreditCardDetail: (String) -> Unit = {},
     onOpenLoanDetail: (String) -> Unit = {},
+    onOpenDebtDetail: (String) -> Unit = {},
+    onOpenReimbursementList: () -> Unit = {},
     onOpenMarketSyncSettings: () -> Unit = {},
     onToggleExcludedExpanded: () -> Unit = {},
     onDismissRefreshNotice: () -> Unit = {},
     onCreateAsset: (CreateInvestmentAssetFormInput, (String?) -> Unit) -> Unit = { _, cb -> cb(null) },
     onCreateLoan: (CreateLoanPlanFormInput, (String?) -> Unit) -> Unit = { _, cb -> cb(null) },
+    onCreateDebtProfile: (CreateDebtProfileFormInput, (String?) -> Unit) -> Unit = { _, cb -> cb(null) },
     modifier: Modifier = Modifier,
 ) {
     val amountsHidden = LocalAmountsHidden.current
     val semantic = DropletTheme.semanticColors
     var showCreateSheet by remember { mutableStateOf(false) }
     var showCreateLoanSheet by remember { mutableStateOf(false) }
+    var showCreateDebtSheet by remember { mutableStateOf(false) }
 
     val summary = uiState.summary
     val dailyAccounts = remember(summary.accountValuations) {
@@ -743,31 +760,321 @@ fun AssetsScreen(
                 }
             }
 
-            // 4. Debt & Reimbursement
-            if (debtReimburseAccounts.isNotEmpty()) {
-                item(key = "section_debt_reimburse") {
-                    val combinedMinor = debtReimburseAccounts
-                        .fold(0L) { acc, item -> Math.addExact(acc, item.baseBalance.amountMinor) }
-                    val combinedNet = Money(combinedMinor, uiState.displayCurrency)
-                    DropletCard {
-                        AssetHeaderRow(
-                            icon = DropletIcons.ReceiptLong,
-                            title = "借贷与待报销",
-                            subtitle = "${debtReimburseAccounts.size} 个往来 / 报销账户",
-                            amount = combinedNet,
-                            amountColor = if (combinedNet.isNegative) semantic.expense else MaterialTheme.colorScheme.onSurface,
+            // 5. Counterparty Debts Section
+            item(key = "section_debts_header") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "往来借贷",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FilledTonalButton(
+                        onClick = { showCreateDebtSheet = true },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(999.dp),
+                        modifier = Modifier
+                            .height(32.dp)
+                            .testTag("assets_add_debt_button"),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
                         )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "新建往来人",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                }
+            }
+
+            item(key = "section_debts") {
+                val debtSummaries = uiState.debtSummaries
+                val linkedDebtAccountIds = remember(debtSummaries) {
+                    buildSet {
+                        debtSummaries.forEach { ds ->
+                            ds.profile.receivableAccountId?.let(::add)
+                            ds.profile.payableAccountId?.let(::add)
+                        }
+                    }
+                }
+                val standaloneDebtAccounts = remember(debtReimburseAccounts, linkedDebtAccountIds) {
+                    debtReimburseAccounts.filter {
+                        it.account.subType != AccountSubType.REIMBURSEMENT &&
+                            it.account.id !in linkedDebtAccountIds
+                    }
+                }
+                val debtOnlyValuations = remember(debtReimburseAccounts) {
+                    debtReimburseAccounts.filter { it.account.subType != AccountSubType.REIMBURSEMENT }
+                }
+                val debtGroupNetMinor = debtOnlyValuations
+                    .fold(0L) { acc, item -> Math.addExact(acc, item.baseBalance.amountMinor) }
+                val debtGroupNet = Money(debtGroupNetMinor, uiState.displayCurrency)
+                val totalsByCurrency = remember(debtSummaries) {
+                    DebtSummaryCalculator.aggregatePortfolioTotals(debtSummaries)
+                }
+                val primaryTotals = totalsByCurrency[uiState.displayCurrency]
+                    ?: totalsByCurrency.values.firstOrNull()
+                val activeDebtCount = debtSummaries.count { it.hasOutstandingBalance }
+
+                DropletCard {
+                    AssetHeaderRow(
+                        icon = DropletIcons.CardGiftcard,
+                        title = "往来借贷",
+                        subtitle = if (debtSummaries.isNotEmpty()) {
+                            "$activeDebtCount 位未结清 · 应收 / 应付按对象聚合"
+                        } else {
+                            "借出、借入、分次收还含息与坏账核销"
+                        },
+                        amount = debtGroupNet,
+                        amountColor = when {
+                            debtGroupNet.isNegative -> semantic.expense
+                            debtGroupNet.isPositive -> semantic.income
+                            else -> MaterialTheme.colorScheme.onSurface
+                        },
+                    )
+
+                    if (primaryTotals != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = semantic.incomeContainer.copy(alpha = 0.72f),
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                    Text(
+                                        text = "别人欠我 (${primaryTotals.currency.code})",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = semantic.income,
+                                    )
+                                    PrivacyAmountText(
+                                        money = primaryTotals.totalReceivable,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = semantic.income,
+                                        modifier = Modifier.testTag("assets_debt_total_receivable"),
+                                    )
+                                }
+                            }
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = semantic.expenseContainer.copy(alpha = 0.72f),
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                    Text(
+                                        text = "我欠别人 (${primaryTotals.currency.code})",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = semantic.expense,
+                                    )
+                                    PrivacyAmountText(
+                                        money = primaryTotals.totalPayable,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = semantic.expense,
+                                        modifier = Modifier.testTag("assets_debt_total_payable"),
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (debtSummaries.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(8.dp))
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                        debtReimburseAccounts.forEachIndexed { index, valuation ->
+                        debtSummaries.forEachIndexed { index, debtSummary ->
+                            DebtProfileOverviewRow(
+                                summary = debtSummary,
+                                onClick = { onOpenDebtDetail(debtSummary.profile.id) },
+                            )
+                            if (index != debtSummaries.lastIndex || standaloneDebtAccounts.isNotEmpty()) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                )
+                            }
+                        }
+                    } else if (standaloneDebtAccounts.isEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(
+                                    text = "尚未添加往来借贷对象",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    text = "按往来人统一管理应收与应付余额，支持分次还本付息、约定还款提醒与坏账核销。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+
+                    if (standaloneDebtAccounts.isNotEmpty()) {
+                        standaloneDebtAccounts.forEachIndexed { index, valuation ->
                             AccountValuationRow(
                                 valuation = valuation,
                                 displayCurrency = uiState.displayCurrency,
                             )
-                            if (index != debtReimburseAccounts.lastIndex) {
+                            if (index != standaloneDebtAccounts.lastIndex) {
                                 HorizontalDivider(
                                     modifier = Modifier.padding(start = 48.dp),
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 6. Pending Reimbursement Section
+            item(key = "section_reimbursements") {
+                val reimburseOverview = uiState.reimbursementOverview
+                DropletCard(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable(onClick = onOpenReimbursementList)
+                        .testTag("assets_reimbursement_entry"),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(semantic.warningContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = DropletIcons.ReceiptLong,
+                                contentDescription = null,
+                                tint = semantic.warning,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(
+                                    text = "待报销",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                DropletPillBadge(
+                                    text = if (reimburseOverview.pendingCount > 0) {
+                                        "${reimburseOverview.pendingCount} 笔待报销"
+                                    } else {
+                                        "已全部结清"
+                                    },
+                                    containerColor = if (reimburseOverview.pendingCount > 0) {
+                                        semantic.warningContainer
+                                    } else {
+                                        semantic.incomeContainer
+                                    },
+                                    contentColor = if (reimburseOverview.pendingCount > 0) {
+                                        semantic.warning
+                                    } else {
+                                        semantic.income
+                                    },
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "已结清 ${reimburseOverview.settledCount} 笔 · 点击批量确认到账或差额转支出",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(horizontalAlignment = Alignment.End) {
+                            PrivacyAmountText(
+                                money = reimburseOverview.primaryPendingTotal,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = if (reimburseOverview.primaryPendingTotal.isPositive) {
+                                    semantic.warning
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                                modifier = Modifier.testTag("assets_reimbursement_pending_total"),
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                            contentDescription = "进入待报销管理",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+
+                    if (reimburseOverview.pendingItems.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        reimburseOverview.pendingItems.take(3).forEachIndexed { idx, item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 7.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Text(
+                                        text = item.advanceTransaction.payee?.takeIf { it.isNotBlank() }
+                                            ?: "待报销垫付",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false),
+                                    )
+                                    if (item.derivedState == ReimburseState.PARTIAL) {
+                                        DropletPillBadge(
+                                            text = "部分报销",
+                                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                PrivacyAmountText(
+                                    money = item.remainingPendingAmount,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = semantic.warning,
+                                )
+                            }
+                            if (idx != reimburseOverview.pendingItems.take(3).lastIndex) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
                                 )
                             }
                         }
@@ -841,12 +1148,21 @@ fun AssetsScreen(
                                 val linkedLoanPlanId = uiState.loanSummaries
                                     .firstOrNull { it.plan.loanAccountId == valuation.account.id }
                                     ?.plan?.id
+                                val linkedDebtProfileId = uiState.debtSummaries
+                                    .firstOrNull {
+                                        it.profile.receivableAccountId == valuation.account.id ||
+                                            it.profile.payableAccountId == valuation.account.id
+                                    }
+                                    ?.profile?.id
                                 val excludedClick: (() -> Unit)? = when {
                                     valuation.account.subType == AccountSubType.CREDIT_CARD -> {
                                         { onOpenCreditCardDetail(valuation.account.id) }
                                     }
                                     linkedLoanPlanId != null -> {
                                         { onOpenLoanDetail(linkedLoanPlanId) }
+                                    }
+                                    linkedDebtProfileId != null -> {
+                                        { onOpenDebtDetail(linkedDebtProfileId) }
                                     }
                                     primaryLinkedAssetId != null -> {
                                         { onOpenInvestmentDetail(primaryLinkedAssetId) }
@@ -889,6 +1205,129 @@ fun AssetsScreen(
             isSubmitting = uiState.isCreatingLoan,
             onDismiss = { showCreateLoanSheet = false },
             onSubmit = onCreateLoan,
+        )
+    }
+
+    if (showCreateDebtSheet) {
+        CreateDebtProfileSheet(
+            isSubmitting = uiState.isCreatingDebtProfile,
+            onDismiss = { showCreateDebtSheet = false },
+            onSubmit = onCreateDebtProfile,
+        )
+    }
+}
+
+@Composable
+private fun DebtProfileOverviewRow(
+    summary: DebtProfileSummary,
+    onClick: () -> Unit,
+) {
+    val semantic = DropletTheme.semanticColors
+    val profile = summary.profile
+    val accent = when {
+        summary.netBalance.isPositive -> semantic.income
+        summary.netBalance.isNegative -> semantic.expense
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    val (statusLabel, statusBg, statusFg) = when (summary.status) {
+        DebtProfileStatus.SETTLED -> Triple("已结清", semantic.incomeContainer, semantic.income)
+        DebtProfileStatus.OVERDUE -> Triple(
+            "逾期 ${summary.overdueDays} 天",
+            MaterialTheme.colorScheme.errorContainer,
+            MaterialTheme.colorScheme.onErrorContainer,
+        )
+        DebtProfileStatus.DUE_SOON -> Triple(
+            if (summary.isDueToday) "今日到期" else "${summary.daysUntilDue}天后到期",
+            semantic.warningContainer,
+            semantic.warning,
+        )
+        DebtProfileStatus.ACTIVE -> Triple(
+            summary.daysUntilDue?.let { "剩 ${it} 天" } ?: "进行中",
+            MaterialTheme.colorScheme.secondaryContainer,
+            MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp)
+            .testTag("assets_debt_${profile.name}"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(accent.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = profile.name.take(1),
+                style = MaterialTheme.typography.titleSmall,
+                color = accent,
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = profile.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                DropletPillBadge(
+                    text = statusLabel,
+                    containerColor = statusBg,
+                    contentColor = statusFg,
+                )
+            }
+            Spacer(modifier = Modifier.height(3.dp))
+            val detailParts = buildList {
+                add(summary.currency.code)
+                summary.dueDate?.let { add("约定 ${AssetsFormatters.formatLocalDateIso(it)}") }
+                if (summary.transactionCount > 0) add("${summary.transactionCount} 笔往来")
+            }
+            Text(
+                text = detailParts.joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall.tabularNums(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = when {
+                    summary.netBalance.isPositive -> "对方净欠我"
+                    summary.netBalance.isNegative -> "我净欠对方"
+                    else -> "净余额"
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            PrivacyAmountText(
+                money = summary.netBalance.abs(),
+                style = MaterialTheme.typography.titleSmall,
+                color = accent,
+            )
+        }
+        Spacer(modifier = Modifier.width(2.dp))
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = "查看往来借贷详情",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
         )
     }
 }

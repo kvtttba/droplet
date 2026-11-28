@@ -11,6 +11,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToKey
@@ -429,6 +430,205 @@ class DropletAppE2ETest {
                 composeRule.onNodeWithTag("loan_detail_remaining_principal").assertTextContains("5,000.00", substring = true)
                 composeRule.onNodeWithTag("loan_detail_account_balance").assertTextContains("-¥5,000.00", substring = true)
                 composeRule.onNodeWithTag("loan_detail_progress_label").assertTextContains("1/6", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+    }
+
+    @Test
+    fun test05_endToEndDebtReimbursementShortfallAndMultiStageRefund() {
+        // --- Part 1: Counterparty Debt (create -> lend ¥1,000 -> collect ¥400 + ¥20 interest -> write off ¥600) ---
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("nav_tab_assets"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("nav_tab_assets").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 10_000)
+
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_debts_header")
+        composeRule.onNodeWithTag("assets_add_debt_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("create_debt_profile_sheet"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("create_debt_name_input").performTextReplacement("测试往来张三")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("create_debt_submit_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("create_debt_profile_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_debts")
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("assets_debt_测试往来张三"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("assets_debt_测试往来张三").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_debt_detail"), timeoutMillis = 5_000)
+
+        // Lend ¥1,000 from 储蓄卡
+        composeRule.onNodeWithTag("debt_detail_list").performScrollToKey("debt_actions_card")
+        composeRule.onNodeWithTag("debt_action_lend").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("debt_lend_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("debt_amount_input").performTextReplacement("1000")
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("debt_funding_account_储蓄卡"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("debt_funding_account_储蓄卡").performScrollTo().performClick()
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("debt_sheet_submit_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("debt_lend_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("debt_detail_list").performScrollToKey("debt_hero_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("debt_detail_receivable").assertTextContains("1,000.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // Partial collect ¥400 principal + ¥20 interest income
+        composeRule.onNodeWithTag("debt_detail_list").performScrollToKey("debt_actions_card")
+        composeRule.onNodeWithTag("debt_action_collect").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("debt_collect_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("debt_principal_input").performTextReplacement("400")
+        composeRule.onNodeWithTag("debt_interest_input").performTextReplacement("20")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("debt_sheet_submit_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("debt_collect_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("debt_detail_list").performScrollToKey("debt_hero_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("debt_detail_receivable").assertTextContains("600.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("debt_detail_list").performScrollToKey("debt_metrics_card")
+        composeRule.onNodeWithTag("debt_detail_interest_income").assertTextContains("20.00", substring = true)
+
+        // Bad-debt write-off remaining ¥600 -> receivable drops to ¥0.00
+        composeRule.onNodeWithTag("debt_detail_list").performScrollToKey("debt_actions_card")
+        composeRule.onNodeWithTag("debt_action_write_off").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("debt_write_off_sheet"), timeoutMillis = 5_000)
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("debt_write_off_submit_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("debt_write_off_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("debt_detail_list").performScrollToKey("debt_hero_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("debt_detail_receivable").assertTextContains("0.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("debt_detail_back").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 5_000)
+
+        // --- Part 2: Reimbursable Advance (¥500) -> Settle with Shortfall (¥450 received + ¥50 personal expense) ---
+        composeRule.onNodeWithTag("nav_tab_ledger").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("fab_quick_add").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("quick_capture_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("quick_capture_manual").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_transaction_editor"), timeoutMillis = 5_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("editor_account_储蓄卡"), timeoutMillis = 10_000)
+
+        composeRule.onNodeWithTag("editor_amount_input").performTextInput("500")
+        composeRule.onNodeWithTag("editor_lazy_column").performScrollToKey("advanced_options")
+        composeRule.onNodeWithTag("editor_advanced_toggle").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("editor_reimburse_switch"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("editor_reimburse_switch").performClick()
+        composeRule.onNodeWithTag("editor_lazy_column").performScrollToKey("metadata_card")
+        composeRule.onNodeWithTag("editor_payee_input").performTextReplacement("差旅报销测试")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("editor_save_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 10_000)
+
+        // Navigate to Assets -> Pending Reimbursements and settle with ¥450 received + ¥50 shortfall expense
+        composeRule.onNodeWithTag("nav_tab_assets").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_reimbursements")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("assets_reimbursement_pending_total").assertTextContains("500.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("assets_reimbursement_entry").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_reimbursement_list"), timeoutMillis = 5_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("reimbursement_settle_btn_0"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("reimbursement_settle_btn_0").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("reimbursement_single_settle_sheet"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("reimbursement_received_input").performTextReplacement("450")
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("reimbursement_diff_preview"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("reimbursement_diff_preview").assertTextContains("50.00", substring = true)
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("reimbursement_settle_confirm_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("reimbursement_single_settle_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("reimbursement_pending_total").assertTextContains("0.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("reimbursement_back").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_assets"), timeoutMillis = 5_000)
+
+        // --- Part 3: Multi-stage Linked Refunds on ¥200 Expense (¥60 + ¥40 -> net ¥100) ---
+        composeRule.onNodeWithTag("nav_tab_ledger").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 5_000)
+
+        composeRule.onNodeWithTag("fab_quick_add").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("quick_capture_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("quick_capture_manual").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_transaction_editor"), timeoutMillis = 5_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("editor_account_储蓄卡"), timeoutMillis = 10_000)
+
+        composeRule.onNodeWithTag("editor_amount_input").performTextInput("200")
+        composeRule.onNodeWithTag("editor_lazy_column").performScrollToKey("metadata_card")
+        composeRule.onNodeWithTag("editor_payee_input").performTextReplacement("网购退款测试")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("editor_save_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasText("网购退款测试", substring = true), timeoutMillis = 10_000)
+
+        // Open expense detail sheet & trigger first partial refund (¥60)
+        composeRule.onNodeWithText("网购退款测试", substring = true).performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("tx_detail_refund_button"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("tx_detail_refund_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("record_refund_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("refund_amount_input").performTextReplacement("60")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("refund_submit_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("record_refund_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("tx_detail_refunded_total").assertTextContains("60.00", substring = true)
+                composeRule.onNodeWithTag("tx_detail_net_expense").assertTextContains("140.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // Trigger second partial refund (¥40) -> refunded ¥100, remaining ¥100, net ¥100
+        composeRule.onNodeWithTag("tx_detail_refund_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("record_refund_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("refund_amount_input").performTextReplacement("40")
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("refund_submit_button").performScrollTo().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodes(hasTestTag("record_refund_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("tx_detail_refunded_total").assertTextContains("100.00", substring = true)
+                composeRule.onNodeWithTag("tx_detail_remaining_refundable").assertTextContains("100.00", substring = true)
+                composeRule.onNodeWithTag("tx_detail_net_expense").assertTextContains("100.00", substring = true)
                 true
             }.getOrDefault(false)
         }

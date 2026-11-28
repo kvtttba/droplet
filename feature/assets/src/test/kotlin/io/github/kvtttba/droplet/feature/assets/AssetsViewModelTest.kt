@@ -4,11 +4,22 @@ import io.github.kvtttba.droplet.core.database.dao.AccountCurrencyBalanceRow
 import io.github.kvtttba.droplet.core.database.dao.PeriodSummaryRow
 import io.github.kvtttba.droplet.core.database.dao.TransactionFilter
 import io.github.kvtttba.droplet.core.database.repository.AutoPostDueInstallmentsReport
+import io.github.kvtttba.droplet.core.database.repository.BatchSettleReimbursementsRequest
+import io.github.kvtttba.droplet.core.database.repository.BatchSettleReimbursementsResult
+import io.github.kvtttba.droplet.core.database.repository.CreateDebtProfileRequest
 import io.github.kvtttba.droplet.core.database.repository.CreateInvestmentAssetRequest
 import io.github.kvtttba.droplet.core.database.repository.CreateLoanPlanRequest
 import io.github.kvtttba.droplet.core.database.repository.CreditCardDetailSnapshot
 import io.github.kvtttba.droplet.core.database.repository.CreditCardRepaymentRequest
 import io.github.kvtttba.droplet.core.database.repository.CreditCardRepository
+import io.github.kvtttba.droplet.core.database.repository.DebtBadDebtWriteOffRequest
+import io.github.kvtttba.droplet.core.database.repository.DebtBorrowRequest
+import io.github.kvtttba.droplet.core.database.repository.DebtCollectRequest
+import io.github.kvtttba.droplet.core.database.repository.DebtDetailSnapshot
+import io.github.kvtttba.droplet.core.database.repository.DebtLendRequest
+import io.github.kvtttba.droplet.core.database.repository.DebtProfileCreatedResult
+import io.github.kvtttba.droplet.core.database.repository.DebtRepayRequest
+import io.github.kvtttba.droplet.core.database.repository.DebtRepository
 import io.github.kvtttba.droplet.core.database.repository.EarlyPayoffLoanRequest
 import io.github.kvtttba.droplet.core.database.repository.EarlyPayoffLoanResult
 import io.github.kvtttba.droplet.core.database.repository.FixedDepositInterestPayoutRequest
@@ -30,12 +41,23 @@ import io.github.kvtttba.droplet.core.database.repository.MarketSyncReport
 import io.github.kvtttba.droplet.core.database.repository.MarketSyncStatus
 import io.github.kvtttba.droplet.core.database.repository.OpenFixedDepositRequest
 import io.github.kvtttba.droplet.core.database.repository.QuoteRefreshSummary
+import io.github.kvtttba.droplet.core.database.repository.RecordRefundRequest
+import io.github.kvtttba.droplet.core.database.repository.RecordRefundResult
+import io.github.kvtttba.droplet.core.database.repository.ReimbursementAndRefundRepository
 import io.github.kvtttba.droplet.core.database.repository.RepayInstallmentRequest
+import io.github.kvtttba.droplet.core.database.repository.SettleReimbursementRequest
+import io.github.kvtttba.droplet.core.database.repository.SettleReimbursementResult
 import io.github.kvtttba.droplet.core.database.repository.UpdateCreditCardParametersRequest
+import io.github.kvtttba.droplet.core.database.repository.UpdateDebtProfileRequest
 import io.github.kvtttba.droplet.core.database.repository.UpdateLoanPlanParametersRequest
 import io.github.kvtttba.droplet.core.database.seed.SeedResult
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementCalculator
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
+import io.github.kvtttba.droplet.core.domain.debt.DebtProfileSummary
+import io.github.kvtttba.droplet.core.domain.debt.DebtSummaryCalculator
+import io.github.kvtttba.droplet.core.domain.debt.ExpenseRefundSummary
+import io.github.kvtttba.droplet.core.domain.debt.ReimbursementItemSummary
+import io.github.kvtttba.droplet.core.domain.debt.ReimbursementOverviewSummary
 import io.github.kvtttba.droplet.core.domain.investment.BankWealthManualValuationResult
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioPositionValuation
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioSummary
@@ -49,6 +71,7 @@ import io.github.kvtttba.droplet.core.model.AccountType
 import io.github.kvtttba.droplet.core.model.AssetClass
 import io.github.kvtttba.droplet.core.model.CachedExchangeRate
 import io.github.kvtttba.droplet.core.model.Currency
+import io.github.kvtttba.droplet.core.model.DebtProfile
 import io.github.kvtttba.droplet.core.model.DepositInterestMode
 import io.github.kvtttba.droplet.core.model.ExchangeRateSnapshot
 import io.github.kvtttba.droplet.core.model.InvestmentAsset
@@ -66,6 +89,8 @@ import io.github.kvtttba.droplet.core.network.NetworkClock
 import io.github.kvtttba.droplet.core.network.quote.QuoteItemOutcome
 import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferences
 import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
+import io.github.kvtttba.droplet.core.security.DebtReminderPreferences
+import io.github.kvtttba.droplet.core.security.DebtReminderPreferencesRepository
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -456,6 +481,96 @@ class AssetsViewModelTest {
         override suspend fun deleteLoanPlanIfUnused(planId: String): Result<Unit> = Result.success(Unit)
     }
 
+    private class FakeDebtRepository : DebtRepository {
+        val sampleProfile = DebtProfile(
+            id = "debt:zhang",
+            name = "张三",
+            receivableAccountId = "debt:recv:zhang",
+            payableAccountId = "debt:pay:zhang",
+        )
+        val summariesFlow = MutableStateFlow(
+            listOf(
+                DebtSummaryCalculator.summarize(
+                    profile = sampleProfile,
+                    asOfDate = LocalDate.of(2026, 11, 28),
+                ),
+            ),
+        )
+        var createdDebtRequest: CreateDebtProfileRequest? = null
+
+        override fun observeDebtSummaries(remindDaysBefore: Int, asOfEpochMs: Long?): Flow<List<DebtProfileSummary>> =
+            summariesFlow
+
+        override fun observeDebtDetail(profileId: String, remindDaysBefore: Int, asOfEpochMs: Long?): Flow<DebtDetailSnapshot?> =
+            MutableStateFlow(null)
+
+        override suspend fun getDebtSummariesSnapshot(remindDaysBefore: Int, asOfEpochMs: Long?): List<DebtProfileSummary> =
+            summariesFlow.value
+
+        override suspend fun createDebtProfile(request: CreateDebtProfileRequest): DebtProfileCreatedResult {
+            createdDebtRequest = request
+            val recv = Account(
+                id = "debt:recv:${request.id}",
+                name = "${request.name} · 应收",
+                type = AccountType.ASSET,
+                subType = AccountSubType.RECEIVABLE,
+                currency = request.currency,
+            )
+            val pay = Account(
+                id = "debt:pay:${request.id}",
+                name = "${request.name} · 应付",
+                type = AccountType.LIABILITY,
+                subType = AccountSubType.PAYABLE,
+                currency = request.currency,
+            )
+            val profile = DebtProfile(
+                id = request.id,
+                name = request.name,
+                receivableAccountId = recv.id,
+                payableAccountId = pay.id,
+                defaultDueAt = request.defaultDueAt,
+                annualInterestRateDecimal = request.annualInterestRateDecimal,
+                note = request.note,
+            )
+            return DebtProfileCreatedResult(profile, recv, pay)
+        }
+
+        override suspend fun updateDebtProfile(request: UpdateDebtProfileRequest): DebtProfile = error("unused")
+        override suspend fun recordLend(request: DebtLendRequest): Transaction = error("unused")
+        override suspend fun recordBorrow(request: DebtBorrowRequest): Transaction = error("unused")
+        override suspend fun recordCollect(request: DebtCollectRequest): Transaction = error("unused")
+        override suspend fun recordRepay(request: DebtRepayRequest): Transaction = error("unused")
+        override suspend fun recordBadDebtWriteOff(request: DebtBadDebtWriteOffRequest): Transaction = error("unused")
+        override suspend fun deleteDebtProfileIfUnused(profileId: String): Result<Unit> = Result.success(Unit)
+    }
+
+    private class FakeDebtReminderPrefsRepository : DebtReminderPreferencesRepository {
+        private val flow = MutableStateFlow(DebtReminderPreferences())
+        override val preferences: Flow<DebtReminderPreferences> = flow
+        override suspend fun currentPreferences(): DebtReminderPreferences = flow.value
+        override suspend fun setRemindersEnabled(enabled: Boolean) {
+            flow.value = flow.value.copy(remindersEnabled = enabled)
+        }
+        override suspend fun setDefaultRemindDaysBefore(days: Int) {
+            flow.value = flow.value.copy(defaultRemindDaysBefore = days)
+        }
+        override suspend fun markNotifiedOnDate(profileIds: Collection<String>, localDateIso: String) = Unit
+        override suspend fun clearNotificationHistory(profileId: String?) = Unit
+    }
+
+    private class FakeReimbursementAndRefundRepository : ReimbursementAndRefundRepository {
+        val overviewFlow = MutableStateFlow(ReimbursementOverviewSummary.empty())
+        override fun observeReimbursementOverview(): Flow<ReimbursementOverviewSummary> = overviewFlow
+        override fun observeReimbursementItem(advanceTransactionId: String): Flow<ReimbursementItemSummary?> =
+            MutableStateFlow(null)
+        override suspend fun settleReimbursement(request: SettleReimbursementRequest): SettleReimbursementResult = error("unused")
+        override suspend fun batchSettleReimbursements(request: BatchSettleReimbursementsRequest): BatchSettleReimbursementsResult = error("unused")
+        override fun observeExpenseRefundSummary(expenseTransactionId: String): Flow<ExpenseRefundSummary?> = MutableStateFlow(null)
+        override fun observeRefundSummariesForExpenses(expenseTransactions: List<Transaction>): Flow<Map<String, ExpenseRefundSummary>> =
+            MutableStateFlow(emptyMap())
+        override suspend fun recordRefund(request: RecordRefundRequest): RecordRefundResult = error("unused")
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -472,6 +587,9 @@ class AssetsViewModelTest {
         val creditRepo = FakeCreditCardRepository()
         val reminderPrefs = FakeReminderPrefsRepository()
         val loanRepo = FakeLoanRepository()
+        val debtRepo = FakeDebtRepository()
+        val debtReminderPrefs = FakeDebtReminderPrefsRepository()
+        val reimburseRepo = FakeReimbursementAndRefundRepository()
         val marketRepo = FakeMarketDataRepository()
         val ledgerRepo = FakeLedgerRepository()
         val vm = AssetsViewModel(
@@ -479,6 +597,9 @@ class AssetsViewModelTest {
             creditCardRepository = creditRepo,
             creditCardReminderPreferencesRepository = reminderPrefs,
             loanRepository = loanRepo,
+            debtRepository = debtRepo,
+            debtReminderPreferencesRepository = debtReminderPrefs,
+            reimbursementAndRefundRepository = reimburseRepo,
             marketDataRepository = marketRepo,
             ledgerRepository = ledgerRepo,
             clock = NetworkClock { 1_764_216_000_000L },
@@ -529,6 +650,9 @@ class AssetsViewModelTest {
         val creditRepo = FakeCreditCardRepository()
         val reminderPrefs = FakeReminderPrefsRepository()
         val loanRepo = FakeLoanRepository()
+        val debtRepo = FakeDebtRepository()
+        val debtReminderPrefs = FakeDebtReminderPrefsRepository()
+        val reimburseRepo = FakeReimbursementAndRefundRepository()
         val marketRepo = FakeMarketDataRepository()
         val ledgerRepo = FakeLedgerRepository()
         val vm = AssetsViewModel(
@@ -536,6 +660,9 @@ class AssetsViewModelTest {
             creditCardRepository = creditRepo,
             creditCardReminderPreferencesRepository = reminderPrefs,
             loanRepository = loanRepo,
+            debtRepository = debtRepo,
+            debtReminderPreferencesRepository = debtReminderPrefs,
+            reimbursementAndRefundRepository = reimburseRepo,
             marketDataRepository = marketRepo,
             ledgerRepository = ledgerRepo,
             clock = NetworkClock { 1_764_216_000_000L },
@@ -608,6 +735,25 @@ class AssetsViewModelTest {
         assertEquals("0.048", loanRepo.createdLoanRequest?.annualRateDecimal)
         assertEquals(Money.fromDecimalString("24000", Currency.CNY).amountMinor, loanRepo.createdLoanRequest?.totalPrincipalMinor)
         assertTrue(loanRepo.createdLoanRequest?.autoPost == true)
+
+        // Create debt profile with canonical rate & due date
+        var createdDebtId: String? = null
+        vm.createDebtProfile(
+            CreateDebtProfileFormInput(
+                name = "测试李四",
+                currency = Currency.CNY,
+                dueDateIso = "2026-12-31",
+                annualInterestRatePercentText = "3.6",
+                includeInNetWorth = true,
+                note = "短期周转",
+            ),
+        ) { result ->
+            createdDebtId = result.getOrNull()
+        }
+        advanceUntilIdle()
+        assertNotNull(createdDebtId)
+        assertEquals("测试李四", debtRepo.createdDebtRequest?.name)
+        assertEquals("0.036", debtRepo.createdDebtRequest?.annualInterestRateDecimal)
 
         // Toggle excluded foldout
         assertFalse(vm.uiState.value.excludedExpanded)

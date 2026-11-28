@@ -693,4 +693,136 @@ interface TransactionDao {
     suspend fun getTransactionsForCreditCards(
         status: TransactionStatus = TransactionStatus.POSTED,
     ): List<TransactionWithDetails>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE ref_transaction_id = :refTransactionId
+          AND display_type = :displayType
+          AND status = :status
+        ORDER BY occurred_at ASC, created_at ASC, id ASC
+        """,
+    )
+    suspend fun getLinkedTransactionsByType(
+        refTransactionId: String,
+        displayType: TransactionDisplayType,
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): List<TransactionWithDetails>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE ref_transaction_id IN (:refTransactionIds)
+          AND display_type = :displayType
+          AND status = :status
+        ORDER BY occurred_at ASC, created_at ASC, id ASC
+        """,
+    )
+    fun observeLinkedTransactionsForParents(
+        refTransactionIds: List<String>,
+        displayType: TransactionDisplayType,
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): Flow<List<TransactionWithDetails>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE display_type = 'REIMBURSE'
+          AND status = :status
+        ORDER BY occurred_at DESC, created_at DESC, id DESC
+        """,
+    )
+    fun observeAllReimbursementTransactions(
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): Flow<List<TransactionWithDetails>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE display_type = 'REIMBURSE'
+          AND status = :status
+        ORDER BY occurred_at DESC, created_at DESC, id DESC
+        """,
+    )
+    suspend fun getAllReimbursementTransactions(
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): List<TransactionWithDetails>
+
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM transactions t
+        WHERE t.status = :status
+          AND EXISTS (
+              SELECT 1 FROM postings p
+              WHERE p.transaction_id = t.id
+                AND p.account_id IN (:accountIds)
+          )
+        ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC
+        """,
+    )
+    fun observeTransactionsForAccounts(
+        accountIds: List<String>,
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): Flow<List<TransactionWithDetails>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM transactions t
+        WHERE t.status = :status
+          AND EXISTS (
+              SELECT 1 FROM postings p
+              WHERE p.transaction_id = t.id
+                AND p.account_id IN (:accountIds)
+          )
+        ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC
+        """,
+    )
+    suspend fun getTransactionsForAccounts(
+        accountIds: List<String>,
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): List<TransactionWithDetails>
+
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM transactions t
+        WHERE t.status = :status
+          AND EXISTS (
+              SELECT 1 FROM postings p
+              INNER JOIN accounts a ON a.id = p.account_id
+              WHERE p.transaction_id = t.id
+                AND a.sub_type IN ('RECEIVABLE', 'PAYABLE')
+                AND a.is_system = 0
+          )
+        ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC
+        """,
+    )
+    fun observeTransactionsForDebtAccounts(
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): Flow<List<TransactionWithDetails>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM transactions t
+        WHERE t.status = :status
+          AND EXISTS (
+              SELECT 1 FROM postings p
+              INNER JOIN accounts a ON a.id = p.account_id
+              WHERE p.transaction_id = t.id
+                AND a.sub_type IN ('RECEIVABLE', 'PAYABLE')
+                AND a.is_system = 0
+          )
+        ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC
+        """,
+    )
+    suspend fun getTransactionsForDebtAccounts(
+        status: TransactionStatus = TransactionStatus.POSTED,
+    ): List<TransactionWithDetails>
 }

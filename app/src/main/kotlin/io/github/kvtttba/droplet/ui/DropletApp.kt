@@ -54,6 +54,10 @@ import io.github.kvtttba.droplet.feature.assets.CreditCardDetailRoute
 import io.github.kvtttba.droplet.feature.assets.CreditCardDetailScreen
 import io.github.kvtttba.droplet.feature.assets.CreditCardDetailUiState
 import io.github.kvtttba.droplet.feature.assets.CreditCardDetailViewModel
+import io.github.kvtttba.droplet.feature.assets.DebtDetailRoute
+import io.github.kvtttba.droplet.feature.assets.DebtDetailScreen
+import io.github.kvtttba.droplet.feature.assets.DebtDetailUiState
+import io.github.kvtttba.droplet.feature.assets.DebtDetailViewModel
 import io.github.kvtttba.droplet.feature.assets.InvestmentDetailRoute
 import io.github.kvtttba.droplet.feature.assets.InvestmentDetailScreen
 import io.github.kvtttba.droplet.feature.assets.InvestmentDetailUiState
@@ -62,6 +66,9 @@ import io.github.kvtttba.droplet.feature.assets.LoanDetailRoute
 import io.github.kvtttba.droplet.feature.assets.LoanDetailScreen
 import io.github.kvtttba.droplet.feature.assets.LoanDetailUiState
 import io.github.kvtttba.droplet.feature.assets.LoanDetailViewModel
+import io.github.kvtttba.droplet.feature.assets.ReimbursementListRoute
+import io.github.kvtttba.droplet.feature.assets.ReimbursementListScreen
+import io.github.kvtttba.droplet.feature.assets.ReimbursementListUiState
 import io.github.kvtttba.droplet.feature.ledger.LedgerRoute
 import io.github.kvtttba.droplet.feature.ledger.LedgerScreen
 import io.github.kvtttba.droplet.feature.ledger.LedgerUiState
@@ -118,6 +125,8 @@ object DropletRoutes {
     const val INVESTMENT_DETAIL_PATTERN = "investment_detail/{${InvestmentDetailViewModel.NAV_ARG_ASSET_ID}}"
     const val CREDIT_CARD_DETAIL_PATTERN = "credit_card_detail/{${CreditCardDetailViewModel.NAV_ARG_ACCOUNT_ID}}"
     const val LOAN_DETAIL_PATTERN = "loan_detail/{${LoanDetailViewModel.NAV_ARG_PLAN_ID}}"
+    const val DEBT_DETAIL_PATTERN = "debt_detail/{${DebtDetailViewModel.NAV_ARG_PROFILE_ID}}"
+    const val REIMBURSEMENT_LIST = "reimbursement_list"
     const val ACCOUNT_MANAGEMENT = "manage_accounts"
     const val CATEGORY_TAG_MANAGEMENT = "manage_categories_tags"
     const val PRIVACY_SECURITY = "privacy_security"
@@ -139,6 +148,9 @@ object DropletRoutes {
 
     fun loanDetail(planId: String): String =
         "loan_detail/${Uri.encode(planId)}"
+
+    fun debtDetail(profileId: String): String =
+        "debt_detail/${Uri.encode(profileId)}"
 }
 
 fun AppThemePreference.toThemeMode(): ThemeMode = when (this) {
@@ -168,6 +180,8 @@ fun DropletApp(
     onConsumePendingCreditCardAccountId: () -> Unit = {},
     pendingLoanPlanId: String? = null,
     onConsumePendingLoanPlanId: () -> Unit = {},
+    pendingDebtProfileId: String? = null,
+    onConsumePendingDebtProfileId: () -> Unit = {},
     initialTab: DropletTab = DropletTab.LEDGER,
     initialShowQuickCapture: Boolean = false,
     onThemeModeChange: (ThemeMode) -> Unit = {},
@@ -204,6 +218,8 @@ fun DropletApp(
         onConsumePendingCreditCardAccountId = onConsumePendingCreditCardAccountId,
         pendingLoanPlanId = pendingLoanPlanId,
         onConsumePendingLoanPlanId = onConsumePendingLoanPlanId,
+        pendingDebtProfileId = pendingDebtProfileId,
+        onConsumePendingDebtProfileId = onConsumePendingDebtProfileId,
         isAppLocked = lockState.isOverlayVisible,
         isAuthenticating = lockState.isAuthenticating,
         lockErrorMessage = lockState.lastErrorMessage,
@@ -214,20 +230,23 @@ fun DropletApp(
         onToggleAmountsHidden = onToggleAmountsHidden,
         onRequestUnlock = onRequestUnlock,
         onLockOverlayBackPressed = onLockOverlayBackPressed,
-        ledgerContent = { onToggleHidden, onCreateTx, onEditTx, onShowMessage ->
+        ledgerContent = { onToggleHidden, onCreateTx, onEditTx, onOpenReimbursements, onShowMessage ->
             LedgerRoute(
                 onToggleAmountsHidden = onToggleHidden,
                 onCreateTransaction = onCreateTx,
                 onEditTransaction = onEditTx,
+                onOpenReimbursementList = onOpenReimbursements,
                 onShowMessage = onShowMessage,
             )
         },
-        assetsContent = { onToggleHidden, onOpenDetail, onOpenCreditCard, onOpenLoan, onOpenSyncSettings, onShowMessage ->
+        assetsContent = { onToggleHidden, onOpenDetail, onOpenCreditCard, onOpenLoan, onOpenDebt, onOpenReimbursements, onOpenSyncSettings, onShowMessage ->
             AssetsRoute(
                 onToggleAmountsHidden = onToggleHidden,
                 onOpenInvestmentDetail = onOpenDetail,
                 onOpenCreditCardDetail = onOpenCreditCard,
                 onOpenLoanDetail = onOpenLoan,
+                onOpenDebtDetail = onOpenDebt,
+                onOpenReimbursementList = onOpenReimbursements,
                 onOpenMarketSyncSettings = onOpenSyncSettings,
                 onShowMessage = onShowMessage,
             )
@@ -248,6 +267,20 @@ fun DropletApp(
         },
         loanDetailContent = { onBack, onToggleHidden, onShowMessage ->
             LoanDetailRoute(
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+                onShowMessage = onShowMessage,
+            )
+        },
+        debtDetailContent = { onBack, onToggleHidden, onShowMessage ->
+            DebtDetailRoute(
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+                onShowMessage = onShowMessage,
+            )
+        },
+        reimbursementListContent = { onBack, onToggleHidden, onShowMessage ->
+            ReimbursementListRoute(
                 onNavigateBack = onBack,
                 onToggleAmountsHidden = onToggleHidden,
                 onShowMessage = onShowMessage,
@@ -313,19 +346,23 @@ fun DropletAppShell(
     investmentDetailPreviewState: InvestmentDetailUiState? = null,
     creditCardDetailPreviewState: CreditCardDetailUiState? = null,
     loanDetailPreviewState: LoanDetailUiState? = null,
+    debtDetailPreviewState: DebtDetailUiState? = null,
+    reimbursementListPreviewState: ReimbursementListUiState? = null,
     marketSyncPreviewState: MarketSyncSettingsUiState? = null,
     creditCardReminderSettingsPreviewState: CreditCardReminderSettingsUiState? = null,
     ledgerContent: @Composable (
         onToggleAmountsHidden: () -> Unit,
         onCreateTransaction: () -> Unit,
         onEditTransaction: (String) -> Unit,
+        onOpenReimbursementList: () -> Unit,
         onShowMessage: (String) -> Unit,
-    ) -> Unit = { onToggleHidden, onCreateTx, onEditTx, _ ->
+    ) -> Unit = { onToggleHidden, onCreateTx, onEditTx, onOpenReimbursements, _ ->
         LedgerScreen(
             uiState = ledgerPreviewState ?: LedgerUiState(),
             onToggleAmountsHidden = onToggleHidden,
             onCreateTransaction = onCreateTx,
             onEditTransaction = onEditTx,
+            onOpenReimbursementList = onOpenReimbursements,
         )
     },
     assetsContent: @Composable (
@@ -333,15 +370,19 @@ fun DropletAppShell(
         onOpenInvestmentDetail: (String) -> Unit,
         onOpenCreditCardDetail: (String) -> Unit,
         onOpenLoanDetail: (String) -> Unit,
+        onOpenDebtDetail: (String) -> Unit,
+        onOpenReimbursementList: () -> Unit,
         onOpenMarketSyncSettings: () -> Unit,
         onShowMessage: (String) -> Unit,
-    ) -> Unit = { onToggleHidden, onOpenDetail, onOpenCreditCard, onOpenLoan, onOpenSyncSettings, _ ->
+    ) -> Unit = { onToggleHidden, onOpenDetail, onOpenCreditCard, onOpenLoan, onOpenDebt, onOpenReimbursements, onOpenSyncSettings, _ ->
         AssetsScreen(
             uiState = assetsPreviewState ?: AssetsUiState(isLoading = false),
             onToggleAmountsHidden = onToggleHidden,
             onOpenInvestmentDetail = onOpenDetail,
             onOpenCreditCardDetail = onOpenCreditCard,
             onOpenLoanDetail = onOpenLoan,
+            onOpenDebtDetail = onOpenDebt,
+            onOpenReimbursementList = onOpenReimbursements,
             onOpenMarketSyncSettings = onOpenSyncSettings,
         )
     },
@@ -378,6 +419,8 @@ fun DropletAppShell(
         onConsumePendingCreditCardAccountId = {},
         pendingLoanPlanId = null,
         onConsumePendingLoanPlanId = {},
+        pendingDebtProfileId = null,
+        onConsumePendingDebtProfileId = {},
         isAppLocked = isLocked,
         isAuthenticating = false,
         lockErrorMessage = null,
@@ -407,6 +450,20 @@ fun DropletAppShell(
         loanDetailContent = { onBack, onToggleHidden, _ ->
             LoanDetailScreen(
                 uiState = loanDetailPreviewState ?: LoanDetailUiState(isLoading = false),
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+            )
+        },
+        debtDetailContent = { onBack, onToggleHidden, _ ->
+            DebtDetailScreen(
+                uiState = debtDetailPreviewState ?: DebtDetailUiState(isLoading = false),
+                onNavigateBack = onBack,
+                onToggleAmountsHidden = onToggleHidden,
+            )
+        },
+        reimbursementListContent = { onBack, onToggleHidden, _ ->
+            ReimbursementListScreen(
+                uiState = reimbursementListPreviewState ?: ReimbursementListUiState(isLoading = false),
                 onNavigateBack = onBack,
                 onToggleAmountsHidden = onToggleHidden,
             )
@@ -458,6 +515,8 @@ private fun DropletAppContent(
     onConsumePendingCreditCardAccountId: () -> Unit,
     pendingLoanPlanId: String?,
     onConsumePendingLoanPlanId: () -> Unit,
+    pendingDebtProfileId: String?,
+    onConsumePendingDebtProfileId: () -> Unit,
     isAppLocked: Boolean,
     isAuthenticating: Boolean,
     lockErrorMessage: String?,
@@ -472,6 +531,7 @@ private fun DropletAppContent(
         onToggleAmountsHidden: () -> Unit,
         onCreateTransaction: () -> Unit,
         onEditTransaction: (String) -> Unit,
+        onOpenReimbursementList: () -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
     assetsContent: @Composable (
@@ -479,6 +539,8 @@ private fun DropletAppContent(
         onOpenInvestmentDetail: (String) -> Unit,
         onOpenCreditCardDetail: (String) -> Unit,
         onOpenLoanDetail: (String) -> Unit,
+        onOpenDebtDetail: (String) -> Unit,
+        onOpenReimbursementList: () -> Unit,
         onOpenMarketSyncSettings: () -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
@@ -493,6 +555,16 @@ private fun DropletAppContent(
         onShowMessage: (String) -> Unit,
     ) -> Unit,
     loanDetailContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onToggleAmountsHidden: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    debtDetailContent: @Composable (
+        onNavigateBack: () -> Unit,
+        onToggleAmountsHidden: () -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    reimbursementListContent: @Composable (
         onNavigateBack: () -> Unit,
         onToggleAmountsHidden: () -> Unit,
         onShowMessage: (String) -> Unit,
@@ -560,6 +632,14 @@ private fun DropletAppContent(
                                 launchSingleTop = true
                             }
                             onConsumePendingLoanPlanId()
+                        }
+                    }
+                    LaunchedEffect(pendingDebtProfileId, isAppLocked) {
+                        if (!pendingDebtProfileId.isNullOrBlank() && !isAppLocked) {
+                            navController.navigate(DropletRoutes.debtDetail(pendingDebtProfileId)) {
+                                launchSingleTop = true
+                            }
+                            onConsumePendingDebtProfileId()
                         }
                     }
 
@@ -630,6 +710,7 @@ private fun DropletAppContent(
                                     onToggleAmountsHidden,
                                     { navController.navigate(DropletRoutes.transactionEditor()) },
                                     { txId -> navController.navigate(DropletRoutes.transactionEditor(txId)) },
+                                    { navController.navigate(DropletRoutes.REIMBURSEMENT_LIST) },
                                     showMessage,
                                 )
                             }
@@ -639,6 +720,8 @@ private fun DropletAppContent(
                                     { assetId -> navController.navigate(DropletRoutes.investmentDetail(assetId)) },
                                     { accountId -> navController.navigate(DropletRoutes.creditCardDetail(accountId)) },
                                     { planId -> navController.navigate(DropletRoutes.loanDetail(planId)) },
+                                    { profileId -> navController.navigate(DropletRoutes.debtDetail(profileId)) },
+                                    { navController.navigate(DropletRoutes.REIMBURSEMENT_LIST) },
                                     { navController.navigate(DropletRoutes.MARKET_SYNC_SETTINGS) },
                                     showMessage,
                                 )
@@ -714,6 +797,27 @@ private fun DropletAppContent(
                                 ),
                             ) {
                                 loanDetailContent(
+                                    { navController.popBackStack() },
+                                    onToggleAmountsHidden,
+                                    showMessage,
+                                )
+                            }
+                            composable(
+                                route = DropletRoutes.DEBT_DETAIL_PATTERN,
+                                arguments = listOf(
+                                    navArgument(DebtDetailViewModel.NAV_ARG_PROFILE_ID) {
+                                        type = NavType.StringType
+                                    },
+                                ),
+                            ) {
+                                debtDetailContent(
+                                    { navController.popBackStack() },
+                                    onToggleAmountsHidden,
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletRoutes.REIMBURSEMENT_LIST) {
+                                reimbursementListContent(
                                     { navController.popBackStack() },
                                     onToggleAmountsHidden,
                                     showMessage,
