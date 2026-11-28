@@ -607,8 +607,13 @@ private fun DropletAppContent(
 
     val showMessage: (String) -> Unit = { message ->
         coroutineScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(message)
         }
+    }
+    val openTransactionEditor: (String?) -> Unit = { txId ->
+        snackbarHostState.currentSnackbarData?.dismiss()
+        navController.navigate(DropletRoutes.transactionEditor(txId))
     }
 
     DropletTheme(
@@ -708,8 +713,8 @@ private fun DropletAppContent(
                             composable(DropletTab.LEDGER.route) {
                                 ledgerContent(
                                     onToggleAmountsHidden,
-                                    { navController.navigate(DropletRoutes.transactionEditor()) },
-                                    { txId -> navController.navigate(DropletRoutes.transactionEditor(txId)) },
+                                    { openTransactionEditor(null) },
+                                    { txId -> openTransactionEditor(txId) },
                                     { navController.navigate(DropletRoutes.REIMBURSEMENT_LIST) },
                                     showMessage,
                                 )
@@ -881,7 +886,7 @@ private fun DropletAppContent(
                                 showQuickCaptureSheet = false
                                 when (mode) {
                                     QuickCaptureMode.MANUAL -> {
-                                        navController.navigate(DropletRoutes.transactionEditor())
+                                        openTransactionEditor(null)
                                     }
                                     else -> {
                                         showMessage("${mode.title} 将在 ${mode.milestoneTag} 切片接入")

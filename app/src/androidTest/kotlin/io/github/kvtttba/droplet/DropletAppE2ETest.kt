@@ -3,6 +3,7 @@ package io.github.kvtttba.droplet
 import android.view.WindowManager
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
@@ -531,15 +532,17 @@ class DropletAppE2ETest {
         composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_transaction_editor"), timeoutMillis = 5_000)
         composeRule.waitUntilAtLeastOneExists(hasTestTag("editor_account_储蓄卡"), timeoutMillis = 10_000)
 
-        composeRule.onNodeWithTag("editor_amount_input").performTextInput("500")
+        composeRule.onNodeWithTag("editor_amount_input").performTextReplacement("500")
         composeRule.onNodeWithTag("editor_lazy_column").performScrollToKey("advanced_options")
         composeRule.onNodeWithTag("editor_advanced_toggle").performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("editor_reimburse_switch"), timeoutMillis = 5_000)
         composeRule.onNodeWithTag("editor_reimburse_switch").performClick()
+        composeRule.onNodeWithTag("editor_reimburse_switch").assertIsOn()
         composeRule.onNodeWithTag("editor_lazy_column").performScrollToKey("metadata_card")
         composeRule.onNodeWithTag("editor_payee_input").performTextReplacement("差旅报销测试")
         Espresso.closeSoftKeyboard()
-        composeRule.onNodeWithTag("editor_save_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("editor_save_button").assertIsEnabled().performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 10_000)
 
         // Navigate to Assets -> Pending Reimbursements and settle with ¥450 received + ¥50 shortfall expense
@@ -548,7 +551,7 @@ class DropletAppE2ETest {
         composeRule.onNodeWithTag("screen_assets").performScrollToKey("section_reimbursements")
         composeRule.waitUntil(timeoutMillis = 10_000) {
             runCatching {
-                composeRule.onNodeWithTag("assets_reimbursement_pending_total").assertTextContains("500.00", substring = true)
+                composeRule.onNodeWithTag("assets_reimbursement_entry").assertTextContains("500.00", substring = true)
                 true
             }.getOrDefault(false)
         }
@@ -586,18 +589,19 @@ class DropletAppE2ETest {
         composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_transaction_editor"), timeoutMillis = 5_000)
         composeRule.waitUntilAtLeastOneExists(hasTestTag("editor_account_储蓄卡"), timeoutMillis = 10_000)
 
-        composeRule.onNodeWithTag("editor_amount_input").performTextInput("200")
+        composeRule.onNodeWithTag("editor_amount_input").performTextReplacement("200")
         composeRule.onNodeWithTag("editor_lazy_column").performScrollToKey("metadata_card")
         composeRule.onNodeWithTag("editor_payee_input").performTextReplacement("网购退款测试")
         Espresso.closeSoftKeyboard()
-        composeRule.onNodeWithTag("editor_save_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("editor_save_button").assertIsEnabled().performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ledger"), timeoutMillis = 10_000)
         composeRule.waitUntilAtLeastOneExists(hasText("网购退款测试", substring = true), timeoutMillis = 10_000)
 
         // Open expense detail sheet & trigger first partial refund (¥60)
         composeRule.onNodeWithText("网购退款测试", substring = true).performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("tx_detail_refund_button"), timeoutMillis = 5_000)
-        composeRule.onNodeWithTag("tx_detail_refund_button").performClick()
+        composeRule.onNodeWithTag("tx_detail_refund_button").performScrollTo().performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("record_refund_sheet"), timeoutMillis = 5_000)
         composeRule.onNodeWithTag("refund_amount_input").performTextReplacement("60")
         Espresso.closeSoftKeyboard()
@@ -615,7 +619,7 @@ class DropletAppE2ETest {
         }
 
         // Trigger second partial refund (¥40) -> refunded ¥100, remaining ¥100, net ¥100
-        composeRule.onNodeWithTag("tx_detail_refund_button").performClick()
+        composeRule.onNodeWithTag("tx_detail_refund_button").performScrollTo().performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("record_refund_sheet"), timeoutMillis = 5_000)
         composeRule.onNodeWithTag("refund_amount_input").performTextReplacement("40")
         Espresso.closeSoftKeyboard()
