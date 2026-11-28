@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-- **当前阶段**：`M3.2`（分期贷款引擎与到期自动还款分录）已完成验收并合入 `main`。
-- **下一个待执行切片**：**`M3.3`**（往来借贷、待报销冲抵与多次退款）
-- **最新已合入提交**：`feat/m3-2-installment-loans` 合入 `main`（CI `#46039360302` 全线绿灯，详见 `git log`）
+- **当前阶段**：`M3.3`（往来借贷、待报销冲抵与多次退款）已完成验收并合入 `main`。
+- **下一个待执行切片**：**`M4.1`**（AI 配置、Keystore 加密与 JSON 解析引擎）
+- **最新已合入提交**：`feat/m3-3-debt-reimburse-refund` 合入 `main`（CI `#46126060766` 全线绿灯，详见 `git log`）
 
 ---
 
@@ -39,8 +39,8 @@
 | `M2.3` | 资产总览页、持仓详情与后台定时刷新 | ✅ 已完成 | `:feature:assets` 接入 Hilt 与真实 Room Flow 资产总览（CNY/USD/HKD 实时切换、真实三币种分布条、进页 5 分钟节流 + 下拉/一键刷新 + 上次更新时间、全局隐私隐身、分组账户卡与不计入总资产折叠区、9 类资产/定存/理财新建表单）；`InvestmentDetailScreen` / `Route` / `ViewModel`（8 位加密份额、加权成本与浮盈/已实现/分红/税费/净总回报、买/定投/卖实时结转预览与防超卖/分红/定存结息支取付息/手动覆写与清除/银行理财手动净值或收益反推与历史流水）；`:core:security` `MarketSyncPreferencesRepository` + `:app` WorkManager `MarketRefreshWorker`（经 `EntryPointAccessors` 访问 `MarketDataEntryPoint`）& `MarketSyncScheduler` + `:feature:settings` 行情同步与网络代理设置页；222 项测试 & 18 张 Roborazzi 截图 + API 31 投资/行情全链路 E2E + 15 MB Debug APK 全绿 | `feat/m2-3-assets-ui-and-market-sync` 已验收合入（CI `#46017227034`） |
 | `M3.1` | 信用卡额度、账单日与还款本地提醒 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点 `CreditCardStatementCalculator`（29–31 号月末夹紧含闰/平年二月、同月/跨月/跨年还款日、上期已出/本期未出账单区间与倒计时、提醒窗口、已用/可用额度含溢缴款与超限保护、出账后还款/退款冲减不变量与五态判定）与 `CreditCardRepaymentHelper`（借贷恒平单/跨币种 `TRANSFER` 还款分录）；`:core:database` `CreditCardRepository` + 信用卡流水响应式查询（Room Schema `v1` 零变更）；`:core:security` `CreditCardReminderPreferencesRepository`；升级 `AssetsScreen` 信用账户分组进度条/倒计时/本期应还并直达 `CreditCardDetailScreen`（已出/未出/全部流水切换、一键立即还款表单、信用参数快捷编辑）；设置页新增「信用卡还款提醒」与 Android 13+ 通知权限引导；`:app` `POST_NOTIFICATIONS`、通知渠道/`CreditCardReminderNotificationPublisher`（支持隐私隐身与详情深链）、WorkManager `CreditCardReminderWorker`（同日防重）与 `CreditCardReminderScheduler`；244 项测试 & 19 张 Roborazzi 截图 + API 31 信用卡全链路 E2E + 15 MB Debug APK 全绿 | `feat/m3-1-credit-card-billing-reminders` 已验收合入（CI `#46030027009`） |
 | `M3.2` | 分期贷款引擎与到期自动还款分录 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点 `LoanScheduleCalculator`（等额本息 `EQUAL_INSTALLMENT` / 等额本金 `EQUAL_PRINCIPAL` / 固定手续费 `FIXED_FEE`、29–31 号月末安全夹紧、末期本金尾差平齐确保 `SUM(principalMinor) == totalPrincipalMinor` 且末期剩余本金严格归零、提前结清与汇总计算）与 `LoanRepaymentHelper`（复用 `LedgerEngine.buildLoanRepayment` 生成借贷恒平 `LOAN_REPAY` 分录，支持 `MANUAL` 与 `LOAN_AUTO`）；`:core:database` 扩充 `LoanDao` 原子条件更新与 `LoanRepository`（Room Schema `v1` 零变更，支持原子创建 `LOAN` 负债户与期初余额+计划表、逐期手动/自动幂等入账、提前结清、归档与安全删除）；`:core:security` `LoanReminderPreferencesRepository`（按期次同日防重）；升级 `AssetsScreen`「分期贷款」分区与新建分期表单并直达 `LoanDetailScreen`（逐期计划表、单期一键入账、提前结清与参数维护）；`:app` `droplet_loan_reminders` 通知渠道、`LoanReminderNotificationPublisher`（支持隐私隐身与深链）、WorkManager `LoanScheduleWorker`（每日离线自动入账与到期提醒）与 `LoanScheduleScheduler`；268 项测试 & 20 张 Roborazzi 截图 + API 31 分期贷款全链路 E2E + 16 MB Debug APK 全绿 | `feat/m3-2-installment-loans` 已验收合入（CI `#46039360302`） |
-| `M3.3` | 往来借贷、待报销冲抵与多次退款 | ⬜ 待开始 | 往来人借入/借出/分次还/利息/坏账核销、待报销冲抵与差额转支出、多次关联退款 | 下一切片 |
-| `M4.1` | AI 配置、Keystore 加密与 JSON 解析引擎 | ⬜ 待开始 | OpenAI Compatible 配置页与连通性测试、Keystore 加密存储、隐私最小化 Prompt、容错解析 | — |
+| `M3.3` | 往来借贷、待报销冲抵与多次退款 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点往来/报销/退款引擎（`DebtSummaryCalculator` / `DebtTransactionHelper`、`ReimbursementCalculator` / `ReimbursementSettlementHelper`、`RefundCalculator` / `RefundHelper`，复用 `LedgerEngine` 保证借贷恒平与累计退款上限校验）；`:core:database` `DebtRepository` 与 `ReimbursementAndRefundRepository`（Room Schema `v1` 零变更，支持往来人自动联动应收/应付户、借出/借入/分次收还款含息/坏账核销、单笔与批量报销冲抵及差额转个人自付支出或超额转收入、作废/恢复/删除冲抵自动重算父单 `reimburseState`、单/跨币种多次关联退款）；`:core:security` `DebtReminderPreferencesRepository` + `:app` `droplet_debt_reminders` 通知渠道与每日离线 `DebtReminderWorker` / `DebtReminderScheduler`；升级 `AssetsScreen`「往来借贷」与「待报销」分区、`DebtDetailScreen`、`ReimbursementListScreen` 及 `LedgerScreen` 支出详情「退款」与净支出展示；287 项单测 & 23 张 Roborazzi 截图 + API 31 全链路 `test05` E2E + 17 MB Debug APK 全绿 | `feat/m3-3-debt-reimburse-refund` 已验收合入（CI `#46126060766`） |
+| `M4.1` | AI 配置、Keystore 加密与 JSON 解析引擎 | ⬜ 待开始 | OpenAI Compatible 配置页与连通性测试、Keystore 加密存储、隐私最小化 Prompt、容错解析 | 下一切片 |
 | `M4.2` | 图片/语音/一句话记账与草稿批量确认 UI | ⬜ 待开始 | 拍照/长截图/批量/系统分享、语音双模式、一句话多笔、离线草稿箱与批量确认流 + APK | — |
 | `M5.1` | 预算管理与预警、周期记账与模板 | ⬜ 待开始 | 月/年总预算与分类预算及预警、周期自动生成、高频一键模板 | — |
 | `M5.2` | 统计报表、收支日历与多格式导出 | ⬜ 待开始 | 收支趋势/分类环形/资产走势/收支日历（含标签筛选）、Excel/CSV/Beancount 导出 | — |
@@ -150,24 +150,40 @@
 3. **每日离线自动入账与到期提醒 (`:app`)**：
    - 新增通知渠道 `droplet_loan_reminders`、`LoanReminderNotificationPublisher`（遵循全局 `PrivacyPreferences.amountsHidden` 隐藏金额，点击携带 `EXTRA_LOAN_PLAN_ID` 深链直达贷款详情页）、`LoanScheduleWorker`（经 Hilt `LoanScheduleEntryPoint` 每日离线扫描并执行 `autoPostDueInstallments` 与提醒窗口推送）、`LoanScheduleScheduler`（WorkManager 24h 离线唯一周期任务）与 `LoanModule`，在 `DropletApplication.onCreate()` 初始化渠道并自动保活调度。
 
-### M3.3 启动入口契约（往来借贷、待报销冲抵与多次退款）
-1. 从 `main` 切出分支 `feat/m3-3-debt-reimburse-refund`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m3.3"`。
-2. **纯 JVM 领域辅助与计算引擎 (`:core:domain`)**：
-   - 在 `io.github.kvtttba.droplet.core.domain.debt`（及关联报销/退款辅助）中严守零浮点，充分复用 `LedgerEngine` 既有 `buildDebtLend` / `buildDebtBorrow` / `buildDebtCollect` / `buildDebtRepay` / `buildBadDebtWriteOff` / `buildReimbursableAdvance` / `buildReimbursementSettlement` / `buildRefund` 及 `LedgerAggregator` 净支出重算能力：
-     - **往来借贷聚合与提醒窗口**：按往来人（`DebtProfile` 及其绑定的 `AccountSubType.RECEIVABLE` 应收户与 `AccountSubType.PAYABLE` 应付户）聚合应收余额、应付余额、净往来余额、累计已收/已还本金、累计利息与坏账核销，提供约定还款日倒计时与提醒窗口判定（复用到期提醒能力）；
-     - **待报销进度与冲抵计算**：按原垫付流水汇总已冲抵金额、剩余待报销金额、`ReimburseState`（`PENDING` / `PARTIAL` / `SETTLED`）状态推演，支持单笔/批量冲抵及「实报少于垫付 → 差额一键转个人自付支出（或实报超出转收入）」的平衡校验；
-     - **多次关联退款计算**：按原支出交易汇总历史全部 `POSTED` 关联退款，计算剩余可退上限、单笔及分类净支出金额，防止超额退款。
-3. **Room 仓储与 DAO 扩充（Room Schema `v1` 零变更，`:core:database` & `:core:security`）**：
-   - 补齐 `DebtProfileDao` / `TransactionDao` 必要查询（严禁修改 Room Schema `v1` 表结构），新增 `DebtRepository` / `LocalDebtRepository`（往来人新建自动创建或绑定 `RECEIVABLE` / `PAYABLE` 账户、借出/借入/分次收款含息/分次还款含息/坏账核销原子写入、往来流水观察、归档/安全删除）与 `ReimbursementAndRefundRepository`（或集成至既有/独立 Repository：待报销列表与冲抵明细观察、单笔/批量报销到账并原子回写原单 `reimburseState`、在已有支出上发起全额/部分/多次关联退款并校验累计退款不超原支出）；
-   - 如落地约定还款日提醒，参照 M3.1/M3.2 在 `:core:security` 增加 `DebtReminderPreferencesRepository`（按往来人同日防重）并在 `:app` 接入 `droplet_debt_reminders` 通知渠道 + `DebtReminderWorker` / `DebtReminderScheduler`。
-4. **资产页、详情页与流水退款 UI 闭环 (`:feature:assets` & `:feature:ledger` & `:app`)**：
-   - 升级 `AssetsScreen` 展示真实的「往来借贷」分组（应收/应付总额与按往来人卡片，直达 `DebtDetailScreen` 支持新建往来人、记借出/借入、分次收款/还款含利息、坏账一键核销、编辑约定还款日与提醒）以及「待报销」分组/专页（`ReimbursementListScreen`，支持单笔或批量勾选确认报销到账、输入实报金额并选择差额自付支出分类一键冲平）；
-   - 升级 `feature:ledger` 交易详情与列表展示：在任意 `POSTED` 支出流水详情页新增「退款」操作（底部表单支持全额/部分/多次退款、显示已退金额与剩余可退上限，并列出全部关联退款记录与原单净支出）；对 `REIMBURSE` 流水清晰展示待报销状态与关联冲抵记录；所有新增页面保持 Stateless Screen + Hilt Route 分层并在 `DropletAppShell` 提供预览槽位，严格接入全局隐私金额隐身。
+### M3.3 已落地的核心约定
+1. **纯 JVM 往来借贷、待报销与多次退款引擎 (`:core:domain`)**：
+   - 新增 `io.github.kvtttba.droplet.core.domain.debt`（严守零浮点，全量 `Money` 4 位定点 `Long` + `BigDecimal`）：
+     - `DebtSummaryCalculator` & `DebtTransactionHelper`：按往来人 `DebtProfile` 聚合应收（`RECEIVABLE`）、应付（`PAYABLE`）与净往来余额、累计已收/已还本金、累计利息收支、累计坏账核销及约定还款日倒计时与提醒窗口；`buildCollectTransaction`/`buildRepayTransaction` 强制要求本金为正以确保绑定往来人流水始终命中应收/应付户并借贷恒平；
+     - `ReimbursementCalculator` & `ReimbursementSettlementHelper`：按原垫付流水聚合全部 `POSTED` 关联冲抵（排除 `EQUITY` 对冲行），推演 `PENDING`/`PARTIAL`/`SETTLED` 状态与剩余待报销额，支持单笔/批量冲抵及「实报少于垫付 → 差额转个人支出 / 实报超出 → 转补贴收入」的恒平分录构造；
+     - `RefundCalculator` & `RefundHelper`：按原 `POSTED` 支出汇总历史全部关联退款，计算累计已退、剩余可退上限与原单净支出，防止超额退款并支持跨币种退款。
+2. **Room 仓储、状态同步与防重提醒 (`:core:database` & `:core:security` & `:app`)**：
+   - 保持 Room Schema `v1` 零变更，扩展 `LoanAndDebtDao`、`TransactionDao`（关联退款与待报销聚合查询）及 `LocalLedgerRepository`（作废/恢复/删除报销冲抵流水时在同事务内自动重算父垫付单 `reimburseState`）；
+   - 新增 `DebtRepository` / `LocalDebtRepository`（往来人新建自动创建或绑定 `RECEIVABLE`/`PAYABLE` 账户并接入 `PortfolioSummaryAggregator` 净资产汇总、借出/借入/分次收还款含息/坏账核销、归档与安全删除）与 `ReimbursementAndRefundRepository` / `LocalReimbursementAndRefundRepository`（待报销总览、单笔/批量原子冲抵与跨币种多次退款）；
+   - `:core:security` 新增 `DebtReminderPreferences` / `DataStoreDebtReminderPreferencesRepository`（`@DebtReminderDataStore`）；`:app` 新增 `DebtModule`、`droplet_debt_reminders` 通知渠道、`DebtReminderNotificationPublisher`（遵循全局隐私隐身与 `EXTRA_DEBT_PROFILE_ID` 深链）、`DebtReminderWorker` 与 `DebtReminderScheduler`。
+3. **资产/借贷/报销详情与明细退款 UI 闭环 (`:feature:assets` & `:feature:ledger` & `:app`)**：
+   - `AssetsScreen` / `AssetsViewModel` 新增「往来借贷」（应收/应付汇总与往来人卡片、新建往来人表单）与「待报销」分组入口，直达 `DebtDetailScreen`（`DropletRoutes.DEBT_DETAIL_PATTERN`）与 `ReimbursementListScreen`（`DropletRoutes.REIMBURSEMENT_LIST`，支持单笔冲抵差额自付预览与批量勾选一键到账）；
+   - `LedgerScreen` / `LedgerViewModel` / `LedgerUiModels` 接入实时退款与报销摘要流：在支出行展示退款徽标与净支出副行、详情页内置 `ExpenseRefundDetailCard` + 非堆叠式 `RecordRefundBottomSheet`（支持全额/部分/多次/跨币种退款）以及 `ReimbursementDetailCard` 快捷跳转；`DropletApp` 改进跨页 Snackbar 替换与进入记账页前清屏，避免旧提示遮挡底部保存按钮。
+
+### M4.1 启动入口契约（AI 配置、Keystore 加密与 JSON 解析引擎）
+1. 从 `main` 切出分支 `feat/m4-1-ai-config-parser`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m4.1"`。
+2. **安全配置与 Keystore 加密存储 (`:core:security` & `:app`)**：
+   - 在 `:core:security` 新增 `AiEndpointSlot`（`DEFAULT` / `VISION` / `TEXT` / `VOICE`）、`VoiceEngineMode`（`CUSTOM_AI` / `ANDROID_SYSTEM`）、`AiEndpointConfig`、`AiServiceConfig`（不含明文日志输出，`toString()` 必须脱敏掩码）与 `AiConfigPreferencesRepository` / `DataStoreAiConfigPreferencesRepository`（独立 `droplet_ai_config_preferences.preferences_pb`，经 `SecurityModule` `@AiConfigDataStore` 绑定）；
+   - 所有槽位的 `API Key` **必须通过既有 `KeystoreSecretCipher`**（AES-256-GCM + 按槽位独立 AAD 如 `ai_api_key:DEFAULT`）加密后再持久化至 DataStore，读取时按需解密；严禁明文落盘、严禁打日志、严禁在代码/测试中写入真实 Key 或个人 BaseURL；支持每个能力槽位（视觉/文本/语音）独立开关覆盖或自动回退默认配置。
+3. **OpenAI Compatible 客户端、隐私最小化 Prompt 与容错 JSON 解析 (`:core:ai` & `:app`)**：
+   - **隐私最小化 `AiPromptBuilder`**：严格遵循 `docs/ARCHITECTURE.md §5.2`，仅向模型注入当前日期时间、默认本位币、用户活跃账户的**名称+类型+币种**（严禁注入余额、卡号或历史账单明细）、二级分类路径列表（如 `餐饮/午餐`）与活跃标签名称列表；提供可验证的单测断言确保任何余额或敏感数字都不会进入 Prompt；
+   - **容错结构化解析器 `AiDraftJsonParser`**：遵循 `docs/ARCHITECTURE.md §5.3` 统一 `{"items":[...]}` JSON Schema，支持剥离 Markdown ` ```json ` 代码块与前后多余解释文本、零浮点解析金额（从 JSON 字符串/原始字面量直接构造 `BigDecimal` → `Money` `scale = 4`）、规范化 `display_type`/`currency`/ISO-8601 时间（缺失时安全回退当前时间并标入 `uncertain_fields`）、按名称与模糊路径映射本地分类/账户/目标账户/标签 ID（未匹配字段自动记入 `uncertain_fields` 并降低置信度），支持单笔与多笔数组，严禁使用 `Double`/`Float` 处理金额；
+   - **`OpenAiCompatibleClient`**：复用 `:core:network` 的 `DropletHttpClientFactory`（自动继承 M2.1/M2.3 网络代理配置），支持标准化规范化 `BaseURL`（兼容带或不带 `/v1` 与尾斜杠）、`testConnection(slot)`（发起脱敏鉴权探测 `/models` 或轻量 `/chat/completions`，返回耗时与脱敏错误提示，不泄露 Key）、`parseText(text, context)`、`parseImages(imagesBase64, context)` 与 `transcribeAudio(audioBytes, mimeType, fileName)`（支持 Whisper `/audio/transcriptions`）；全量网络测试使用本地 OkHttp `MockWebServer` 或 Fake 传输层 100% 离线验证；
+   - `:app` 新增 `AiModule` 与 `AiEntryPoint` 完成单例装配（确保编译期校验依赖图）。
+4. **AI 服务配置 UI (`:feature:settings` & `:app`)**：
+   - `:feature:settings` 引入 `projects.core.ai`，新增 `AiSettingsScreen` / `AiSettingsRoute` / `AiSettingsViewModel`（`DropletRoutes.AI_SETTINGS`，保持 Stateless Screen + Hilt Route 分层并在 `DropletAppShell` 提供 `aiSettingsPreviewState` 预览槽位）：
+     - 默认全局配置卡（`BaseURL`、`API Key` 掩码显示与可见开关/已保存占位状态、`Model` 名称、保存按钮与「连通性测试」按钮及结果胶囊）；
+     - 视觉（图片）/ 文本 / 语音 3 个可选独立覆盖折叠/开关卡（未开启时明确提示「复用默认配置」）；
+     - 语音转写引擎模式切换（`自定义 AI 语音接口` vs `Android 系统语音输入`）与清晰的隐私最小化说明卡；
+   - 在 `SettingsScreen` 接入「AI 服务配置」入口并实时显示当前配置摘要（如「已配置默认模型 · 系统语音」或「未配置 · 点击设置」）。
 5. **开发构建环境与测试门禁（`ccarm` + `pu`）**：
-   - 代码编辑、`gitleaks`、`git commit/push` 与 `gh-kvtttba` 在 `ccarm`（`/home/ggcoke/projects/droplet-android`）执行；所有 Gradle 编译/单测/Roborazzi/APK 通过 `droplet-pu gradle ...` 在 `pu` 执行；
-   - 补齐 L1 往来借贷/待报销/多次退款领域单测、L2 Room Repository 单测、ViewModel/Worker 单测；更新受影响的 Roborazzi 截图并新增往来借贷详情/待报销或退款详情黄金截图（固定 `Asia/Shanghai` 时区）；
-   - 扩充 API 31 模拟器 `DropletAppE2ETest`（按 `test05_...` 顺序覆盖往来借出+部分收款含息或坏账核销、待报销冲抵含差额自付、支出部分/多次退款净支出核对）；
-   - 通过本地单测、`verifyRoborazziDebug`、`assembleDebug`、`gitleaks` 与 GitHub Actions 全线 CI 绿灯。
+   - `ccarm` 编辑与 `gitleaks` / `git` / `gh-kvtttba`，`pu` 通过 `droplet-pu gradle ...` 执行编译、测试、Roborazzi 与 APK 构建；
+   - 补齐 L1 Prompt 隐私红线/零浮点 JSON 容错解析/`MockWebServer` 连通性测试与解析单测、L2 Keystore+DataStore 加密存储与 `AiSettingsViewModel` 单测、L3 Roborazzi 截图（新增 `ai_settings_light.png` 并刷新 `settings_light.png`）与 L4 API 31 E2E（按 `test06_...` 验证 AI 配置页入口、默认配置与槽位覆盖保存、重建 Activity 持久化且无明文泄露）；
+   - 本地与 GitHub Actions 三项 CI 全绿后更新 `docs/PROGRESS.md`（写入 `M4.2 启动入口契约`）、`--no-ff` 合入 `main` 并 `droplet-pu sync`。
 
 ---
 
@@ -189,3 +205,4 @@
 - **[M2.3] Compose `clickable` 语义合并与 E2E `ModalBottomSheet` 稳定性**：`Modifier.clickable` 默认 `mergeDescendants = true`，当父容器与子 `Text` 同时设置 `testTag` 时合并语义树仅保留父节点 `testTag`（`first-wins`），故需将 E2E 稳定标识直接放在可点击容器上（或无合并目标文本节点上）；涉及底部弹窗提交的模拟器 E2E 须等待弹窗节点消失后再滚动底层 `LazyColumn`，且 `:core:model` 的 `DecimalCanonicalizer` 为 `internal`，外部模块统一通过 `UnitPrice.of(...)`/`Quantity.of(...)` 获取规范小数串。
 - **[M3.1] WorkManager 离线调度单测与共享 DB 模拟器 E2E 确定性**：无约束、零延迟的周期性 WorkManager 任务在 Robolectric `SynchronousExecutor` 下会在 `enqueueUniquePeriodicWork` 时立即同步执行，在非 Hilt 测试 `Application` 中需为调度器单测注入 `NoOpWorker` `WorkerFactory` 隔离真实 Worker 依赖解析；`DropletAppE2ETest` 多个 `@Test` 共享同一 Hilt `@Singleton` Room 数据库（`droplet_ledger.db`），须保留 `@FixMethodOrder(MethodSorters.NAME_ASCENDING)` 并按 `test01_` / `test02_` / `test03_` 递增命名避免后续用例污染前置账目断言，同时对点击触发的异步 DataStore 状态回写使用 `composeRule.waitUntil` 等待生效。
 - **[M3.2] `pu` 构建机 KSP2 缓存清理、Room 原子条件防重与 `LedgerFeatureViewModelsTest` 双流竞态**：在 `ccarm` 新增 `:core:database` / `:core:security` 接口并同步到 `pu` 后，若 `pu` 长驻 Gradle Daemon 报 KSP2 `PROCESSING_ERROR` 找不到新接口，先执行 `droplet-pu gradle-nosync --stop` 重启 Daemon 即可彻底恢复；分期到期自动入账与手动确认共用 `LoanDao.markInstallmentPaidIfPending`（`WHERE id = :id AND status = 'PENDING' AND transaction_id IS NULL`）实现数据库层原子幂等，避免并发双入账；`LedgerFeatureViewModelsTest` 删除流水后需同时等待 `transactionCount == 0 && monthlyExpense == Money.zero(Currency.CNY)`，消除 Room 多流组合的瞬时竞态。
+- **[M3.3] 跨币种退款 Trading 科目加载、外层 Snackbar 遮挡底部保存栏与非堆叠 BottomSheet**：`LocalReimbursementAndRefundRepository.recordRefund` 传入 `accountsById` 给 `LedgerEngine.buildRefund` 时，必须同时加载 `SystemAccounts.tradingAccountId(...)`，否则跨币种退款自动插入隐式 Trading 分录会被 `LedgerValidator` 判为 `UnknownAccount`；外层 `DropletApp` `Scaffold` 的 `SnackbarHost` 若连续排队多条提示，在快速切入全屏 `TransactionEditorScreen` 时会悬停遮挡底部 `editor_save_button`，须在 `showMessage` 内先 `dismiss()` 旧提示并在进入记账页前清屏；涉及双层底部表单交互（如流水详情→退款表单）时严禁同时挂载两个 `ModalBottomSheet`，应按状态互斥切换；报销垫付流水识别应基于 `tx.refTransactionId == null` 而非 `reimburseState != SETTLED`，确保结清后原垫付单符号不反转。
