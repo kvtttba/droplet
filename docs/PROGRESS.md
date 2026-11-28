@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-- **当前阶段**：`M3.3`（往来借贷、待报销冲抵与多次退款）已完成验收并合入 `main`。
-- **下一个待执行切片**：**`M4.1`**（AI 配置、Keystore 加密与 JSON 解析引擎）
-- **最新已合入提交**：`feat/m3-3-debt-reimburse-refund` 合入 `main`（CI `#46126060766` 全线绿灯，详见 `git log`）
+- **当前阶段**：`M4.1`（AI 配置、Keystore 加密与 JSON 解析引擎）已完成验收并合入 `main`。
+- **下一个待执行切片**：**`M4.2`**（图片/语音/一句话记账与草稿批量确认 UI）
+- **最新已合入提交**：`feat/m4-1-ai-config-parser` 合入 `main`（CI `#46128801090` 全线绿灯，详见 `git log`）
 
 ---
 
@@ -40,8 +40,8 @@
 | `M3.1` | 信用卡额度、账单日与还款本地提醒 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点 `CreditCardStatementCalculator`（29–31 号月末夹紧含闰/平年二月、同月/跨月/跨年还款日、上期已出/本期未出账单区间与倒计时、提醒窗口、已用/可用额度含溢缴款与超限保护、出账后还款/退款冲减不变量与五态判定）与 `CreditCardRepaymentHelper`（借贷恒平单/跨币种 `TRANSFER` 还款分录）；`:core:database` `CreditCardRepository` + 信用卡流水响应式查询（Room Schema `v1` 零变更）；`:core:security` `CreditCardReminderPreferencesRepository`；升级 `AssetsScreen` 信用账户分组进度条/倒计时/本期应还并直达 `CreditCardDetailScreen`（已出/未出/全部流水切换、一键立即还款表单、信用参数快捷编辑）；设置页新增「信用卡还款提醒」与 Android 13+ 通知权限引导；`:app` `POST_NOTIFICATIONS`、通知渠道/`CreditCardReminderNotificationPublisher`（支持隐私隐身与详情深链）、WorkManager `CreditCardReminderWorker`（同日防重）与 `CreditCardReminderScheduler`；244 项测试 & 19 张 Roborazzi 截图 + API 31 信用卡全链路 E2E + 15 MB Debug APK 全绿 | `feat/m3-1-credit-card-billing-reminders` 已验收合入（CI `#46030027009`） |
 | `M3.2` | 分期贷款引擎与到期自动还款分录 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点 `LoanScheduleCalculator`（等额本息 `EQUAL_INSTALLMENT` / 等额本金 `EQUAL_PRINCIPAL` / 固定手续费 `FIXED_FEE`、29–31 号月末安全夹紧、末期本金尾差平齐确保 `SUM(principalMinor) == totalPrincipalMinor` 且末期剩余本金严格归零、提前结清与汇总计算）与 `LoanRepaymentHelper`（复用 `LedgerEngine.buildLoanRepayment` 生成借贷恒平 `LOAN_REPAY` 分录，支持 `MANUAL` 与 `LOAN_AUTO`）；`:core:database` 扩充 `LoanDao` 原子条件更新与 `LoanRepository`（Room Schema `v1` 零变更，支持原子创建 `LOAN` 负债户与期初余额+计划表、逐期手动/自动幂等入账、提前结清、归档与安全删除）；`:core:security` `LoanReminderPreferencesRepository`（按期次同日防重）；升级 `AssetsScreen`「分期贷款」分区与新建分期表单并直达 `LoanDetailScreen`（逐期计划表、单期一键入账、提前结清与参数维护）；`:app` `droplet_loan_reminders` 通知渠道、`LoanReminderNotificationPublisher`（支持隐私隐身与深链）、WorkManager `LoanScheduleWorker`（每日离线自动入账与到期提醒）与 `LoanScheduleScheduler`；268 项测试 & 20 张 Roborazzi 截图 + API 31 分期贷款全链路 E2E + 16 MB Debug APK 全绿 | `feat/m3-2-installment-loans` 已验收合入（CI `#46039360302`） |
 | `M3.3` | 往来借贷、待报销冲抵与多次退款 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点往来/报销/退款引擎（`DebtSummaryCalculator` / `DebtTransactionHelper`、`ReimbursementCalculator` / `ReimbursementSettlementHelper`、`RefundCalculator` / `RefundHelper`，复用 `LedgerEngine` 保证借贷恒平与累计退款上限校验）；`:core:database` `DebtRepository` 与 `ReimbursementAndRefundRepository`（Room Schema `v1` 零变更，支持往来人自动联动应收/应付户、借出/借入/分次收还款含息/坏账核销、单笔与批量报销冲抵及差额转个人自付支出或超额转收入、作废/恢复/删除冲抵自动重算父单 `reimburseState`、单/跨币种多次关联退款）；`:core:security` `DebtReminderPreferencesRepository` + `:app` `droplet_debt_reminders` 通知渠道与每日离线 `DebtReminderWorker` / `DebtReminderScheduler`；升级 `AssetsScreen`「往来借贷」与「待报销」分区、`DebtDetailScreen`、`ReimbursementListScreen` 及 `LedgerScreen` 支出详情「退款」与净支出展示；287 项单测 & 23 张 Roborazzi 截图 + API 31 全链路 `test05` E2E + 17 MB Debug APK 全绿 | `feat/m3-3-debt-reimburse-refund` 已验收合入（CI `#46126060766`） |
-| `M4.1` | AI 配置、Keystore 加密与 JSON 解析引擎 | ⬜ 待开始 | OpenAI Compatible 配置页与连通性测试、Keystore 加密存储、隐私最小化 Prompt、容错解析 | 下一切片 |
-| `M4.2` | 图片/语音/一句话记账与草稿批量确认 UI | ⬜ 待开始 | 拍照/长截图/批量/系统分享、语音双模式、一句话多笔、离线草稿箱与批量确认流 + APK | — |
+| `M4.1` | AI 配置、Keystore 加密与 JSON 解析引擎 | ✅ 已完成 | `:core:security` 新增 `AiEndpointSlot` / `VoiceEngineMode` / `AiServiceConfig` 与 `DataStoreAiConfigPreferencesRepository`（独立 `droplet_ai_config_preferences.preferences_pb`，全槽位 API Key 经既有 `KeystoreSecretCipher` AES-256-GCM + 按槽位独立 AAD 加密落盘，严禁明文存储/日志输出，支持能力槽位独立覆盖或部分字段继承默认配置）；`:core:ai` 落地隐私最小化 `AiPromptBuilder`（严格仅注入时间/本位币 + 活跃账户名称/类型/币种 + 二级分类路径 + 活跃标签名，绝不传余额/额度/流水）、零浮点容错 `AiDraftJsonParser`（剥离 `<think>` / Markdown 代码块 / 解释前后缀、经 `BigDecimal` 转 `Money` `scale = 4` 并拦截非法/负/零/溢出数值、智能匹配本地分类/账户/目标账户/标签并高亮 `uncertainFields`）与复用 `DropletHttpClientFactory` 代理能力的 `OpenAiCompatibleClient`（BaseURL 标准化、`/models` + 降级 `/chat/completions` 脱敏连通性探测、`parseText`、`parseImages` 与 Whisper `/audio/transcriptions`）；`:app` 新增 `AiModule`/`AiEntryPoint` 与 `@AiConfigDataStore`；`:feature:settings` 落地 `AiSettingsScreen` / `Route` / `ViewModel` 并接入设置首页实时摘要；309 项单测 & 24 张 Roborazzi 截图 + API 31 全链路 `test06` E2E + 16 MB Debug APK 全绿 | `feat/m4-1-ai-config-parser` 已验收合入（CI `#46128801090`） |
+| `M4.2` | 图片/语音/一句话记账与草稿批量确认 UI | ⬜ 待开始 | 拍照/长截图/批量/系统分享、语音双模式、一句话多笔、离线草稿箱与批量确认流 + APK | 下一切片 |
 | `M5.1` | 预算管理与预警、周期记账与模板 | ⬜ 待开始 | 月/年总预算与分类预算及预警、周期自动生成、高频一键模板 | — |
 | `M5.2` | 统计报表、收支日历与多格式导出 | ⬜ 待开始 | 收支趋势/分类环形/资产走势/收支日历（含标签筛选）、Excel/CSV/Beancount 导出 | — |
 | `M5.3` | WebDAV 端到端加密快照备份与回滚恢复 | ⬜ 待开始 | WAL 一致性打包、AES-256-GCM 加密、防抖/定时上传、历史快照列表、本地回滚安全恢复 | — |
@@ -164,26 +164,33 @@
    - `AssetsScreen` / `AssetsViewModel` 新增「往来借贷」（应收/应付汇总与往来人卡片、新建往来人表单）与「待报销」分组入口，直达 `DebtDetailScreen`（`DropletRoutes.DEBT_DETAIL_PATTERN`）与 `ReimbursementListScreen`（`DropletRoutes.REIMBURSEMENT_LIST`，支持单笔冲抵差额自付预览与批量勾选一键到账）；
    - `LedgerScreen` / `LedgerViewModel` / `LedgerUiModels` 接入实时退款与报销摘要流：在支出行展示退款徽标与净支出副行、详情页内置 `ExpenseRefundDetailCard` + 非堆叠式 `RecordRefundBottomSheet`（支持全额/部分/多次/跨币种退款）以及 `ReimbursementDetailCard` 快捷跳转；`DropletApp` 改进跨页 Snackbar 替换与进入记账页前清屏，避免旧提示遮挡底部保存按钮。
 
-### M4.1 启动入口契约（AI 配置、Keystore 加密与 JSON 解析引擎）
-1. 从 `main` 切出分支 `feat/m4-1-ai-config-parser`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m4.1"`。
-2. **安全配置与 Keystore 加密存储 (`:core:security` & `:app`)**：
-   - 在 `:core:security` 新增 `AiEndpointSlot`（`DEFAULT` / `VISION` / `TEXT` / `VOICE`）、`VoiceEngineMode`（`CUSTOM_AI` / `ANDROID_SYSTEM`）、`AiEndpointConfig`、`AiServiceConfig`（不含明文日志输出，`toString()` 必须脱敏掩码）与 `AiConfigPreferencesRepository` / `DataStoreAiConfigPreferencesRepository`（独立 `droplet_ai_config_preferences.preferences_pb`，经 `SecurityModule` `@AiConfigDataStore` 绑定）；
-   - 所有槽位的 `API Key` **必须通过既有 `KeystoreSecretCipher`**（AES-256-GCM + 按槽位独立 AAD 如 `ai_api_key:DEFAULT`）加密后再持久化至 DataStore，读取时按需解密；严禁明文落盘、严禁打日志、严禁在代码/测试中写入真实 Key 或个人 BaseURL；支持每个能力槽位（视觉/文本/语音）独立开关覆盖或自动回退默认配置。
-3. **OpenAI Compatible 客户端、隐私最小化 Prompt 与容错 JSON 解析 (`:core:ai` & `:app`)**：
-   - **隐私最小化 `AiPromptBuilder`**：严格遵循 `docs/ARCHITECTURE.md §5.2`，仅向模型注入当前日期时间、默认本位币、用户活跃账户的**名称+类型+币种**（严禁注入余额、卡号或历史账单明细）、二级分类路径列表（如 `餐饮/午餐`）与活跃标签名称列表；提供可验证的单测断言确保任何余额或敏感数字都不会进入 Prompt；
-   - **容错结构化解析器 `AiDraftJsonParser`**：遵循 `docs/ARCHITECTURE.md §5.3` 统一 `{"items":[...]}` JSON Schema，支持剥离 Markdown ` ```json ` 代码块与前后多余解释文本、零浮点解析金额（从 JSON 字符串/原始字面量直接构造 `BigDecimal` → `Money` `scale = 4`）、规范化 `display_type`/`currency`/ISO-8601 时间（缺失时安全回退当前时间并标入 `uncertain_fields`）、按名称与模糊路径映射本地分类/账户/目标账户/标签 ID（未匹配字段自动记入 `uncertain_fields` 并降低置信度），支持单笔与多笔数组，严禁使用 `Double`/`Float` 处理金额；
-   - **`OpenAiCompatibleClient`**：复用 `:core:network` 的 `DropletHttpClientFactory`（自动继承 M2.1/M2.3 网络代理配置），支持标准化规范化 `BaseURL`（兼容带或不带 `/v1` 与尾斜杠）、`testConnection(slot)`（发起脱敏鉴权探测 `/models` 或轻量 `/chat/completions`，返回耗时与脱敏错误提示，不泄露 Key）、`parseText(text, context)`、`parseImages(imagesBase64, context)` 与 `transcribeAudio(audioBytes, mimeType, fileName)`（支持 Whisper `/audio/transcriptions`）；全量网络测试使用本地 OkHttp `MockWebServer` 或 Fake 传输层 100% 离线验证；
-   - `:app` 新增 `AiModule` 与 `AiEntryPoint` 完成单例装配（确保编译期校验依赖图）。
-4. **AI 服务配置 UI (`:feature:settings` & `:app`)**：
-   - `:feature:settings` 引入 `projects.core.ai`，新增 `AiSettingsScreen` / `AiSettingsRoute` / `AiSettingsViewModel`（`DropletRoutes.AI_SETTINGS`，保持 Stateless Screen + Hilt Route 分层并在 `DropletAppShell` 提供 `aiSettingsPreviewState` 预览槽位）：
-     - 默认全局配置卡（`BaseURL`、`API Key` 掩码显示与可见开关/已保存占位状态、`Model` 名称、保存按钮与「连通性测试」按钮及结果胶囊）；
-     - 视觉（图片）/ 文本 / 语音 3 个可选独立覆盖折叠/开关卡（未开启时明确提示「复用默认配置」）；
-     - 语音转写引擎模式切换（`自定义 AI 语音接口` vs `Android 系统语音输入`）与清晰的隐私最小化说明卡；
-   - 在 `SettingsScreen` 接入「AI 服务配置」入口并实时显示当前配置摘要（如「已配置默认模型 · 系统语音」或「未配置 · 点击设置」）。
-5. **开发构建环境与测试门禁（`ccarm` + `pu`）**：
-   - `ccarm` 编辑与 `gitleaks` / `git` / `gh-kvtttba`，`pu` 通过 `droplet-pu gradle ...` 执行编译、测试、Roborazzi 与 APK 构建；
-   - 补齐 L1 Prompt 隐私红线/零浮点 JSON 容错解析/`MockWebServer` 连通性测试与解析单测、L2 Keystore+DataStore 加密存储与 `AiSettingsViewModel` 单测、L3 Roborazzi 截图（新增 `ai_settings_light.png` 并刷新 `settings_light.png`）与 L4 API 31 E2E（按 `test06_...` 验证 AI 配置页入口、默认配置与槽位覆盖保存、重建 Activity 持久化且无明文泄露）；
-   - 本地与 GitHub Actions 三项 CI 全绿后更新 `docs/PROGRESS.md`（写入 `M4.2 启动入口契约`）、`--no-ff` 合入 `main` 并 `droplet-pu sync`。
+### M4.1 已落地的核心约定
+1. **AI 配置模型与 Keystore 加密持久化 (`:core:security` & `:app`)**：
+   - 新增 `AiEndpointSlot`（`DEFAULT` / `VISION` / `TEXT` / `VOICE`，携带独立 AAD `ai_api_key:{SLOT}`）、`VoiceEngineMode`（`ANDROID_SYSTEM` 默认 / `CUSTOM_AI`）、`AiEndpointConfig`、`AiEffectiveEndpointMetadata`、`AiServiceConfig`、`AiResolvedEndpoint`、`AiEndpointSaveInput` / `AiApiKeyUpdateAction`（`KeepExisting` / `Replace` / `Clear`）、`AiSecretMasker` 与 `AiEndpointValidator`（拒收非 http(s)、内嵌凭据、空白及查询参数），全部敏感对象的 `toString()` 严格脱敏；
+   - `DataStoreAiConfigPreferencesRepository` 绑定独立 `droplet_ai_config_preferences.preferences_pb`（经 `SecurityModule` `@AiConfigDataStore` 注入）：写入前强制经既有 `KeystoreSecretCipher`（AES-256-GCM + 按槽位 AAD）加密，UI 态仅持有掩码预览（如 `••••0001`）从不持有明文，请求执行前通过 `resolveEndpointForRequest(slot)` 按需在内存解密；支持覆盖开关关闭时回退 `DEFAULT`，开启时可完整独立覆盖或留空 `BaseURL`/`API Key` 仅覆写 `Model` 自动继承默认配置；跨槽位 AAD 错配或 Keystore 失效安全标记 `isKeyCorrupted = true` 而不崩溃。
+2. **隐私最小化 Prompt、零浮点容错 JSON 解析与 OpenAI Compatible 客户端 (`:core:ai` & `:app`)**：
+   - `AiPromptContext.fromCatalog(accounts, tags, ...)` 自动过滤系统/归档/权益账户且不读取任何余额或信用额度；`AiPromptBuilder` 严格遵循 `ARCHITECTURE.md §5.2` 仅注入当前 ISO-8601 时间/时区/本位币 + 活跃账户名称/类型/币种 + 二级分类路径 + 活跃标签名 + `{"items":[...]}` Schema 契约；
+   - `AiDraftJsonParser` 容错剥离 `<think>...</think>`、Markdown 代码块与前后解释文本，兼容 `{"items":[...]}`、别名键、裸数组与单对象；严格经 `JsonPrimitive.content → BigDecimal → Money(scale=4)` 零浮点解析并拦截 `NaN`/`Infinity`/非正/溢出金额；支持多格式时间戳与缺失回退、三币种与符号归一、本地分类（精确/分隔符/叶节点/模糊）/账户/目标账户/标签智能匹配，未命中或模糊字段自动标入 `uncertainFields` 并给出零浮点 `confidenceDecimal` 与 `needsUserReview`，输出可序列化的 `AiParsedDraftBatch` / `AiParsedTransactionCandidate` 供 M4.2 直接落库与批量确认；
+   - `OpenAiEndpointUrlNormalizer` 兼容裸域名自动补 `/v1`、尾斜杠、自定义网关前缀及误粘完整路径；`OkHttpOpenAiCompatibleClient` 复用 `DropletHttpClientFactory`（自动继承 M2.1/M2.3 代理）并经 `AiErrorSanitizer` 清洗全部错误消息防止回显密钥，完整实现 `testConnection`（`GET /models` + 404/405/501 降级轻量 `POST /chat/completions`）、`parseText`（400 不支持 `response_format` 自动降级重试）、`parseImages`（多图 `image_url` data URI）与 `transcribeAudio`（multipart `/audio/transcriptions`）；`:app` 通过 `AiModule` 与 `AiEntryPoint` 完成单例装配与编译期依赖图校验。
+3. **AI 服务配置 UI 与四层验证 (`:feature:settings` & `:app`)**：
+   - 新增 `AiSettingsScreen` / `AiSettingsRoute` / `AiSettingsViewModel`（`DropletRoutes.AI_SETTINGS`，Stateless Screen + Hilt Route，`DropletAppShell` 提供 `aiSettingsPreviewState` 槽位）：包含隐私最小化安全说明横幅、默认全局配置卡（含密钥显隐/已加密掩码提示/清除密钥/实时连通性测试与结果胶囊）、语音转写引擎模式切换与视觉/文本/语音 3 个独立覆盖槽位开关卡；`SettingsScreen` 与 `MainActivity` 接入「AI 服务配置」入口与实时状态摘要；Room Schema `v1` 保持零变更。
+
+### M4.2 启动入口契约（图片/语音/一句话记账与草稿批量确认 UI）
+1. 从 `main` 切出分支 `feat/m4-2-ai-capture-drafts`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m4.2"`。
+2. **离线 AI 草稿仓储与票据图片处理 (`:core:database` & `:core:ai` & `:app`)**：
+   - 保持 Room Schema `v1` 零变更，复用既有 `ai_drafts`（`AiDraftDao`、`AiDraftEntity`）与 `attachments`（`AttachmentDao`、`AttachmentEntity`），新增 `AiDraftRepository` / `LocalAiDraftRepository`：支持创建/观察/更新/重试/删除离线草稿（`PENDING_ONLINE` → `PARSING` → `READY` / `FAILED` → `COMMITTED`），将 M4.1 的 `AiParsedDraftBatch` 序列化至 `ai_drafts.parsed_items_json`，并提供原子批量确认入账（逐笔经 `LedgerEngine` + `LedgerTransactionWriter` 写入 `TransactionSource.AI_IMAGE` / `AI_VOICE` / `AI_TEXT` 并关联本地票据 `Attachment`）；
+   - 新增票据图片压缩与去 EXIF 工具（缩放长边、JPEG 压缩重新编码天然剥离 EXIF 隐私元数据、落盘应用私有 `filesDir/receipts/` 并计算 SHA-256，支持单图、长截图与批量多图），严禁在仓库中提交真实小票图片；
+   - 新增统一编排用例 `AiCaptureOrchestrator`（协调 `AiConfigPreferencesRepository.resolveEndpointForRequest`、`LedgerRepository` 目录投影 `AiPromptContext.fromCatalog`、`OpenAiCompatibleClient` 文本/图片/语音调用与离线/失败自动落草稿箱降级）。
+3. **图片 / 语音 / 一句话入口与系统分享 (`:feature:ai_capture` & `:app`)**：
+   - 在 `AndroidManifest.xml` 与 `MainActivity` 声明并接收 `ACTION_SEND` / `ACTION_SEND_MULTIPLE`（`image/*`）系统分享 Intent（支持冷启动与 `onNewIntent` 热启动，若应用锁开启则在解锁后自动进入图片识别流）；
+   - 在 `:feature:ai_capture` 落地 `AiCaptureHub` / 图片识别页（拍照、相册多选、长截图/批量多图预览与去 EXIF 压缩）、语音记账页（根据 `VoiceEngineMode` 自动切换 Android 系统 `RecognizerIntent`/`SpeechRecognizer` 与 `MediaRecorder` 录音走 `transcribeAudio`）、一句话自然语言记账页（支持一句话拆多笔）以及「待解析草稿箱」（展示离线/失败草稿、支持联网一键重试解析与转人工编辑）；
+   - 落地「AI 草稿批量确认页」：卡片列表展示每笔 `AiParsedTransactionCandidate`，清晰高亮 `uncertainFields` 与低置信度徽标，支持逐笔勾选/取消、就地微调金额/币种/类型/分类/账户/目标账户/标签/时间/备注，确认后一键原子入账并跳转明细页；
+   - 打通 `DropletApp` 中 `QuickCaptureModalSheet` 的「拍照/选图」「语音」「一句话 AI」全部入口与草稿箱角标入口。
+4. **测试与交付门禁（`ccarm` + `pu`）**：
+   - 补齐 L1/L2 测试（图片去 EXIF 与压缩、离线草稿仓储状态机与批量复式入账恒平性、`AiCaptureOrchestrator` 离线降级与 MockWebServer 全链路解析、ViewModel 状态测试）；
+   - 补齐 L3 Roborazzi 截图（新增一句话/语音/图片捕获页与草稿批量确认页黄金 PNG，更新 `settings_light.png` / `quick_capture_sheet_light.png` 并肉眼验收）；
+   - 补齐 L4 API 31 E2E（在 `DropletAppE2ETest` 追加 `test07_...` 覆盖一句话/离线草稿保存、草稿箱查看与批量/单笔确认入账后在明细页实时可见，使用脱敏模拟数据与离线草稿流）；
+   - 本地 `gitleaks` + `pu` 全量单测/截图/APK + GitHub Actions 三项 CI 全绿后更新 `docs/PROGRESS.md`（写入 `M5.1 启动入口契约`）、`--no-ff` 合入 `main` 并 `droplet-pu sync`。
 
 ---
 
@@ -206,3 +213,4 @@
 - **[M3.1] WorkManager 离线调度单测与共享 DB 模拟器 E2E 确定性**：无约束、零延迟的周期性 WorkManager 任务在 Robolectric `SynchronousExecutor` 下会在 `enqueueUniquePeriodicWork` 时立即同步执行，在非 Hilt 测试 `Application` 中需为调度器单测注入 `NoOpWorker` `WorkerFactory` 隔离真实 Worker 依赖解析；`DropletAppE2ETest` 多个 `@Test` 共享同一 Hilt `@Singleton` Room 数据库（`droplet_ledger.db`），须保留 `@FixMethodOrder(MethodSorters.NAME_ASCENDING)` 并按 `test01_` / `test02_` / `test03_` 递增命名避免后续用例污染前置账目断言，同时对点击触发的异步 DataStore 状态回写使用 `composeRule.waitUntil` 等待生效。
 - **[M3.2] `pu` 构建机 KSP2 缓存清理、Room 原子条件防重与 `LedgerFeatureViewModelsTest` 双流竞态**：在 `ccarm` 新增 `:core:database` / `:core:security` 接口并同步到 `pu` 后，若 `pu` 长驻 Gradle Daemon 报 KSP2 `PROCESSING_ERROR` 找不到新接口，先执行 `droplet-pu gradle-nosync --stop` 重启 Daemon 即可彻底恢复；分期到期自动入账与手动确认共用 `LoanDao.markInstallmentPaidIfPending`（`WHERE id = :id AND status = 'PENDING' AND transaction_id IS NULL`）实现数据库层原子幂等，避免并发双入账；`LedgerFeatureViewModelsTest` 删除流水后需同时等待 `transactionCount == 0 && monthlyExpense == Money.zero(Currency.CNY)`，消除 Room 多流组合的瞬时竞态。
 - **[M3.3] 跨币种退款 Trading 科目加载、外层 Snackbar 遮挡底部保存栏与非堆叠 BottomSheet**：`LocalReimbursementAndRefundRepository.recordRefund` 传入 `accountsById` 给 `LedgerEngine.buildRefund` 时，必须同时加载 `SystemAccounts.tradingAccountId(...)`，否则跨币种退款自动插入隐式 Trading 分录会被 `LedgerValidator` 判为 `UnknownAccount`；外层 `DropletApp` `Scaffold` 的 `SnackbarHost` 若连续排队多条提示，在快速切入全屏 `TransactionEditorScreen` 时会悬停遮挡底部 `editor_save_button`，须在 `showMessage` 内先 `dismiss()` 旧提示并在进入记账页前清屏；涉及双层底部表单交互（如流水详情→退款表单）时严禁同时挂载两个 `ModalBottomSheet`，应按状态互斥切换；报销垫付流水识别应基于 `tx.refTransactionId == null` 而非 `reimburseState != SETTLED`，确保结清后原垫付单符号不反转。
+- **[M4.1] 跨模块构造默认参数类泄露与 Compose 非合并容器 `testTag` 语义断言**：`:core:ai` 中 `AiDraftJsonParser` 若在公开主构造暴露 `implementation` 依赖 `kotlinx.serialization.json.Json` 的默认参数，会导致 `:app` 调用无参构造时报 `Cannot access class 'Json'`，应改为 `internal constructor(json: Json)` + 公开无参 `constructor()` 保持模块边界洁净；Compose 中无 `clickable` 的 `Row` 与 `DropletPillBadge` 内 `Surface` 均不自动合并子 `Text` 语义，UI/E2E 断言文本时须将 `testTag` 直接置于 `Text` 或显式附加 `Modifier.semantics(mergeDescendants = true) {}`；`DropletAppE2ETest` 对所有异步 DataStore 切换（如 `relock_timeout_*`、`amounts_hidden`）须统一用 `composeRule.waitUntil` 守卫，防止前置用例瞬时帧差导致状态残留污染后续共享库 E2E 用例。
