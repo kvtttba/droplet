@@ -22,6 +22,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
+import java.time.LocalDate
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.FixMethodOrder
@@ -915,6 +916,98 @@ class DropletAppE2ETest {
         composeRule.waitUntilAtLeastOneExists(hasTestTag("ledger_budget_progress_card"), timeoutMillis = 10_000)
         composeRule.onNodeWithTag("ledger_budget_progress_card").assertTextContains("1,000.00", substring = true)
         composeRule.waitUntilAtLeastOneExists(hasText("测试地铁通勤", substring = true), timeoutMillis = 10_000)
+    }
+
+    @Test
+    fun test09_endToEndStatsChartsCalendarDrilldownAndDataExport() {
+        // 1. Navigate to Stats tab and verify live monthly aggregation, trend chart, and category donut
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("nav_tab_stats"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("nav_tab_stats").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_stats"), timeoutMillis = 10_000)
+
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("stats_total_expense"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("screen_stats").performScrollToKey("stats_budget")
+        composeRule.onNodeWithTag("stats_budget_card").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("screen_stats").performScrollToKey("stats_trend_card")
+        composeRule.onNodeWithTag("chart_income_expense_trend").assertIsDisplayed()
+
+        // 2. Scroll to Category Donut + Ranking and open bottom-sheet drilldown on "餐饮"
+        composeRule.onNodeWithTag("screen_stats").performScrollToKey("stats_category_card")
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("chart_category_donut"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("screen_stats").performScrollToNode(hasTestTag("stats_category_row_餐饮"))
+        composeRule.onNodeWithTag("stats_category_row_餐饮").performClick()
+
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("stats_category_drilldown_sheet"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("stats_drilldown_title").assertTextContains("餐饮", substring = true)
+        composeRule.onNodeWithTag("stats_drilldown_close").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodes(hasTestTag("stats_category_drilldown_sheet")).fetchSemanticsNodes().isEmpty()
+        }
+
+        // 3. Scroll to Net Worth Trend chart and confirm rendering
+        composeRule.onNodeWithTag("screen_stats").performScrollToKey("stats_net_worth_card")
+        composeRule.onNodeWithTag("chart_net_worth_trend").assertIsDisplayed()
+
+        // 4. Switch to Income/Expense Calendar tab and tap today's cell to inspect daily details
+        composeRule.onNodeWithTag("screen_stats").performScrollToKey("stats_mode_tabs")
+        composeRule.onNodeWithTag("stats_tab_calendar").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("calendar_month_grid"), timeoutMillis = 5_000)
+
+        val todayDay = LocalDate.now().dayOfMonth
+        composeRule.onNodeWithTag("calendar_day_$todayDay").performClick()
+        composeRule.onNodeWithTag("screen_stats").performScrollToKey("stats_calendar_day_detail")
+        composeRule.onNodeWithTag("stats_calendar_selected_day_card").assertIsDisplayed()
+        composeRule.onNodeWithTag("calendar_selected_date_header").assertTextContains("${todayDay}日", substring = true)
+
+        // 5. Open Data Export directly from Stats top-bar export button and generate CSV, XLSX, and Beancount
+        composeRule.onNodeWithTag("screen_stats").performScrollToKey("stats_header")
+        composeRule.onNodeWithTag("stats_export_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_data_export"), timeoutMillis = 5_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("export_preview_tx_count"), timeoutMillis = 5_000)
+
+        // CSV local generation
+        composeRule.onNodeWithTag("data_export_list").performScrollToKey("export_format_cards")
+        composeRule.onNodeWithTag("export_format_CSV").performClick()
+        composeRule.onNodeWithTag("data_export_list").performScrollToKey("export_actions")
+        composeRule.onNodeWithTag("export_generate_local_button").performClick()
+        composeRule.onNodeWithTag("data_export_list").performScrollToKey("export_result")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("export_result_filename").assertTextContains(".csv", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // XLSX local generation
+        composeRule.onNodeWithTag("data_export_list").performScrollToKey("export_format_cards")
+        composeRule.onNodeWithTag("export_format_XLSX").performClick()
+        composeRule.onNodeWithTag("data_export_list").performScrollToKey("export_actions")
+        composeRule.onNodeWithTag("export_generate_local_button").performClick()
+        composeRule.onNodeWithTag("data_export_list").performScrollToKey("export_result")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("export_result_filename").assertTextContains(".xlsx", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // Beancount local generation
+        composeRule.onNodeWithTag("data_export_list").performScrollToKey("export_format_cards")
+        composeRule.onNodeWithTag("export_format_BEANCOUNT").performClick()
+        composeRule.onNodeWithTag("data_export_list").performScrollToKey("export_actions")
+        composeRule.onNodeWithTag("export_generate_local_button").performClick()
+        composeRule.onNodeWithTag("data_export_list").performScrollToKey("export_result")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("export_result_filename").assertTextContains(".beancount", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // Return to Stats screen cleanly
+        composeRule.onNodeWithTag("data_export_back_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_stats"), timeoutMillis = 5_000)
     }
 
     private fun isFlagSecureApplied(): Boolean {

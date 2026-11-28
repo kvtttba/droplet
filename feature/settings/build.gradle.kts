@@ -44,6 +44,8 @@ dependencies {
     implementation(projects.core.ai)
     implementation(projects.core.sync)
     implementation(projects.core.ui)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)

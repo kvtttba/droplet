@@ -841,4 +841,28 @@ interface TransactionDao {
     suspend fun getTransactionsForDebtAccounts(
         status: TransactionStatus = TransactionStatus.POSTED,
     ): List<TransactionWithDetails>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE status IN (:statuses)
+        ORDER BY occurred_at DESC, created_at DESC, id DESC
+        """,
+    )
+    fun observeAllByStatuses(
+        statuses: List<TransactionStatus> = listOf(TransactionStatus.POSTED),
+    ): Flow<List<TransactionWithDetails>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE status IN (:statuses)
+        ORDER BY occurred_at DESC, created_at DESC, id DESC
+        """,
+    )
+    suspend fun getAllByStatuses(
+        statuses: List<TransactionStatus> = listOf(TransactionStatus.POSTED),
+    ): List<TransactionWithDetails>
 }

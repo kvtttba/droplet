@@ -14,6 +14,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.kvtttba.droplet.core.ai.AiConnectionTestResult
 import io.github.kvtttba.droplet.core.ai.AiDraftAttachmentRef
 import io.github.kvtttba.droplet.core.ai.AiUncertainFieldKeys
+import io.github.kvtttba.droplet.core.database.repository.ExportedFileResult
 import io.github.kvtttba.droplet.core.database.repository.RecurringRuleItem
 import io.github.kvtttba.droplet.core.database.repository.TransactionTemplateItem
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
@@ -32,6 +33,9 @@ import io.github.kvtttba.droplet.core.domain.debt.RefundHelper
 import io.github.kvtttba.droplet.core.domain.debt.ReimbursementCalculator
 import io.github.kvtttba.droplet.core.domain.debt.ReimbursementOverviewSummary
 import io.github.kvtttba.droplet.core.domain.debt.ReimbursementSettlementHelper
+import io.github.kvtttba.droplet.core.domain.export.ExportFormat
+import io.github.kvtttba.droplet.core.domain.export.ExportScope
+import io.github.kvtttba.droplet.core.domain.export.LedgerExportPreview
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioPositionEngine
 import io.github.kvtttba.droplet.core.domain.investment.PortfolioSummaryAggregator
 import io.github.kvtttba.droplet.core.domain.investment.PositionLedgerState
@@ -40,6 +44,9 @@ import io.github.kvtttba.droplet.core.domain.ledger.LedgerEngine
 import io.github.kvtttba.droplet.core.domain.ledger.TransactionMeta
 import io.github.kvtttba.droplet.core.domain.loan.LoanPlanSummary
 import io.github.kvtttba.droplet.core.domain.loan.LoanScheduleCalculator
+import io.github.kvtttba.droplet.core.domain.stats.StatsAggregator
+import io.github.kvtttba.droplet.core.domain.stats.StatsPeriodType
+import io.github.kvtttba.droplet.core.domain.stats.StatsQuery
 import io.github.kvtttba.droplet.core.model.Account
 import io.github.kvtttba.droplet.core.model.AccountSubType
 import io.github.kvtttba.droplet.core.model.AccountType
@@ -107,6 +114,8 @@ import io.github.kvtttba.droplet.feature.settings.AiSlotDraftUiState
 import io.github.kvtttba.droplet.feature.settings.BudgetManagementScreen
 import io.github.kvtttba.droplet.feature.settings.BudgetManagementUiState
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsUiState
+import io.github.kvtttba.droplet.feature.settings.DataExportScreen
+import io.github.kvtttba.droplet.feature.settings.DataExportUiState
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.PrivacySecurityScreen
@@ -115,6 +124,9 @@ import io.github.kvtttba.droplet.feature.settings.RecurringRulesScreen
 import io.github.kvtttba.droplet.feature.settings.RecurringRulesUiState
 import io.github.kvtttba.droplet.feature.settings.TemplateManagementScreen
 import io.github.kvtttba.droplet.feature.settings.TemplateManagementUiState
+import io.github.kvtttba.droplet.feature.stats.StatsDisplayTab
+import io.github.kvtttba.droplet.feature.stats.StatsScreen
+import io.github.kvtttba.droplet.feature.stats.StatsUiState
 import io.github.kvtttba.droplet.feature.ledger.LedgerAmountTone
 import io.github.kvtttba.droplet.feature.ledger.LedgerDayGroup
 import io.github.kvtttba.droplet.feature.ledger.LedgerItemMapper
@@ -135,8 +147,10 @@ import io.github.kvtttba.droplet.feature.ledger.manage.AccountWithBalance
 import io.github.kvtttba.droplet.feature.ledger.manage.CategoryTagManagementScreen
 import io.github.kvtttba.droplet.feature.ledger.manage.CategoryTagManagementUiState
 import io.github.kvtttba.droplet.feature.ledger.manage.ManageCatalogTab
+import java.io.File
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.TimeZone
 import org.junit.After
@@ -517,13 +531,96 @@ class DropletAppScreenshotTest {
                 initialThemeMode = ThemeMode.LIGHT,
                 initialDynamicColor = false,
                 ledgerPreviewState = sampleLedgerUiState(),
+                statsPreviewState = sampleStatsUiState(StatsDisplayTab.OVERVIEW),
             )
         }
         composeRule.onNodeWithTag("screen_stats").assertIsDisplayed()
+        composeRule.onNodeWithTag("stats_total_expense").assertTextContains("4,280.00", substring = true)
         composeRule.onRoot().captureRoboImage(
             filePath = "src/test/snapshots/stats_light.png",
             roborazziOptions = roborazziOptions,
         )
+    }
+
+    @Test
+    fun captureStatsDark() {
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.STATS,
+                initialThemeMode = ThemeMode.DARK,
+                initialDynamicColor = false,
+                ledgerPreviewState = sampleLedgerUiState(),
+                statsPreviewState = sampleStatsUiState(StatsDisplayTab.OVERVIEW),
+            )
+        }
+        composeRule.onNodeWithTag("screen_stats").assertIsDisplayed()
+        composeRule.onNodeWithTag("screen_stats").performScrollToKey("stats_category_card")
+        composeRule.onNodeWithTag("chart_category_donut").assertIsDisplayed()
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/stats_dark.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun captureStatsCalendarLight() {
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.STATS,
+                initialThemeMode = ThemeMode.LIGHT,
+                initialDynamicColor = false,
+                ledgerPreviewState = sampleLedgerUiState(),
+                statsPreviewState = sampleStatsUiState(StatsDisplayTab.CALENDAR),
+            )
+        }
+        composeRule.onNodeWithTag("screen_stats").assertIsDisplayed()
+        composeRule.onNodeWithTag("calendar_month_grid").assertIsDisplayed()
+        composeRule.onNodeWithTag("calendar_selected_date_header").assertTextContains("11月20日", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/stats_calendar_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun captureDataExportLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                DataExportScreen(uiState = sampleDataExportUiState())
+            }
+        }
+        composeRule.onNodeWithTag("screen_data_export").assertIsDisplayed()
+        composeRule.onNodeWithTag("export_preview_tx_count").assertTextContains("48 笔", substring = true)
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/data_export_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
+    fun interactiveShell_statsAndDataExportNavigationWork() {
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.STATS,
+                initialThemeMode = ThemeMode.LIGHT,
+                initialDynamicColor = false,
+                statsPreviewState = sampleStatsUiState(StatsDisplayTab.OVERVIEW),
+                dataExportPreviewState = sampleDataExportUiState(),
+            )
+        }
+
+        composeRule.onNodeWithTag("screen_stats").assertIsDisplayed()
+        composeRule.onNodeWithTag("stats_export_button").performClick()
+        composeRule.onNodeWithTag("screen_data_export").assertIsDisplayed()
+        composeRule.onNodeWithTag("data_export_back_button").performClick()
+        composeRule.onNodeWithTag("screen_stats").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("nav_tab_settings").performClick()
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.onNodeWithTag("settings_entry_data_export").performClick()
+        composeRule.onNodeWithTag("screen_data_export").assertIsDisplayed()
+        composeRule.onNodeWithTag("data_export_back_button").performClick()
+        composeRule.onNodeWithTag("screen_settings").assertIsDisplayed()
     }
 
     @Test
@@ -2386,5 +2483,165 @@ class DropletAppScreenshotTest {
                 availableTags = sampleTags,
             )
         }
+
+        private fun sampleStatsUiState(tab: StatsDisplayTab): StatsUiState {
+            val shanghai = ZoneId.of("Asia/Shanghai")
+            val allAccounts = DefaultSeedCatalog.allSeedAccounts(fixedTimestampMs)
+            val accountsById = allAccounts.associateBy { it.id }
+            val tagsById = sampleTags.associateBy { it.id }
+            val engine = LedgerEngine(baseCurrency = Currency.CNY)
+
+            fun dayMs(day: Int, hour: Int = 12): Long =
+                LocalDate.of(2026, 11, day).atTime(hour, 15).atZone(shanghai).toInstant().toEpochMilli()
+
+            val txs = listOf(
+                engine.buildOpeningBalance(
+                    meta = TransactionMeta(id = "st-open", occurredAt = LocalDate.of(2026, 10, 31).atTime(8, 0).atZone(shanghai).toInstant().toEpochMilli()),
+                    accountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+                    accountType = AccountType.ASSET,
+                    balance = Money.fromDecimalString("68000.00"),
+                ),
+                engine.buildIncome(
+                    meta = TransactionMeta(id = "st-sal", occurredAt = dayMs(1, 10), payee = "月度薪资"),
+                    incomeCategoryAccountId = DefaultSeedCatalog.AccountIds.INC_WORK_SALARY,
+                    depositAccountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+                    amount = Money.fromDecimalString("2800.00"),
+                ),
+                engine.buildIncome(
+                    meta = TransactionMeta(id = "st-bonus", occurredAt = dayMs(15, 10), payee = "季度津贴"),
+                    incomeCategoryAccountId = DefaultSeedCatalog.AccountIds.INC_WORK_BONUS,
+                    depositAccountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+                    amount = Money.fromDecimalString("2400.00"),
+                ),
+                engine.buildExpense(
+                    meta = TransactionMeta(id = "st-rent", occurredAt = dayMs(2, 9), payee = "小区房租", tagIds = listOf(DefaultSeedCatalog.TagIds.FIXED_EXPENSE)),
+                    expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_HOUSING_RENT_MORTGAGE,
+                    paymentAccountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+                    amount = Money.fromDecimalString("1800.00"),
+                ),
+                engine.buildExpense(
+                    meta = TransactionMeta(id = "st-food1", occurredAt = dayMs(5, 12), payee = "品质餐厅", tagIds = listOf(DefaultSeedCatalog.TagIds.WORKDAY)),
+                    expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_FOOD_LUNCH,
+                    paymentAccountId = DefaultSeedCatalog.AccountIds.CREDIT_CARD,
+                    amount = Money.fromDecimalString("420.00"),
+                ),
+                engine.buildExpense(
+                    meta = TransactionMeta(id = "st-shop1", occurredAt = dayMs(11, 20), payee = "日用百货"),
+                    expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_SHOPPING_DAILY,
+                    paymentAccountId = DefaultSeedCatalog.AccountIds.CREDIT_CARD,
+                    amount = Money.fromDecimalString("780.00"),
+                ),
+                engine.buildExpense(
+                    meta = TransactionMeta(id = "st-food2", occurredAt = dayMs(14, 19), payee = "周末聚餐"),
+                    expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_FOOD_DINNER,
+                    paymentAccountId = DefaultSeedCatalog.AccountIds.WECHAT,
+                    amount = Money.fromDecimalString("620.00"),
+                ),
+                engine.buildExpense(
+                    meta = TransactionMeta(id = "st-trans1", occurredAt = dayMs(18, 8), payee = "城市通勤"),
+                    expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_TRANSPORT_TRANSIT,
+                    paymentAccountId = DefaultSeedCatalog.AccountIds.ALIPAY,
+                    amount = Money.fromDecimalString("280.00"),
+                ),
+                engine.buildExpense(
+                    meta = TransactionMeta(id = "st-food3", occurredAt = dayMs(20, 12), payee = "精品咖啡简餐", tagIds = listOf(DefaultSeedCatalog.TagIds.WORKDAY)),
+                    expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_FOOD_LUNCH,
+                    paymentAccountId = DefaultSeedCatalog.AccountIds.ALIPAY,
+                    amount = Money.fromDecimalString("220.00"),
+                ),
+                engine.buildExpense(
+                    meta = TransactionMeta(id = "st-ent1", occurredAt = dayMs(20, 20), payee = "影院观影"),
+                    expenseCategoryAccountId = DefaultSeedCatalog.AccountIds.EXP_ENTERTAINMENT_MOVIE,
+                    paymentAccountId = DefaultSeedCatalog.AccountIds.CREDIT_CARD,
+                    amount = Money.fromDecimalString("160.00"),
+                ),
+                engine.buildIncome(
+                    meta = TransactionMeta(id = "st-div", occurredAt = dayMs(20, 15), payee = "指数分红"),
+                    incomeCategoryAccountId = DefaultSeedCatalog.AccountIds.INC_INVEST_DIVIDEND,
+                    depositAccountId = DefaultSeedCatalog.AccountIds.DEBIT_CARD,
+                    amount = Money.fromDecimalString("980.00"),
+                ),
+            )
+
+            val query = StatsQuery(
+                periodType = StatsPeriodType.MONTHLY,
+                targetMonth = YearMonth.of(2026, 11),
+                targetYear = 2026,
+                calendarMonth = YearMonth.of(2026, 11),
+            )
+            val report = StatsAggregator.aggregate(
+                query = query,
+                allTransactions = txs,
+                accountsById = accountsById,
+                tagsById = tagsById,
+                zoneId = shanghai,
+            )
+            val budget = Budget(
+                id = "st-budget-1",
+                period = BudgetPeriod.MONTHLY,
+                categoryAccountId = null,
+                currency = Currency.CNY,
+                limitAmountMinor = Money.fromDecimalString("5000.00").amountMinor,
+                warnThresholdPct = 80,
+            )
+            val budgetProgress = BudgetProgress(
+                budget = budget,
+                categoryName = null,
+                categoryIcon = null,
+                categoryColor = null,
+                periodRange = BudgetPeriodRange(
+                    period = BudgetPeriod.MONTHLY,
+                    periodKey = "2026-11",
+                    startInclusive = 0L,
+                    endExclusive = 1L,
+                    totalDays = 30,
+                    elapsedDays = 20,
+                    remainingDays = 10,
+                ),
+                spentAmount = Money.fromDecimalString("4280.00"),
+                remainingAmount = Money.fromDecimalString("720.00"),
+                usedPercentageDecimal = "85.6",
+                usedPercentageInt = 86,
+                progressFraction = 0.856f,
+                dailyAvailableAmount = Money.fromDecimalString("72.00"),
+                alertLevel = BudgetAlertLevel.WARNING,
+            )
+
+            return StatsUiState(
+                isLoading = false,
+                displayTab = tab,
+                query = query,
+                report = report,
+                availableTags = sampleTags,
+                monthlyBudgetProgress = budgetProgress,
+                selectedCalendarDate = LocalDate.of(2026, 11, 20),
+            )
+        }
+
+        private fun sampleDataExportUiState(): DataExportUiState = DataExportUiState(
+            format = ExportFormat.XLSX,
+            scope = ExportScope.ALL_TIME,
+            availableTags = sampleTags,
+            preview = LedgerExportPreview(
+                transactionCount = 48,
+                postingCount = 104,
+                accountCount = 7,
+                totalIncomeBase = Money.fromDecimalString("36400.00"),
+                totalExpenseBase = Money.fromDecimalString("14280.50"),
+                suggestedFileName = "droplet-ledger-all-20261127.xlsx",
+            ),
+            isLoadingPreview = false,
+            lastExportedFile = ExportedFileResult(
+                format = ExportFormat.XLSX,
+                file = File("/data/user/0/io.github.kvtttba.droplet/files/exports/droplet-ledger-all-20261127.xlsx"),
+                fileName = "droplet-ledger-all-20261127.xlsx",
+                mimeType = ExportFormat.XLSX.mimeType,
+                sizeBytes = 14_336L,
+                transactionCount = 48,
+                postingCount = 104,
+                generatedAtEpochMs = fixedTimestampMs,
+            ),
+            lastExportStatusMessage = "已导出 droplet-ledger-all-20261127.xlsx（48 笔，14 KB）",
+        )
     }
 }
