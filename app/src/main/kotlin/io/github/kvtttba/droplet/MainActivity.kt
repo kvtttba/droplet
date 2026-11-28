@@ -15,6 +15,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.kvtttba.droplet.core.network.NetworkProxyConfig
 import io.github.kvtttba.droplet.core.network.NetworkProxyType
+import io.github.kvtttba.droplet.core.security.AiConfigPreferencesRepository
+import io.github.kvtttba.droplet.core.security.AiServiceConfig
 import io.github.kvtttba.droplet.core.security.BiometricAuthResult
 import io.github.kvtttba.droplet.core.security.BiometricAuthenticator
 import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferences
@@ -53,6 +55,9 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var creditCardReminderPreferencesRepository: CreditCardReminderPreferencesRepository
 
+    @Inject
+    lateinit var aiConfigPreferencesRepository: AiConfigPreferencesRepository
+
     private val pendingCreditCardAccountIdFlow = MutableStateFlow<String?>(null)
     private val pendingLoanPlanIdFlow = MutableStateFlow<String?>(null)
     private val pendingDebtProfileIdFlow = MutableStateFlow<String?>(null)
@@ -84,6 +89,8 @@ class MainActivity : FragmentActivity() {
                 .collectAsStateWithLifecycle(initialValue = NetworkProxyConfig.NONE)
             val reminderPrefs by creditCardReminderPreferencesRepository.preferences
                 .collectAsStateWithLifecycle(initialValue = CreditCardReminderPreferences())
+            val aiServiceConfig by aiConfigPreferencesRepository.config
+                .collectAsStateWithLifecycle(initialValue = AiServiceConfig())
             val pendingCreditCardAccountId by pendingCreditCardAccountIdFlow.collectAsStateWithLifecycle()
             val pendingLoanPlanId by pendingLoanPlanIdFlow.collectAsStateWithLifecycle()
             val pendingDebtProfileId by pendingDebtProfileIdFlow.collectAsStateWithLifecycle()
@@ -129,6 +136,7 @@ class MainActivity : FragmentActivity() {
                 lockState = lockState,
                 marketSyncSummary = marketSyncSummary,
                 creditCardReminderSummary = creditCardReminderSummary,
+                aiConfigSummary = aiServiceConfig.formatSummary(),
                 pendingCreditCardAccountId = pendingCreditCardAccountId,
                 onConsumePendingCreditCardAccountId = { pendingCreditCardAccountIdFlow.value = null },
                 pendingLoanPlanId = pendingLoanPlanId,

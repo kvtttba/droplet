@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToKey
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
+import io.github.kvtttba.droplet.core.ai.AiConnectionTestResult
 import io.github.kvtttba.droplet.core.database.seed.DefaultSeedCatalog
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementCalculator
 import io.github.kvtttba.droplet.core.domain.credit.CreditCardStatementSummary
@@ -51,9 +52,13 @@ import io.github.kvtttba.droplet.core.model.TransactionStatus
 import io.github.kvtttba.droplet.core.model.UnitPrice
 import io.github.kvtttba.droplet.core.network.NetworkProxyConfig
 import io.github.kvtttba.droplet.core.network.NetworkProxyType
+import io.github.kvtttba.droplet.core.security.AiEndpointConfig
+import io.github.kvtttba.droplet.core.security.AiEndpointSlot
+import io.github.kvtttba.droplet.core.security.AiServiceConfig
 import io.github.kvtttba.droplet.core.security.BiometricCapability
 import io.github.kvtttba.droplet.core.security.MarketSyncInterval
 import io.github.kvtttba.droplet.core.security.RelockTimeout
+import io.github.kvtttba.droplet.core.security.VoiceEngineMode
 import io.github.kvtttba.droplet.core.ui.theme.DropletTheme
 import io.github.kvtttba.droplet.core.ui.theme.ThemeMode
 import io.github.kvtttba.droplet.feature.aicapture.QuickCaptureSheetContent
@@ -72,6 +77,9 @@ import io.github.kvtttba.droplet.feature.assets.LoanDetailScreen
 import io.github.kvtttba.droplet.feature.assets.LoanDetailUiState
 import io.github.kvtttba.droplet.feature.assets.ReimbursementListScreen
 import io.github.kvtttba.droplet.feature.assets.ReimbursementListUiState
+import io.github.kvtttba.droplet.feature.settings.AiSettingsScreen
+import io.github.kvtttba.droplet.feature.settings.AiSettingsUiState
+import io.github.kvtttba.droplet.feature.settings.AiSlotDraftUiState
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.MarketSyncSettingsUiState
@@ -421,6 +429,21 @@ class DropletAppScreenshotTest {
     }
 
     @Test
+    fun captureAiSettingsLight() {
+        composeRule.setContent {
+            DropletTheme(themeMode = ThemeMode.LIGHT, dynamicColor = false) {
+                AiSettingsScreen(uiState = sampleAiSettingsUiState())
+            }
+        }
+        composeRule.onNodeWithTag("screen_ai_settings").assertIsDisplayed()
+        composeRule.onNodeWithTag("ai_privacy_notice_banner").assertIsDisplayed()
+        composeRule.onRoot().captureRoboImage(
+            filePath = "src/test/snapshots/ai_settings_light.png",
+            roborazziOptions = roborazziOptions,
+        )
+    }
+
+    @Test
     fun captureStatsLight() {
         composeRule.setContent {
             DropletAppShell(
@@ -686,6 +709,25 @@ class DropletAppScreenshotTest {
         composeRule.onNodeWithTag("screen_reimbursement_list").assertIsDisplayed()
         composeRule.onNodeWithTag("reimbursement_back").performClick()
         composeRule.onNodeWithTag("screen_assets").assertIsDisplayed()
+    }
+
+    @Test
+    fun interactiveShell_aiSettingsNavigationWork() {
+        composeRule.setContent {
+            DropletAppShell(
+                initialTab = DropletTab.SETTINGS,
+                initialThemeMode = ThemeMode.LIGHT,
+                initialDynamicColor = false,
+                aiSettingsPreviewState = sampleAiSettingsUiState(),
+            )
+        }
+
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.onNodeWithTag("settings_entry_ai_config").performClick()
+        composeRule.onNodeWithTag("screen_ai_settings").assertIsDisplayed()
+        composeRule.onNodeWithTag("ai_privacy_notice_banner").assertIsDisplayed()
+        composeRule.onNodeWithTag("ai_settings_back_button").performClick()
+        composeRule.onNodeWithTag("screen_settings").assertIsDisplayed()
     }
 
     companion object {
@@ -1736,5 +1778,48 @@ class DropletAppScreenshotTest {
             cachedQuoteCount = 5,
             lastRefreshSummary = "汇率已更新 · 更新 4 项行情",
         )
+
+        private fun sampleAiSettingsUiState(): AiSettingsUiState {
+            val defaultEndpoint = AiEndpointConfig(
+                slot = AiEndpointSlot.DEFAULT,
+                overrideEnabled = true,
+                baseUrl = "https://api.example.invalid/v1",
+                model = "gpt-4o-mini",
+                hasApiKey = true,
+                apiKeyMasked = "••••0001",
+            )
+            val visionEndpoint = AiEndpointConfig(
+                slot = AiEndpointSlot.VISION,
+                overrideEnabled = true,
+                baseUrl = "",
+                model = "gpt-4o",
+                hasApiKey = false,
+                apiKeyMasked = "",
+            )
+            val savedConfig = AiServiceConfig(
+                defaultEndpoint = defaultEndpoint,
+                visionEndpoint = visionEndpoint,
+                voiceEngineMode = VoiceEngineMode.ANDROID_SYSTEM,
+            )
+            return AiSettingsUiState(
+                savedConfig = savedConfig,
+                defaultDraft = AiSlotDraftUiState.fromConfig(defaultEndpoint).copy(
+                    testResult = AiConnectionTestResult(
+                        success = true,
+                        endpointSlot = AiEndpointSlot.DEFAULT,
+                        resolvedBaseUrl = "https://api.example.invalid/v1",
+                        model = "gpt-4o-mini",
+                        httpStatusCode = 200,
+                        probeMethod = "GET /models",
+                        latencyMs = 128L,
+                        message = "连接成功，已验证模型 gpt-4o-mini",
+                    ),
+                ),
+                visionDraft = AiSlotDraftUiState.fromConfig(visionEndpoint),
+                textDraft = AiSlotDraftUiState.fromConfig(savedConfig.textEndpoint),
+                voiceDraft = AiSlotDraftUiState.fromConfig(savedConfig.voiceEndpoint),
+                voiceEngineMode = VoiceEngineMode.ANDROID_SYSTEM,
+            )
+        }
     }
 }

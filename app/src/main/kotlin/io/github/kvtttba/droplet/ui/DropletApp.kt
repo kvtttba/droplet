@@ -75,6 +75,9 @@ import io.github.kvtttba.droplet.feature.ledger.LedgerUiState
 import io.github.kvtttba.droplet.feature.ledger.editor.TransactionEditorRoute
 import io.github.kvtttba.droplet.feature.ledger.manage.AccountManagementRoute
 import io.github.kvtttba.droplet.feature.ledger.manage.CategoryTagManagementRoute
+import io.github.kvtttba.droplet.feature.settings.AiSettingsRoute
+import io.github.kvtttba.droplet.feature.settings.AiSettingsScreen
+import io.github.kvtttba.droplet.feature.settings.AiSettingsUiState
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsRoute
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsScreen
 import io.github.kvtttba.droplet.feature.settings.CreditCardReminderSettingsUiState
@@ -132,6 +135,7 @@ object DropletRoutes {
     const val PRIVACY_SECURITY = "privacy_security"
     const val MARKET_SYNC_SETTINGS = "market_sync_settings"
     const val CREDIT_CARD_REMINDER_SETTINGS = "credit_card_reminder_settings"
+    const val AI_SETTINGS = "ai_settings"
 
     fun transactionEditor(transactionId: String? = null): String =
         if (transactionId.isNullOrBlank()) {
@@ -176,6 +180,7 @@ fun DropletApp(
     lockState: AppLockState = AppLockState(),
     marketSyncSummary: String = "每 12 小时 · 直连",
     creditCardReminderSummary: String = "已开启 · 默认提前 3 天提醒",
+    aiConfigSummary: String = "未配置 · 点击设置 OpenAI Compatible 接口",
     pendingCreditCardAccountId: String? = null,
     onConsumePendingCreditCardAccountId: () -> Unit = {},
     pendingLoanPlanId: String? = null,
@@ -214,6 +219,7 @@ fun DropletApp(
         flagSecureEnabled = preferences.flagSecureEnabled,
         marketSyncSummary = marketSyncSummary,
         creditCardReminderSummary = creditCardReminderSummary,
+        aiConfigSummary = aiConfigSummary,
         pendingCreditCardAccountId = pendingCreditCardAccountId,
         onConsumePendingCreditCardAccountId = onConsumePendingCreditCardAccountId,
         pendingLoanPlanId = pendingLoanPlanId,
@@ -324,6 +330,12 @@ fun DropletApp(
                 onShowMessage = onShowMessage,
             )
         },
+        aiSettingsContent = { onBack, onShowMessage ->
+            AiSettingsRoute(
+                onNavigateBack = onBack,
+                onShowMessage = onShowMessage,
+            )
+        },
     )
 }
 
@@ -350,6 +362,7 @@ fun DropletAppShell(
     reimbursementListPreviewState: ReimbursementListUiState? = null,
     marketSyncPreviewState: MarketSyncSettingsUiState? = null,
     creditCardReminderSettingsPreviewState: CreditCardReminderSettingsUiState? = null,
+    aiSettingsPreviewState: AiSettingsUiState? = null,
     ledgerContent: @Composable (
         onToggleAmountsHidden: () -> Unit,
         onCreateTransaction: () -> Unit,
@@ -415,6 +428,8 @@ fun DropletAppShell(
         flagSecureEnabled = flagSecureEnabled,
         marketSyncSummary = "每 12 小时 · 直连",
         creditCardReminderSummary = "已开启 · 默认提前 3 天提醒",
+        aiConfigSummary = aiSettingsPreviewState?.savedConfig?.formatSummary()
+            ?: "未配置 · 点击设置 OpenAI Compatible 接口",
         pendingCreditCardAccountId = null,
         onConsumePendingCreditCardAccountId = {},
         pendingLoanPlanId = null,
@@ -498,6 +513,12 @@ fun DropletAppShell(
                 onOpenCreditCardDetail = onOpenCardDetail,
             )
         },
+        aiSettingsContent = { onBack, _ ->
+            AiSettingsScreen(
+                uiState = aiSettingsPreviewState ?: AiSettingsUiState(),
+                onNavigateBack = onBack,
+            )
+        },
     )
 }
 
@@ -511,6 +532,7 @@ private fun DropletAppContent(
     flagSecureEnabled: Boolean,
     marketSyncSummary: String,
     creditCardReminderSummary: String,
+    aiConfigSummary: String,
     pendingCreditCardAccountId: String?,
     onConsumePendingCreditCardAccountId: () -> Unit,
     pendingLoanPlanId: String?,
@@ -592,6 +614,10 @@ private fun DropletAppContent(
     creditCardReminderSettingsContent: @Composable (
         onNavigateBack: () -> Unit,
         onOpenCreditCardDetail: (String) -> Unit,
+        onShowMessage: (String) -> Unit,
+    ) -> Unit,
+    aiSettingsContent: @Composable (
+        onNavigateBack: () -> Unit,
         onShowMessage: (String) -> Unit,
     ) -> Unit,
 ) {
@@ -758,10 +784,14 @@ private fun DropletAppContent(
                                     onOpenCreditCardReminders = {
                                         navController.navigate(DropletRoutes.CREDIT_CARD_REMINDER_SETTINGS)
                                     },
+                                    onOpenAiSettings = {
+                                        navController.navigate(DropletRoutes.AI_SETTINGS)
+                                    },
                                     biometricLockEnabled = biometricLockEnabled,
                                     flagSecureEnabled = flagSecureEnabled,
                                     marketSyncSummary = marketSyncSummary,
                                     creditCardReminderSummary = creditCardReminderSummary,
+                                    aiConfigSummary = aiConfigSummary,
                                     versionLabel = versionLabel,
                                 )
                             }
@@ -874,6 +904,12 @@ private fun DropletAppContent(
                                 creditCardReminderSettingsContent(
                                     { navController.popBackStack() },
                                     { accountId -> navController.navigate(DropletRoutes.creditCardDetail(accountId)) },
+                                    showMessage,
+                                )
+                            }
+                            composable(DropletRoutes.AI_SETTINGS) {
+                                aiSettingsContent(
+                                    { navController.popBackStack() },
                                     showMessage,
                                 )
                             }

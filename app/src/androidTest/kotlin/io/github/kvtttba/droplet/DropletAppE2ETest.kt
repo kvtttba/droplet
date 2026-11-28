@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToKey
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.espresso.Espresso
@@ -633,6 +634,114 @@ class DropletAppE2ETest {
                 composeRule.onNodeWithTag("tx_detail_refunded_total").assertTextContains("100.00", substring = true)
                 composeRule.onNodeWithTag("tx_detail_remaining_refundable").assertTextContains("100.00", substring = true)
                 composeRule.onNodeWithTag("tx_detail_net_expense").assertTextContains("100.00", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+    }
+
+    @Test
+    fun test06_endToEndAiSettingsConfigSlotOverrideAndPersistence() {
+        val sampleBaseUrl = "https://mock-ai.example.invalid/v1"
+        val sampleModel = "demo-model-mini"
+        val sampleVisionModel = "demo-vision-pro"
+        val samplePlaceholderInput = "demo-placeholder-key-0001"
+
+        // 1. Navigate to Settings tab and open AI Service Configuration screen
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("nav_tab_settings"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("nav_tab_settings").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.onNodeWithTag("settings_entry_ai_config").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ai_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("ai_privacy_notice_banner").assertIsDisplayed()
+
+        // 2. Fill default OpenAI Compatible config using sanitized synthetic values and save (Keystore encrypted)
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToNode(hasTestTag("ai_default_base_url_input"))
+        composeRule.onNodeWithTag("ai_default_base_url_input").performTextReplacement(sampleBaseUrl)
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToNode(hasTestTag("ai_default_api_key_input"))
+        composeRule.onNodeWithTag("ai_default_api_key_input").performTextReplacement(samplePlaceholderInput)
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToNode(hasTestTag("ai_default_model_input"))
+        composeRule.onNodeWithTag("ai_default_model_input").performTextReplacement(sampleModel)
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToNode(hasTestTag("ai_default_save_button"))
+        composeRule.onNodeWithTag("ai_default_save_button").performClick()
+
+        // Wait for async Keystore encryption + DataStore write to reflect masked badge
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToKey("ai_default_config_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("ai_default_saved_key_badge")
+                    .assertTextContains("••••0001", substring = true)
+                composeRule.onNodeWithTag("ai_default_status_badge")
+                    .assertTextContains("已加密配置", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // 3. Switch voice transcription engine mode to CUSTOM_AI
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToKey("ai_voice_engine_card")
+        composeRule.onNodeWithTag("ai_voice_mode_CUSTOM_AI").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("ai_voice_mode_CUSTOM_AI").assertIsSelected()
+                true
+            }.getOrDefault(false)
+        }
+
+        // 4. Enable VISION slot independent override and save custom vision model
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToKey("ai_slot_card_VISION")
+        composeRule.onNodeWithTag("ai_slot_switch_VISION").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("ai_slot_VISION_model_input"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToNode(hasTestTag("ai_slot_VISION_model_input"))
+        composeRule.onNodeWithTag("ai_slot_VISION_model_input").performTextReplacement(sampleVisionModel)
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToNode(hasTestTag("ai_slot_save_VISION"))
+        composeRule.onNodeWithTag("ai_slot_save_VISION").performClick()
+
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToKey("ai_hero_privacy_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("ai_hero_summary").assertTextContains("1 项覆盖", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // 5. Recreate Activity and verify encrypted key presence, override slot, and voice mode persist
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_ai_settings"), timeoutMillis = 10_000)
+
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToKey("ai_default_config_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("ai_default_base_url_input")
+                    .assertTextContains(sampleBaseUrl, substring = true)
+                composeRule.onNodeWithTag("ai_default_model_input")
+                    .assertTextContains(sampleModel, substring = true)
+                composeRule.onNodeWithTag("ai_default_saved_key_badge")
+                    .assertTextContains("••••0001", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToKey("ai_voice_engine_card")
+        composeRule.onNodeWithTag("ai_voice_mode_CUSTOM_AI").assertIsSelected()
+
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToKey("ai_slot_card_VISION")
+        composeRule.onNodeWithTag("ai_slot_switch_VISION").assertIsOn()
+        composeRule.onNodeWithTag("ai_settings_list").performScrollToNode(hasTestTag("ai_slot_VISION_model_input"))
+        composeRule.onNodeWithTag("ai_slot_VISION_model_input")
+            .assertTextContains(sampleVisionModel, substring = true)
+
+        // 6. Navigate back to Settings and confirm live AI config summary reflects persisted state
+        composeRule.onNodeWithTag("ai_settings_back_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("settings_entry_ai_config")
+                    .assertTextContains(sampleModel, substring = true)
+                composeRule.onNodeWithTag("settings_entry_ai_config")
+                    .assertTextContains("AI 语音", substring = true)
                 true
             }.getOrDefault(false)
         }
