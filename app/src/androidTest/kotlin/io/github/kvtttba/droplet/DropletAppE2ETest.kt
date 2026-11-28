@@ -1041,7 +1041,7 @@ class DropletAppE2ETest {
         composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_password_input"))
         composeRule.waitUntil(timeoutMillis = 10_000) {
             runCatching {
-                composeRule.onNodeWithTag("webdav_password_saved_badge")
+                composeRule.onNodeWithTag("webdav_password_saved_badge", useUnmergedTree = true)
                     .assertTextContains("••••2026", substring = true)
                 true
             }.getOrDefault(false)
@@ -1058,7 +1058,7 @@ class DropletAppE2ETest {
         composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_passphrase_input"))
         composeRule.waitUntil(timeoutMillis = 10_000) {
             runCatching {
-                composeRule.onNodeWithTag("webdav_passphrase_saved_badge")
+                composeRule.onNodeWithTag("webdav_passphrase_saved_badge", useUnmergedTree = true)
                     .assertTextContains("••••8899", substring = true)
                 true
             }.getOrDefault(false)
@@ -1100,7 +1100,7 @@ class DropletAppE2ETest {
             runCatching {
                 composeRule.onNodeWithTag("webdav_server_url_input")
                     .assertTextContains(expectedNormalizedUrl, substring = true)
-                composeRule.onNodeWithTag("webdav_password_saved_badge")
+                composeRule.onNodeWithTag("webdav_password_saved_badge", useUnmergedTree = true)
                     .assertTextContains("••••2026", substring = true)
                 true
             }.getOrDefault(false)
@@ -1108,7 +1108,7 @@ class DropletAppE2ETest {
 
         composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_encryption_card")
         composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_passphrase_input"))
-        composeRule.onNodeWithTag("webdav_passphrase_saved_badge")
+        composeRule.onNodeWithTag("webdav_passphrase_saved_badge", useUnmergedTree = true)
             .assertTextContains("••••8899", substring = true)
 
         composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_policy_card")
@@ -1126,6 +1126,8 @@ class DropletAppE2ETest {
         composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_local_rollbacks_card")
         composeRule.waitUntil(timeoutMillis = 10_000) {
             runCatching {
+                composeRule.onNodeWithTag("webdav_sync_list")
+                    .performScrollToNode(hasTestTag("webdav_local_rollback_name_0"))
                 composeRule.onNodeWithTag("webdav_local_rollback_name_0")
                     .assertTextContains("manual-snapshot-", substring = true)
                 composeRule.onNodeWithTag("webdav_local_rollback_name_0")

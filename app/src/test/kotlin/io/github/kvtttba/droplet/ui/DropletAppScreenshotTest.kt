@@ -1020,6 +1020,8 @@ class DropletAppScreenshotTest {
         }
         composeRule.onNodeWithTag("screen_webdav_sync").assertIsDisplayed()
         composeRule.onNodeWithTag("webdav_hero_summary").assertTextContains("DRP1 加密", substring = true)
+        composeRule.onNodeWithTag("webdav_password_saved_badge", useUnmergedTree = true)
+            .assertTextContains("••••2026", substring = true)
         composeRule.onRoot().captureRoboImage(
             filePath = "src/test/snapshots/webdav_sync_light.png",
             roborazziOptions = roborazziOptions,
