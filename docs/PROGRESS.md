@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-- **当前阶段**：`M5.1`（预算管理与预警、周期记账与快捷模板）已完成验收并合入 `main`。
-- **下一个待执行切片**：**`M5.2`**（统计报表、收支日历与多格式导出）
-- **最新已合入提交**：`feat/m5-1-budget-recurring-templates` 合入 `main`（CI `#46134632137` 全线绿灯，详见 `git log`）
+- **当前阶段**：`M5.2`（统计报表、收支日历与多格式导出）已完成验收并合入 `main`。
+- **下一个待执行切片**：**`M5.3`**（WebDAV 端到端加密快照备份与回滚恢复 — MVP 最终切片）
+- **最新已合入提交**：`feat/m5-2-stats-calendar-export` 合入 `main`（CI `#46154517672` 全线绿灯，详见 `git log`）
 
 ---
 
@@ -43,8 +43,8 @@
 | `M4.1` | AI 配置、Keystore 加密与 JSON 解析引擎 | ✅ 已完成 | `:core:security` 新增 `AiEndpointSlot` / `VoiceEngineMode` / `AiServiceConfig` 与 `DataStoreAiConfigPreferencesRepository`（独立 `droplet_ai_config_preferences.preferences_pb`，全槽位 API Key 经既有 `KeystoreSecretCipher` AES-256-GCM + 按槽位独立 AAD 加密落盘，严禁明文存储/日志输出，支持能力槽位独立覆盖或部分字段继承默认配置）；`:core:ai` 落地隐私最小化 `AiPromptBuilder`（严格仅注入时间/本位币 + 活跃账户名称/类型/币种 + 二级分类路径 + 活跃标签名，绝不传余额/额度/流水）、零浮点容错 `AiDraftJsonParser`（剥离 `<think>` / Markdown 代码块 / 解释前后缀、经 `BigDecimal` 转 `Money` `scale = 4` 并拦截非法/负/零/溢出数值、智能匹配本地分类/账户/目标账户/标签并高亮 `uncertainFields`）与复用 `DropletHttpClientFactory` 代理能力的 `OpenAiCompatibleClient`（BaseURL 标准化、`/models` + 降级 `/chat/completions` 脱敏连通性探测、`parseText`、`parseImages` 与 Whisper `/audio/transcriptions`）；`:app` 新增 `AiModule`/`AiEntryPoint` 与 `@AiConfigDataStore`；`:feature:settings` 落地 `AiSettingsScreen` / `Route` / `ViewModel` 并接入设置首页实时摘要；309 项单测 & 24 张 Roborazzi 截图 + API 31 全链路 `test06` E2E + 16 MB Debug APK 全绿 | `feat/m4-1-ai-config-parser` 已验收合入（CI `#46128801090`） |
 | `M4.2` | 图片/语音/一句话记账与草稿批量确认 UI | ✅ 已完成 | `:core:ai` 新增 `AiDraftBatchCodec` / `AiDraftAttachmentRef`、`ReceiptImageProcessor`（安全缩放、EXIF 方向校正并经像素重编码彻底剥离 GPS/设备等 EXIF 隐私元数据、长截图重叠垂直分段切片、SHA-256 与路径穿越防护）与零浮点 `AiDraftTransactionMapper`（复用 `LedgerEngine` 构造单/跨币种支出/收入/转账/待报销恒平分录并校验必填项）；`:core:database` 保持 Room Schema `v1` 零变更，新增 `AiDraftRepository` / `LocalAiDraftRepository`（活跃草稿流与角标计数、单 SQLite 事务原子批量入账+关联本地 `attachments`+`COMMITTED` 标记及任意单条失败全批回滚）与 `AiCaptureOrchestrator`（文本/视觉/Whisper 语音转写编排、隐私最小化 Prompt 组装、未配置/网络异常自动落草稿箱重试与离线转人工核对）；`:feature:ai_capture` 落地 `AiCaptureScreen`（一句话/拍照+相册多选/双模式语音与离线草稿箱）与 `AiDraftReviewScreen`（低置信度与 `uncertainFields` 琥珀色高亮、就地微调、隐私金额隐身与一键批量入账），打通 `QuickCaptureModalSheet` 全部入口与草稿箱角标；`:app` 配置 `FileProvider`、`RECORD_AUDIO` 与 `ACTION_SEND`/`ACTION_SEND_MULTIPLE` 系统分享直达（严格在生物识别解锁后路由）；330 项单测 & 26 张 Roborazzi 截图 + API 31 全链路 `test07` E2E + 16 MB Debug APK 全绿 | `feat/m4-2-ai-capture-drafts` 已验收合入（CI `#46131560383`） |
 | `M5.1` | 预算管理与预警、周期记账与模板 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点 `BudgetProgressCalculator`（月/年总预算与支出分类预算、父分类自动聚合全部子分类净支出、自动扣减关联退款、排除待报销垫付与作废、剩余天数与日均可用额度、`NORMAL`/`WARNING`/`EXCEEDED` 精确阈值判定）、`RecurringPayload`/`RecurringPayloadCodec`、`RecurringScheduleCalculator`（日/周/月/年含 29–31 号月末与闰年 2/29 安全夹紧）及 `RecurringTransactionBuilder`；`:core:database` 保持 Room Schema `v1` 零变更，扩展 `BudgetDao`/`RecurringRuleDao`/`TemplateDao`/`TransactionDao`/`LedgerTransactionWriter`（提交后监听器）并新增 `BudgetRepository`（含 `NULL` 总预算防重与实时进度 Flow）、`RecurringRuleRepository`（CAS 原子防并发双入账自动入账、待确认队列确认/跳过、暂停/恢复/终止）与 `TemplateRepository`（一键原子入账与使用计数）；`:core:security` 新增 `BudgetAndRecurringPreferencesRepository`（`@BudgetRecurringDataStore` 周期/日级防重）；`:app` 新增 `PlanningModule`/`PlanningEntryPoint`、`droplet_budget_recurring_alerts` 通知渠道（支持隐私隐身与深链）、`BudgetAlertEvaluator`（记账提交后即时按需评估）与 `RecurringAndBudgetWorker`/`RecurringAndBudgetScheduler`；`:feature:settings` 落地 `BudgetManagementScreen`、`RecurringRulesScreen`、`TemplateManagementScreen` 与「我的」页实时摘要入口，`:feature:ledger` 打通首页当月总预算进度卡/快捷模板横条与 `TransactionEditorViewModel` 携 `templateId` 预填，`:feature:stats` 同步接入真实月度预算进度；351 项单测 & 29 张 Roborazzi 截图 + API 31 全链路 `test08` E2E + 17 MB Debug APK 全绿 | `feat/m5-1-budget-recurring-templates` 已验收合入（CI `#46134632137`） |
-| `M5.2` | 统计报表、收支日历与多格式导出 | ⬜ 待开始 | 收支趋势/分类环形/资产走势/收支日历（含标签筛选）、Excel/CSV/Beancount 导出 | 下一切片 |
-| `M5.3` | WebDAV 端到端加密快照备份与回滚恢复 | ⬜ 待开始 | WAL 一致性打包、AES-256-GCM 加密、防抖/定时上传、历史快照列表、本地回滚安全恢复 | — |
+| `M5.2` | 统计报表、收支日历与多格式导出 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点统计引擎 `StatsAggregator`（月/年/自定义 ≤45 天按日 / >45 天按月、多标签 `ANY`/`ALL` 含未打标关联退款继承原单标签冲减、本位币锁定 `baseAmountMinor` 免疫汇率漂移 vs 原币种筛选、排除 `VOID`/`DRAFT` 与待报销垫付、一级/二级分类占比与下钻、尊重 `includeInNetWorth` 含溢缴款的确定性历史净资产走势、自然月收支日历）与零重依赖三格式导出引擎 `LedgerExportEngine`（UTF-8 BOM + RFC-4180 CSV、纯 Kotlin 轻量 OOXML + `ZipOutputStream` 三工作表 `.xlsx` 零 Apache POI 膨胀、标准 `open` 科目声明与借贷恒平全分录 `.beancount`）；`:core:database` 保持 Room Schema `v1` 零变更，新增 `StatsRepository` & `LedgerExportRepository`，`:app` 新增 `StatsModule`/`StatsEntryPoint` 与 `file_paths.xml` `exports/` 分享目录；`:core:ui` 新增 4 个原生 Compose Canvas Material 3 图表（`IncomeExpenseTrendChart` / `CategoryDonutChart` / `NetWorthTrendChart` / `IncomeExpenseCalendarGrid`，全面支持深浅色与 `LocalAmountsHidden` 隐身掩码）；`:feature:stats` 升级为真实 Hilt `StatsRoute`/`StatsScreen`/`StatsViewModel`（概览报表 + 分类下钻底部弹窗 + 收支日历 + 当期预算进度联动），`:feature:settings` 落地 `DataExportScreen`（实时预估、本机生成、SAF 另存为与 `FileProvider` 系统分享）；364 项单测 & 32 张 Roborazzi 截图 + API 31 全链路 `test09` E2E + 17.3 MB Debug APK 全绿 | `feat/m5-2-stats-calendar-export` 已验收合入（CI `#46154517672`） |
+| `M5.3` | WebDAV 端到端加密快照备份与回滚恢复 | ⬜ 待开始 | WAL 一致性打包、AES-256-GCM 加密、防抖/定时上传、历史快照列表、本地回滚安全恢复 | 下一切片（收官） |
 
 ---
 
@@ -203,32 +203,47 @@
    - `:feature:settings` 落地 Stateless + Hilt Route 分层的 `BudgetManagementScreen`（`DropletRoutes.BUDGET_MANAGEMENT`）、`RecurringRulesScreen`（`DropletRoutes.RECURRING_RULES`，含顶部「到期·待确认入账」一键确认/跳过队列与暂停/恢复开关）与 `TemplateManagementScreen`（`DropletRoutes.TEMPLATE_MANAGEMENT`，支持「直接入账」与「预填记账」），并在 `SettingsScreen` 新增「预算与效率工具」分组与实时摘要；
    - `:feature:ledger` 升级 `LedgerScreen`/`LedgerViewModel`（有月度总预算时在 Hero 下方渲染紧凑预算进度卡，有快捷模板时渲染横向一键模板条）与 `TransactionEditorViewModel`（`DropletRoutes.transactionEditor(transactionId, templateId)` 支持模板预填并自动记录使用次数）；`:feature:stats` `StatsScreen` 同步接入真实月度总预算进度与跳转；`DropletAppShell` 补充全部 3 个预览槽位。
 
-### M5.2 启动入口契约（统计报表、收支日历与多格式导出）
-1. 从 `main` 切出分支 `feat/m5-2-stats-calendar-export`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m5.2"`。
-2. **纯 JVM 统计报表、日历与多格式导出引擎 (`:core:domain`)**：
-   - 保持零浮点铁律（全量 `Money` `scale = 4` + `BigDecimal`），新增 `io.github.kvtttba.droplet.core.domain.stats` 与 `io.github.kvtttba.droplet.core.domain.export`：
-     - `StatsReportCalculator`：支持按月、按年、自定义日期区间以及**单/多标签筛选（ANY/ALL）**与**币种/本位币**维度聚合：
-       1. **收支趋势**：按日（月度/短区间）或按月（年度/长区间）计算净支出、净收入、结余序列（严格复用历史锁定 `baseAmountMinor`，自动扣减关联退款、排除待报销垫付与作废）；
-       2. **支出/收入分类占比与排行榜**：聚合大类与二级子分类占比（`BigDecimal` 百分比）、笔数与排名，支持点击大类下钻子分类及对应流水；
-       3. **净资产/总资产/总负债历史走势**：基于历史账户分录回溯各时点余额并结合汇率与投资估值快照输出走势点序列；
-       4. **收支日历**：按自然月生成每日格子（当日净支出、净收入、笔数），支持点击某日下钻查看当日明细；
-     - `LedgerExportEngine`：支持按时间范围或全量导出三种标准格式（纯 JVM 零 Android 依赖、零敏感数据泄露）：
-       1. **CSV（UTF-8 with BOM，兼容 Excel 中文不乱码）**：规范转义逗号/引号/换行，输出完整交易头与分类/账户/金额/币种/本位币/标签/商户/备注；
-       2. **Excel（`.xlsx`）**：使用纯 Kotlin 轻量 OOXML + `java.util.zip.ZipOutputStream` 生成标准 `.xlsx`（含「交易流水」「复式分录」「分类汇总」多工作表），避免引入庞大的 Apache POI 导致 Debug APK 体积膨胀；
-       3. **Beancount 纯文本账本（`.beancount`）**：按日期输出 `open` 科目声明与严格平衡的复式 posting 块（保留币种、汇率 `@` / `@@` 注解、标签 `#tag`、商户与备注），可被标准 `bean-check` 语义校验。
-3. **Room 统计/导出仓储与文件分享落盘 (`:core:database` & `:app`)**：
-   - **保持 Room Schema `v1` 零变更**，新增 `StatsAndExportRepository` / `LocalStatsAndExportRepository`（复用 `TransactionDao`、`AccountDao`、`TagDao`、`InvestmentRepository`、`BudgetRepository`），提供响应式的 `observeStatsReport(query)` 与 `exportLedger(request)`；
-   - `:app` 新增 `StatsAndExportModule` / `StatsAndExportEntryPoint`，导出文件经 `ActivityResultContracts.CreateDocument`（SAF 保存到用户目录）或 `FileProvider`（`res/xml/file_paths.xml` 增配 `exports/` 目录）一键分享，严禁请求宽泛外部存储权限。
-4. **统计分析 Tab 与数据导出 UI 闭环 (`:feature:stats` & `:feature:settings` & `:app`)**：
-   - `:feature:stats` 接入 Hilt/KSP 与 `:core:database`（补齐 `feature/stats/build.gradle.kts` 依赖），将占位 `StatsScreen` 升级为真实 `StatsRoute` / `StatsScreen` / `StatsViewModel`（保留 Stateless Screen + `DropletAppShell` `statsPreviewState` 槽位）：
-     - 顶部时间范围切换（月度/年度/自定义起止日期）+ 标签多选筛选 + 隐私金额隐身开关；
-     - 真实当期预算消耗卡片（点击直达预算管理）+ 原生 Compose Canvas 绘制四大精致图表（收支趋势柱状/折线图、分类占比环形图与排行榜下钻、净资产/资产负债走势折线图、月度收支日历网格及点击查看当日流水底部列表）；
-   - `:feature:settings` 落地 `DataExportScreen` / `DataExportRoute` / `DataExportViewModel`（`DropletRoutes.DATA_EXPORT`），打通 `SettingsScreen` 中「数据导出」入口：支持选择导出格式（Excel `.xlsx` / CSV / Beancount）、时间范围（本月/今年/全部/自定义）、导出预览统计（笔数/分录数）与 SAF 保存/分享。
-5. **测试与交付门禁（`ccarm` + `pu`）**：
-   - L1/L2 单测：`StatsReportCalculator` 趋势/环形占比/净资产走势/收支日历/标签与退款过滤、`LedgerExportEngine` CSV 转义/XLSX ZIP+XML 结构校验/Beancount 复式平衡输出、Room 统计与导出仓储测试、ViewModel 测试；
-   - L3 Roborazzi 截图：刷新 `stats_light.png`（展示真实四大图表与日历），新增 `stats_calendar_light.png`、`data_export_light.png` 并刷新 `settings_light.png`（`v0.1.0-m5.2`），拉回肉眼验收；
-   - L4 API 31 E2E：在 `DropletAppE2ETest` 追加 `test09_endToEndStatsChartsCalendarAndDataExport`（验证统计页真实消费汇总、切换时间范围与标签过滤、查看收支日历下钻，再进入设置「数据导出」生成 CSV/XLSX/Beancount 并验证导出成功反馈）；
-   - `gitleaks` + `pu` 全量单测/截图/APK + GitHub Actions 三项 CI 全绿后更新 `docs/PROGRESS.md`（写入 `M5.3 启动入口契约`）、`--no-ff` 合入 `main` 并 `droplet-pu sync`。
+### M5.2 已落地的核心约定
+1. **纯 JVM 统计聚合与零重依赖三格式导出引擎 (`:core:domain`)**：
+   - 新增 `io.github.kvtttba.droplet.core.domain.stats`（`StatsModels` / `StatsAggregator`，全量零浮点 `Money` `scale = 4` + `BigDecimal`）：
+     - 支持 `MONTHLY`（月度按日）/ `YEARLY`（年度按月）/ `CUSTOM_RANGE`（≤45 天按日、>45 天按月）三类周期，`ANY`/`ALL` 多标签筛选（关联 `REFUND` 自动继承原交易标签确保按标签看净支出时退款不丢失），以及 `BASE_CNY`（严格使用入账锁定 `baseAmountMinor` 免疫后续汇率漂移）vs `ORIGINAL_CNY`/`ORIGINAL_USD`/`ORIGINAL_HKD` 原币种筛选；
+     - 严格排除 `VOID`/`DRAFT` 与 `REIMBURSE` 垫付（`refTransactionId == null`），产出收支趋势分桶、支出/收入一级大类与二级小类占比排行榜及下钻明细列表、尊重 `Account.includeInNetWorth`（兼容信用卡负负债与溢缴款正资产）的确定性历史净资产/总资产/总负债时间线，以及自然月 7 列收支日历数据；
+   - 新增 `io.github.kvtttba.droplet.core.domain.export`（`ExportModels` / `CsvLedgerExporter` / `XlsxLedgerExporter` / `BeancountLedgerExporter` / `LedgerExportEngine`）：
+     - **CSV**：UTF-8 BOM (`EF BB BF`) 兼容 Excel 中文无乱码 + RFC-4180 转义 + 14 列完整流水与锁定汇率快照；
+     - **Excel (`.xlsx`)**：纯 Kotlin 轻量 OOXML (`inlineStr` + `t="n"` + 冻结首行 + 完整 XML 1.0 转义) + `java.util.zip.ZipOutputStream` 生成标准 3 工作表（`流水明细`、`分类汇总`、`账户余额`），零 Apache POI 依赖，Debug APK 稳定保持 17.3 MB；
+     - **Beancount (`.beancount`)**：标准 `option "operating_currency"` + 合法 5 根科目 `open` 声明 + 按时间升序交易块（含 `*`/`!` 状态、`#tags`、完整借贷恒平分录含 `Equity:Trading:{CCY}` 及跨币种汇率与投资 `qty=`/`price=` 注释）。
+2. **Room 统计/导出仓储、Hilt 装配与文件分享 (`:core:database` & `:app`)**：
+   - 保持 Room Schema `v1` 零变更，仅在 `TransactionDao` 补充只读 `observeAllByStatuses`/`getAllByStatuses` 及 `TagDao.getAll`，新增 `StatsRepository`/`LocalStatsRepository`（单次 `combine` 响应式联动统计快照与当期总预算进度）与 `LedgerExportRepository`/`LocalLedgerExportRepository`（实时预估、导出字节流、路径穿越校验与原子临时文件落盘）；
+   - `:app` 新增 `StatsModule` / `StatsEntryPoint` 完成单例绑定与编译期校验；`res/xml/file_paths.xml` 增配 `exports/` 缓存与文件目录，打通 SAF `CreateDocument` 与 `FileProvider` 安全分享，零外部存储权限。
+3. **原生 Material 3 图表、真实统计页与数据导出页 (`:core:ui` & `:feature:stats` & `:feature:settings`)**：
+   - `:core:ui` 将 `:core:domain` 升级为 `api` 并新增 4 个纯 Compose Canvas + Material 3 排版图表（`IncomeExpenseTrendChart`、`CategoryDonutChart`、`NetWorthTrendChart`、`IncomeExpenseCalendarGrid`），全面支持深浅色与全局 `LocalAmountsHidden` 隐身掩码（坐标轴 `****`、日历格绿/红微圆点）；
+   - `:feature:stats` 接入 Hilt/KSP 与 `:core:database`，升级为 Stateless + Hilt Route 分层的 `StatsRoute`/`StatsScreen`/`StatsViewModel`（`DropletAppShell` 新增 `statsPreviewState`），提供「报表概览」与「收支日历」两段切换、月/年/自定义周期导航、币种与多标签弹窗筛选、点击分类弹出二级分布与关联流水下钻 `ModalBottomSheet`、点击日历格联动展示当日流水以及预算管理/数据导出直达；
+   - `:feature:settings` 落地 `DataExportScreen`/`Route`/`ViewModel`（`DropletRoutes.DATA_EXPORT`，`DropletAppShell` 新增 `dataExportPreviewState`），从「我的」页「数据导出」和统计页顶部导出按钮均可直达，支持 3 格式单选、范围/标签/含作废筛选、实时预估与本机生成/SAF 另存为/系统分享。
+
+### M5.3 启动入口契约（WebDAV 端到端加密快照备份与回滚恢复 — MVP 最终切片）
+1. 从 `main` 切出分支 `feat/m5-3-webdav-encrypted-sync`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m5.3"`（或正式 MVP 候选版，按仓库约定统一递增为 `"0.1.0-m5.3"`）。
+2. **安全与加密凭据持久化 (`:core:security`)**：
+   - 遵循 `AGENTS.md §2 & §3.5` 与 `ARCHITECTURE.md §6`：
+     - 新增 `WebDavConfig` / `WebDavSyncPreferences` / `DataStoreWebDavPreferencesRepository`（独立 `droplet_webdav_preferences.preferences_pb`）：保存脱敏后的 WebDAV 服务器 URL（强制 HTTPS，可选本地局域网 HTTP 提示）、用户名、远程目录路径（默认 `/droplet-backups/`）、自动防抖同步开关、每日定时同步开关、仅 Wi-Fi 开关、保留远端快照份数（默认 `10`）、端到端加密开关、是否同步票据原图开关（默认 `false`）以及上次成功备份时间戳与状态；
+     - WebDAV 密码与独立备份加密口令**强制经既有 `KeystoreSecretCipher`（AES-256-GCM + 独立 AAD，如 `webdav_password` / `webdav_backup_passphrase`）加密落盘**，任何对象的 `toString()` 与日志严禁出现明文密码/口令/凭据头；
+     - 落地纯加密封装器 `BackupPayloadEncryptor`（实现 `ARCHITECTURE.md §6.2` 规范）：`DRP1` 4 字节魔数头 + 16 字节随机 Salt + 12 字节随机 Nonce + PBKDF2-HMAC-SHA256（高迭代次数，如 `120_000` 次）派生 256-bit 密钥 + AES-256-GCM 密文与 128-bit 防篡改 Tag；错误口令或被篡改密文必须抛出脱敏异常并拒绝解密。
+3. **一致性快照打包、WebDAV 客户端与安全回滚恢复引擎 (`:core:sync`)**：
+   - 复用 `:core:database` 已有的 `DatabaseSnapshotExporter`（`PRAGMA wal_checkpoint(TRUNCATE)` + `VACUUM INTO` + `PRAGMA integrity_check` + SHA-256）与 `:core:network` `DropletHttpClientFactory`（自动继承用户代理配置）：
+     - **快照打包器 (`BackupArchiveBuilder` / `BackupArchiveReader`)**：打包 `ledger.db` + `manifest.json`（含 `appVersion`、`schemaVersion`、`createdAtEpochMs`、`dbSha256`、`includesAttachments`、`attachmentCount`、`encrypted`、`formatVersion = 1`）+ 可选 `receipts/` 票据目录（带严格 ZIP Slip 路径穿越拦截），加密开启时经 `BackupPayloadEncryptor` 封装为 `.drp` 加密包（关闭加密时为 `.zip`）；
+     - **WebDAV 客户端 (`WebDavClient` / `OkHttpWebDavClient`)**：基于 OkHttp 实现标准 WebDAV 方法：`PROPFIND`（Depth: 1 列目录与历史快照元数据解析）、`MKCOL`（逐级幂等建目录）、`PUT`（流式上传快照）、`GET`（流式下载快照）、`DELETE`（清理超限过期旧包），使用 `Basic` Auth 且全链路脱敏错误消息，支持 MockWebServer 100% 离线单测；
+     - **安全回滚恢复器 (`SafeDatabaseRestorer`)**：下载目标快照 → 校验解密/验签/SHA-256 → 校验 `schemaVersion <= DropletDatabaseContract.SCHEMA_VERSION` 与 `PRAGMA integrity_check == ok` → **先将本机当前数据库完整备份至 `filesDir/rollback_backups/` 应急回滚目录** → 安全关闭或原子替换数据库文件（清理 `-wal`/`-shm` 并恢复可选票据附件）→ 重新校验可读性；任意环节失败自动从应急回滚备份原样还原，确保本地账本零损坏！
+     - **同步编排器 (`WebDavSyncManager`)**：封装「测试连接」「立即手动备份」「防抖变更自动备份（保留最近 N 份自动清理过期旧包）」「列举远端历史快照列表」「恢复指定远端快照（含输入/复用解密口令与应急回滚保护）」「本地应急回滚点查看与一键回退」。
+4. **WorkManager 防抖/定时调度、DI 与设置 UI 闭环 (`:app` & `:feature:settings`)**：
+   - `:app` 新增 `SyncModule` / `SyncEntryPoint`，通过 `LedgerTransactionWriter.addOnTransactionCommittedListener` 在 `DropletApplication` 注册防抖自动备份触发器（`ExistingWorkPolicy.REPLACE` + 30 秒 `initialDelay` 合并连续记账上传），并新增 `WebDavSyncWorker`（防抖单次与每日定时周期任务 `WebDavSyncScheduler`，支持仅 Wi-Fi 约束）；
+   - `:feature:settings` 落地 Stateless + Hilt Route 分层的 `WebDavSyncScreen` / `Route` / `ViewModel`（`DropletRoutes.WEBDAV_SYNC`，`DropletAppShell` 补充 `webDavSyncPreviewState`），全面打通 `SettingsScreen` 中最后一处占位项「WebDAV 加密备份与恢复」：
+     - 服务器地址 / 用户名 / 密码（掩码+Keystore 加密）/ 远端目录配置 +「测试连接」按钮与脱敏结果胶囊；
+     - 端到端加密开关与独立备份口令设置（提示忘记口令无法找回）、自动变更同步 / 每日定时备份 / 仅 Wi-Fi / 同步票据原图 / 保留份数（5/10/20）配置；
+     - 「立即备份」按钮 + 上次同步状态卡 +「远端历史快照列表」（展示时间/大小/加密标记/一键恢复确认弹窗含应急回滚提示）+ 本地应急回滚恢复入口。
+5. **四层测试与收官验收门禁（`ccarm` + `pu`）**：
+   - L1/L2 单测：`BackupPayloadEncryptor`（正确解密、错口令/篡改字节/截断头均 fail-closed）、`BackupArchiveBuilder`/`Reader`（含 ZIP Slip 防护与 SHA-256 校验）、`OkHttpWebDavClient`（MockWebServer 覆盖 `PROPFIND`/`MKCOL`/`PUT`/`GET`/`DELETE` 与认证失败脱敏）、`SafeDatabaseRestorer`（正常替换 + 损坏包自动回滚零数据丢失）、`WebDavSyncManager` 保留份数自动清理与 `WebDavSyncViewModel` / `WebDavSyncWorker` 测试；
+   - L3 Roborazzi 截图：新增 `webdav_sync_light.png`（完整配置卡 + 加密状态 + 历史快照列表）、`webdav_sync_dark.png`，刷新 `settings_light.png`（`v0.1.0-m5.3` 且「我的」页全部入口 100% 真实无占位），全部拉回肉眼验收；
+   - L4 API 31 E2E：在 `DropletAppE2ETest` 追加 `test10_endToEndWebDavSyncConfigAndBackupPreferences`（从「我的」进入 WebDAV 设置，填写脱敏配置与加密开关/保留策略/自动同步开关，保存后重启 Activity 验证 DataStore + Keystore 持久化与设置页摘要联动，严禁发外网请求）；
+   - `gitleaks` 全历史扫描 + `pu` 全量单测/截图/APK + GitHub Actions 三项 CI 全绿 → 更新 `docs/PROGRESS.md` 标记全部一期 MVP 里程碑（`M0` ~ `M5.3`）100% 完结 → `--no-ff` 合入 `main` 并 `droplet-pu sync` 与更新 `/tmp/droplet-debug.apk`。
 
 ---
 
@@ -254,3 +269,4 @@
 - **[M4.1] 跨模块构造默认参数类泄露与 Compose 非合并容器 `testTag` 语义断言**：`:core:ai` 中 `AiDraftJsonParser` 若在公开主构造暴露 `implementation` 依赖 `kotlinx.serialization.json.Json` 的默认参数，会导致 `:app` 调用无参构造时报 `Cannot access class 'Json'`，应改为 `internal constructor(json: Json)` + 公开无参 `constructor()` 保持模块边界洁净；Compose 中无 `clickable` 的 `Row` 与 `DropletPillBadge` 内 `Surface` 均不自动合并子 `Text` 语义，UI/E2E 断言文本时须将 `testTag` 直接置于 `Text` 或显式附加 `Modifier.semantics(mergeDescendants = true) {}`；`DropletAppE2ETest` 对所有异步 DataStore 切换（如 `relock_timeout_*`、`amounts_hidden`）须统一用 `composeRule.waitUntil` 守卫，防止前置用例瞬时帧差导致状态残留污染后续共享库 E2E 用例。
 - **[M4.2] Kotlin KDoc 嵌套 `/*` 与 Robolectric Room Flow ViewModel 单测调度**：Kotlin 块注释支持嵌套，在 `/** ... */` KDoc 中书写 MIME 字面量 `image/*` 会意外开启嵌套注释导致 `Unclosed comment` 编译错误，应改用自然语言描述；Robolectric 下测试订阅了 Room `Flow` 的 ViewModel 时，`StandardTestDispatcher` + `advanceUntilIdle()` 无法等待 Room 后台线程发射更新，须沿用 `UnconfinedTestDispatcher()` + `runBlocking` + `withTimeout(5_000L) { uiState.first { ... } }` 确定性等待状态收敛；系统分享 `ACTION_SEND`/`ACTION_SEND_MULTIPLE` 在 `DropletApp` 须由 `LaunchedEffect(pendingAiSharePayload?.id, isAppLocked)` 严格守卫，确保应用隐私锁未解锁前绝不提前跳转或消费分享负载。
 - **[M5.1] SQLite UNIQUE 索引 `NULL` 判重、卡片 `clickable` 语义合并与无环事务后监听**：SQLite 中 `UNIQUE (period, category_account_id, currency)` 对多条 `category_account_id IS NULL`（总预算）互不判冲突，仓储写入前须通过 `BudgetDao.findDuplicate` 使用 `(category_account_id IS NULL AND :categoryAccountId IS NULL) OR category_account_id = :categoryAccountId` 显式防重；Compose 卡片外层若附加 `Modifier.clickable` 且内部含多个可断言 `testTag`（如总预算金额、规则状态徽标、暂停开关），默认 `mergeDescendants = true` 会吞并子 `testTag`，应改用显式操作按钮（如「调整」「编辑规则」）隔离点击区，既提升触控准确性又确保截图与 E2E 断言稳定；记账提交后即时评估预算预警应通过 `LedgerTransactionWriter.addOnTransactionCommittedListener` 在 `DropletApplication` 注册异步监听，避免 `LedgerDataModule` 与 `PlanningModule` 形成 Hilt 循环依赖。
+- **[M5.2] 零 POI 轻量 OOXML、标签筛选关联退款继承、图表排版与 Roborazzi 录制命令隔离**：纯 Kotlin `inlineStr` + `ZipOutputStream` 生成标准 3 工作表 `.xlsx` 无需 `sharedStrings.xml` 且完全避开 Apache POI 膨胀（Debug APK 保持 17.3 MB）；统计按标签筛选时，关联 `REFUND` 若未手动打标应自动合并原交易 `tagIds`，确保分标签净支出仍准确扣减退款；原生 Compose 图表采用 `Row`/`Column` 布局标准 Compose `Text` 渲染 Y/X 坐标轴与数值浮条、仅用 `Canvas` 负责矢量柱/环/折线，彻底规避不同环境下 `drawText` 字体错位与重叠截断；Gradle 调用中严禁将 `:app:recordRoborazziDebug` 与 `:app:testDebugUnitTest` / `:app:verifyRoborazziDebug` 混在同一次命令中（前者会先触发普通 `testDebugUnitTest` 验证未录制的黄金 PNG 导致失败），须分步先 `recordRoborazziDebug` 再 `verifyRoborazziDebug`。
