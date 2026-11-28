@@ -27,6 +27,7 @@ import io.github.kvtttba.droplet.core.security.DataStoreLoanReminderPreferencesR
 import io.github.kvtttba.droplet.core.security.DataStoreMarketSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStoreNetworkProxyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DataStorePrivacyPreferencesRepository
+import io.github.kvtttba.droplet.core.security.DataStoreWebDavSyncPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DebtReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.KeystoreSecretCipher
 import io.github.kvtttba.droplet.core.security.LoanReminderPreferencesRepository
@@ -37,6 +38,8 @@ import io.github.kvtttba.droplet.core.security.PrivacyPreferencesRepository
 import io.github.kvtttba.droplet.core.security.SecretCipher
 import io.github.kvtttba.droplet.core.security.SecretKeyProvider
 import io.github.kvtttba.droplet.core.security.SecurityContract
+import io.github.kvtttba.droplet.core.security.WebDavBackupCrypto
+import io.github.kvtttba.droplet.core.security.WebDavSyncPreferencesRepository
 import javax.inject.Qualifier
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -68,6 +71,10 @@ annotation class AiConfigDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class BudgetRecurringDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class WebDavSyncDataStore
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -265,4 +272,31 @@ object SecurityModule {
         @BudgetRecurringDataStore dataStore: DataStore<Preferences>,
     ): BudgetAndRecurringPreferencesRepository =
         DataStoreBudgetAndRecurringPreferencesRepository(dataStore)
+
+    @Provides
+    @Singleton
+    @WebDavSyncDataStore
+    fun provideWebDavSyncPreferencesDataStore(
+        @ApplicationContext context: Context,
+        @ApplicationScope applicationScope: CoroutineScope,
+    ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        scope = applicationScope,
+        produceFile = {
+            context.preferencesDataStoreFile(SecurityContract.WEBDAV_SYNC_PREFERENCES_FILE)
+        },
+    )
+
+    @Provides
+    @Singleton
+    fun provideWebDavSyncPreferencesRepository(
+        @WebDavSyncDataStore dataStore: DataStore<Preferences>,
+        secretCipher: SecretCipher,
+    ): WebDavSyncPreferencesRepository = DataStoreWebDavSyncPreferencesRepository(
+        dataStore = dataStore,
+        secretCipher = secretCipher,
+    )
+
+    @Provides
+    @Singleton
+    fun provideWebDavBackupCrypto(): WebDavBackupCrypto = WebDavBackupCrypto()
 }

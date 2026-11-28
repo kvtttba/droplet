@@ -15,6 +15,7 @@ import io.github.kvtttba.droplet.core.security.BudgetAndRecurringPreferencesRepo
 import io.github.kvtttba.droplet.core.security.CreditCardReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.DebtReminderPreferencesRepository
 import io.github.kvtttba.droplet.core.security.MarketSyncPreferencesRepository
+import io.github.kvtttba.droplet.core.security.WebDavSyncPreferencesRepository
 import io.github.kvtttba.droplet.di.ApplicationScope
 import io.github.kvtttba.droplet.notification.CreditCardReminderNotifier
 import io.github.kvtttba.droplet.notification.DebtReminderNotifier
@@ -27,6 +28,7 @@ import io.github.kvtttba.droplet.worker.DebtReminderScheduler
 import io.github.kvtttba.droplet.worker.LoanScheduleScheduler
 import io.github.kvtttba.droplet.worker.MarketSyncScheduler
 import io.github.kvtttba.droplet.worker.RecurringAndBudgetScheduler
+import io.github.kvtttba.droplet.worker.WebDavSyncScheduler
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
@@ -101,6 +103,12 @@ class DropletApplication : Application() {
     lateinit var recurringAndBudgetScheduler: RecurringAndBudgetScheduler
 
     @Inject
+    lateinit var webDavSyncPreferencesRepository: WebDavSyncPreferencesRepository
+
+    @Inject
+    lateinit var webDavSyncScheduler: WebDavSyncScheduler
+
+    @Inject
     @ApplicationScope
     lateinit var applicationScope: CoroutineScope
 
@@ -124,6 +132,14 @@ class DropletApplication : Application() {
         ledgerTransactionWriter.addOnTransactionCommittedListener {
             applicationScope.launch {
                 runCatching { budgetAlertEvaluator.evaluateAndNotify() }
+            }
+            applicationScope.launch {
+                runCatching {
+                    val webDavPrefs = webDavSyncPreferencesRepository.currentPreferences()
+                    if (webDavPrefs.autoSyncEnabled && webDavPrefs.isReadyForBackup) {
+                        webDavSyncScheduler.scheduleDebouncedBackup(webDavPrefs)
+                    }
+                }
             }
         }
         ProcessLifecycleOwner.get().lifecycle.addObserver(processLifecycleObserver)
@@ -184,6 +200,18 @@ class DropletApplication : Application() {
             }.distinctUntilChanged().collect { shouldSchedule ->
                 recurringAndBudgetScheduler.syncSchedule(shouldSchedule = shouldSchedule)
             }
+        }
+        applicationScope.launch {
+            webDavSyncPreferencesRepository.preferences
+                .distinctUntilChanged { old, new ->
+                    old.isReadyForBackup == new.isReadyForBackup &&
+                        old.autoSyncEnabled == new.autoSyncEnabled &&
+                        old.dailyBackupEnabled == new.dailyBackupEnabled &&
+                        old.wifiOnly == new.wifiOnly
+                }
+                .collect { prefs ->
+                    webDavSyncScheduler.syncDailySchedule(prefs)
+                }
         }
     }
 }

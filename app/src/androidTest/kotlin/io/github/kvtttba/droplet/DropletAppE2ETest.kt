@@ -1010,6 +1010,147 @@ class DropletAppE2ETest {
         composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_stats"), timeoutMillis = 5_000)
     }
 
+    @Test
+    fun test10_endToEndWebDavConfigEncryptionPersistenceAndLocalRollbackSnapshot() {
+        val sampleServerUrl = "https://webdav.example.invalid/dav/"
+        val expectedNormalizedUrl = "https://webdav.example.invalid/dav"
+        val sampleUser = "demo-user"
+        val sampleDavPass = "demo-dav-pass-2026"
+        val samplePhrase = "demo-phrase-8899"
+
+        // 1. Navigate to Settings tab and open WebDAV Encrypted Backup & Restore screen
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("nav_tab_settings"), timeoutMillis = 10_000)
+        composeRule.onNodeWithTag("nav_tab_settings").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.onNodeWithTag("settings_entry_webdav_sync").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_webdav_sync"), timeoutMillis = 5_000)
+
+        // 2. Fill sanitized WebDAV server settings & password (Keystore encrypted) and save
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_server_card")
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_server_url_input"))
+        composeRule.onNodeWithTag("webdav_server_url_input").performTextReplacement(sampleServerUrl)
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_username_input"))
+        composeRule.onNodeWithTag("webdav_username_input").performTextReplacement(sampleUser)
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_password_input"))
+        composeRule.onNodeWithTag("webdav_password_input").performTextReplacement(sampleDavPass)
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_save_config_button"))
+        composeRule.onNodeWithTag("webdav_save_config_button").performClick()
+
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_password_input"))
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("webdav_password_saved_badge", useUnmergedTree = true)
+                    .assertTextContains("••••2026", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // 3. Configure DRP1 end-to-end backup encryption passphrase (Keystore encrypted)
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_encryption_card")
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_passphrase_input"))
+        composeRule.onNodeWithTag("webdav_passphrase_input").performTextReplacement(samplePhrase)
+        Espresso.closeSoftKeyboard()
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_save_passphrase_button"))
+        composeRule.onNodeWithTag("webdav_save_passphrase_button").performClick()
+
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_passphrase_input"))
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("webdav_passphrase_saved_badge", useUnmergedTree = true)
+                    .assertTextContains("••••8899", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // 4. Enable 30s debounced auto-sync, daily scheduled backup, and select 20-snapshot retention
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_policy_card")
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_switch_auto_sync"))
+        composeRule.onNodeWithTag("webdav_switch_auto_sync").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("webdav_switch_auto_sync").assertIsOn()
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_switch_daily_backup"))
+        composeRule.onNodeWithTag("webdav_switch_daily_backup").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("webdav_switch_daily_backup").assertIsOn()
+                true
+            }.getOrDefault(false)
+        }
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_retention_20"))
+        composeRule.onNodeWithTag("webdav_retention_20").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("webdav_retention_20").assertIsSelected()
+                true
+            }.getOrDefault(false)
+        }
+
+        // 5. Recreate Activity and verify Keystore-encrypted credentials, switches, and retention persist
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_webdav_sync"), timeoutMillis = 10_000)
+
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_server_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("webdav_server_url_input")
+                    .assertTextContains(expectedNormalizedUrl, substring = true)
+                composeRule.onNodeWithTag("webdav_password_saved_badge", useUnmergedTree = true)
+                    .assertTextContains("••••2026", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_encryption_card")
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_passphrase_input"))
+        composeRule.onNodeWithTag("webdav_passphrase_saved_badge", useUnmergedTree = true)
+            .assertTextContains("••••8899", substring = true)
+
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_policy_card")
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_switch_auto_sync"))
+        composeRule.onNodeWithTag("webdav_switch_auto_sync").assertIsOn()
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_switch_daily_backup"))
+        composeRule.onNodeWithTag("webdav_switch_daily_backup").assertIsOn()
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToNode(hasTestTag("webdav_retention_20"))
+        composeRule.onNodeWithTag("webdav_retention_20").assertIsSelected()
+
+        // 6. Trigger offline local WAL consistency snapshot and confirm it appears in local rollback list
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_hero_card")
+        composeRule.onNodeWithTag("webdav_create_local_snapshot_button").performClick()
+
+        composeRule.onNodeWithTag("webdav_sync_list").performScrollToKey("webdav_local_rollbacks_card")
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("webdav_sync_list")
+                    .performScrollToNode(hasTestTag("webdav_local_rollback_name_0"))
+                composeRule.onNodeWithTag("webdav_local_rollback_name_0")
+                    .assertTextContains("manual-snapshot-", substring = true)
+                composeRule.onNodeWithTag("webdav_local_rollback_name_0")
+                    .assertTextContains(".zip", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+
+        // 7. Navigate back to Settings and confirm live WebDAV summary reflects encrypted sync state
+        composeRule.onNodeWithTag("webdav_back_button").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("screen_settings"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("screen_settings").performScrollToKey("settings_security_card")
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag("settings_entry_webdav_sync")
+                    .assertTextContains("DRP1 加密", substring = true)
+                composeRule.onNodeWithTag("settings_entry_webdav_sync")
+                    .assertTextContains("保留 20 份", substring = true)
+                true
+            }.getOrDefault(false)
+        }
+    }
+
     private fun isFlagSecureApplied(): Boolean {
         var applied = false
         composeRule.activityRule.scenario.onActivity { activity ->

@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-- **当前阶段**：`M5.2`（统计报表、收支日历与多格式导出）已完成验收并合入 `main`。
-- **下一个待执行切片**：**`M5.3`**（WebDAV 端到端加密快照备份与回滚恢复 — MVP 最终切片）
-- **最新已合入提交**：`feat/m5-2-stats-calendar-export` 合入 `main`（CI `#46154517672` 全线绿灯，详见 `git log`）
+- **当前阶段**：🎉 **一期 MVP 全部 14 个开发切片（`DOCS` + `M0` + `M1.1–M1.4` + `M2.1–M2.3` + `M3.1–M3.3` + `M4.1–M4.2` + `M5.1–M5.3`）已 100% 达成验收并合入 `main`**！（版本号 `v0.1.0-m5.3`）
+- **下一阶段方向**：Android 12+ 真机试用验收（生物识别锁 / 拍照 / 系统分享 / 真实 WebDAV 网盘备份恢复）与二期演进（见 `PRD.md §4`）
+- **最新已合入提交**：`feat/m5-3-webdav-encrypted-backup` 合入 `main`（CI `#46158538992` 三项 Job 全线绿灯：385 项 L1/L2/L3 单测 + 34 张 Roborazzi 黄金截图 + 10 项 API 31 模拟器 E2E + 17.5 MB Debug APK，详见 `git log`）
 
 ---
 
@@ -44,7 +44,7 @@
 | `M4.2` | 图片/语音/一句话记账与草稿批量确认 UI | ✅ 已完成 | `:core:ai` 新增 `AiDraftBatchCodec` / `AiDraftAttachmentRef`、`ReceiptImageProcessor`（安全缩放、EXIF 方向校正并经像素重编码彻底剥离 GPS/设备等 EXIF 隐私元数据、长截图重叠垂直分段切片、SHA-256 与路径穿越防护）与零浮点 `AiDraftTransactionMapper`（复用 `LedgerEngine` 构造单/跨币种支出/收入/转账/待报销恒平分录并校验必填项）；`:core:database` 保持 Room Schema `v1` 零变更，新增 `AiDraftRepository` / `LocalAiDraftRepository`（活跃草稿流与角标计数、单 SQLite 事务原子批量入账+关联本地 `attachments`+`COMMITTED` 标记及任意单条失败全批回滚）与 `AiCaptureOrchestrator`（文本/视觉/Whisper 语音转写编排、隐私最小化 Prompt 组装、未配置/网络异常自动落草稿箱重试与离线转人工核对）；`:feature:ai_capture` 落地 `AiCaptureScreen`（一句话/拍照+相册多选/双模式语音与离线草稿箱）与 `AiDraftReviewScreen`（低置信度与 `uncertainFields` 琥珀色高亮、就地微调、隐私金额隐身与一键批量入账），打通 `QuickCaptureModalSheet` 全部入口与草稿箱角标；`:app` 配置 `FileProvider`、`RECORD_AUDIO` 与 `ACTION_SEND`/`ACTION_SEND_MULTIPLE` 系统分享直达（严格在生物识别解锁后路由）；330 项单测 & 26 张 Roborazzi 截图 + API 31 全链路 `test07` E2E + 16 MB Debug APK 全绿 | `feat/m4-2-ai-capture-drafts` 已验收合入（CI `#46131560383`） |
 | `M5.1` | 预算管理与预警、周期记账与模板 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点 `BudgetProgressCalculator`（月/年总预算与支出分类预算、父分类自动聚合全部子分类净支出、自动扣减关联退款、排除待报销垫付与作废、剩余天数与日均可用额度、`NORMAL`/`WARNING`/`EXCEEDED` 精确阈值判定）、`RecurringPayload`/`RecurringPayloadCodec`、`RecurringScheduleCalculator`（日/周/月/年含 29–31 号月末与闰年 2/29 安全夹紧）及 `RecurringTransactionBuilder`；`:core:database` 保持 Room Schema `v1` 零变更，扩展 `BudgetDao`/`RecurringRuleDao`/`TemplateDao`/`TransactionDao`/`LedgerTransactionWriter`（提交后监听器）并新增 `BudgetRepository`（含 `NULL` 总预算防重与实时进度 Flow）、`RecurringRuleRepository`（CAS 原子防并发双入账自动入账、待确认队列确认/跳过、暂停/恢复/终止）与 `TemplateRepository`（一键原子入账与使用计数）；`:core:security` 新增 `BudgetAndRecurringPreferencesRepository`（`@BudgetRecurringDataStore` 周期/日级防重）；`:app` 新增 `PlanningModule`/`PlanningEntryPoint`、`droplet_budget_recurring_alerts` 通知渠道（支持隐私隐身与深链）、`BudgetAlertEvaluator`（记账提交后即时按需评估）与 `RecurringAndBudgetWorker`/`RecurringAndBudgetScheduler`；`:feature:settings` 落地 `BudgetManagementScreen`、`RecurringRulesScreen`、`TemplateManagementScreen` 与「我的」页实时摘要入口，`:feature:ledger` 打通首页当月总预算进度卡/快捷模板横条与 `TransactionEditorViewModel` 携 `templateId` 预填，`:feature:stats` 同步接入真实月度预算进度；351 项单测 & 29 张 Roborazzi 截图 + API 31 全链路 `test08` E2E + 17 MB Debug APK 全绿 | `feat/m5-1-budget-recurring-templates` 已验收合入（CI `#46134632137`） |
 | `M5.2` | 统计报表、收支日历与多格式导出 | ✅ 已完成 | 纯 JVM `:core:domain` 零浮点统计引擎 `StatsAggregator`（月/年/自定义 ≤45 天按日 / >45 天按月、多标签 `ANY`/`ALL` 含未打标关联退款继承原单标签冲减、本位币锁定 `baseAmountMinor` 免疫汇率漂移 vs 原币种筛选、排除 `VOID`/`DRAFT` 与待报销垫付、一级/二级分类占比与下钻、尊重 `includeInNetWorth` 含溢缴款的确定性历史净资产走势、自然月收支日历）与零重依赖三格式导出引擎 `LedgerExportEngine`（UTF-8 BOM + RFC-4180 CSV、纯 Kotlin 轻量 OOXML + `ZipOutputStream` 三工作表 `.xlsx` 零 Apache POI 膨胀、标准 `open` 科目声明与借贷恒平全分录 `.beancount`）；`:core:database` 保持 Room Schema `v1` 零变更，新增 `StatsRepository` & `LedgerExportRepository`，`:app` 新增 `StatsModule`/`StatsEntryPoint` 与 `file_paths.xml` `exports/` 分享目录；`:core:ui` 新增 4 个原生 Compose Canvas Material 3 图表（`IncomeExpenseTrendChart` / `CategoryDonutChart` / `NetWorthTrendChart` / `IncomeExpenseCalendarGrid`，全面支持深浅色与 `LocalAmountsHidden` 隐身掩码）；`:feature:stats` 升级为真实 Hilt `StatsRoute`/`StatsScreen`/`StatsViewModel`（概览报表 + 分类下钻底部弹窗 + 收支日历 + 当期预算进度联动），`:feature:settings` 落地 `DataExportScreen`（实时预估、本机生成、SAF 另存为与 `FileProvider` 系统分享）；364 项单测 & 32 张 Roborazzi 截图 + API 31 全链路 `test09` E2E + 17.3 MB Debug APK 全绿 | `feat/m5-2-stats-calendar-export` 已验收合入（CI `#46154517672`） |
-| `M5.3` | WebDAV 端到端加密快照备份与回滚恢复 | ⬜ 待开始 | WAL 一致性打包、AES-256-GCM 加密、防抖/定时上传、历史快照列表、本地回滚安全恢复 | 下一切片（收官） |
+| `M5.3` | WebDAV 端到端加密快照备份与回滚恢复 | ✅ 已完成 | `:core:security` 落地 `WebDavBackupCrypto`（`DRP1` 魔数头 + 16B 随机 Salt + 12B Nonce + PBKDF2-HMAC-SHA256 120,000 迭代 + AES-256-GCM 头部 AAD 防篡改与密钥内存清零）与 `DataStoreWebDavSyncPreferencesRepository`（`@WebDavSyncDataStore`，WebDAV 密码与独立备份口令分 AAD 经 `KeystoreSecretCipher` 加密落盘，零明文与 `toString()` 全脱敏）；`:core:sync` 落地 `BackupArchiveCodec`（复用 WAL `VACUUM INTO` 一致性快照、可选票据附件、Zip-Slip/Zip-Bomb 防护与 SHA-256/Schema/SQLite 完整性校验）、代理感知 `OkHttpWebDavClient`（`PROPFIND`/`OPTIONS`/`MKCOL`/`PUT`/`GET`/`DELETE` + 保留 N 份自动清理旧包 + 脱敏清洗）、`SafeDatabaseRestoreManager`（恢复前自动生成本机应急回滚包 `filesDir/rollback_backups/pre-restore-*.zip` + 独立只读连接读取并在 `database.runInTransaction` 内按 16 表外键拓扑原子替换保活全部 Room `Flow` + 任意异常自动回滚）与 `WebDavBackupOrchestrator`；`:app` 新增 `WebDavSyncModule`/`WebDavSyncEntryPoint`/`WebDavBackupWorker`/`WebDavSyncScheduler`（30 秒防抖自动上传监听 `LedgerTransactionWriter` + 每日定时备份与仅 Wi-Fi 约束）；`:feature:settings` 落地 `WebDavSyncScreen`/`Route`/`ViewModel` 并打通「我的」页最后一处占位（0 占位项）；385 项单测 & 34 张 Roborazzi 截图 + API 31 全链路 `test10` E2E（10/10 通过）+ 17.5 MB Debug APK 全绿 | `feat/m5-3-webdav-encrypted-backup` 已验收合入（CI `#46158538992`），一期 MVP 100% 收官 |
 
 ---
 
@@ -220,30 +220,30 @@
    - `:feature:stats` 接入 Hilt/KSP 与 `:core:database`，升级为 Stateless + Hilt Route 分层的 `StatsRoute`/`StatsScreen`/`StatsViewModel`（`DropletAppShell` 新增 `statsPreviewState`），提供「报表概览」与「收支日历」两段切换、月/年/自定义周期导航、币种与多标签弹窗筛选、点击分类弹出二级分布与关联流水下钻 `ModalBottomSheet`、点击日历格联动展示当日流水以及预算管理/数据导出直达；
    - `:feature:settings` 落地 `DataExportScreen`/`Route`/`ViewModel`（`DropletRoutes.DATA_EXPORT`，`DropletAppShell` 新增 `dataExportPreviewState`），从「我的」页「数据导出」和统计页顶部导出按钮均可直达，支持 3 格式单选、范围/标签/含作废筛选、实时预估与本机生成/SAF 另存为/系统分享。
 
-### M5.3 启动入口契约（WebDAV 端到端加密快照备份与回滚恢复 — MVP 最终切片）
-1. 从 `main` 切出分支 `feat/m5-3-webdav-encrypted-sync`，更新 `app/build.gradle.kts` 中 `versionName = "0.1.0-m5.3"`（或正式 MVP 候选版，按仓库约定统一递增为 `"0.1.0-m5.3"`）。
-2. **安全与加密凭据持久化 (`:core:security`)**：
-   - 遵循 `AGENTS.md §2 & §3.5` 与 `ARCHITECTURE.md §6`：
-     - 新增 `WebDavConfig` / `WebDavSyncPreferences` / `DataStoreWebDavPreferencesRepository`（独立 `droplet_webdav_preferences.preferences_pb`）：保存脱敏后的 WebDAV 服务器 URL（强制 HTTPS，可选本地局域网 HTTP 提示）、用户名、远程目录路径（默认 `/droplet-backups/`）、自动防抖同步开关、每日定时同步开关、仅 Wi-Fi 开关、保留远端快照份数（默认 `10`）、端到端加密开关、是否同步票据原图开关（默认 `false`）以及上次成功备份时间戳与状态；
-     - WebDAV 密码与独立备份加密口令**强制经既有 `KeystoreSecretCipher`（AES-256-GCM + 独立 AAD，如 `webdav_password` / `webdav_backup_passphrase`）加密落盘**，任何对象的 `toString()` 与日志严禁出现明文密码/口令/凭据头；
-     - 落地纯加密封装器 `BackupPayloadEncryptor`（实现 `ARCHITECTURE.md §6.2` 规范）：`DRP1` 4 字节魔数头 + 16 字节随机 Salt + 12 字节随机 Nonce + PBKDF2-HMAC-SHA256（高迭代次数，如 `120_000` 次）派生 256-bit 密钥 + AES-256-GCM 密文与 128-bit 防篡改 Tag；错误口令或被篡改密文必须抛出脱敏异常并拒绝解密。
-3. **一致性快照打包、WebDAV 客户端与安全回滚恢复引擎 (`:core:sync`)**：
-   - 复用 `:core:database` 已有的 `DatabaseSnapshotExporter`（`PRAGMA wal_checkpoint(TRUNCATE)` + `VACUUM INTO` + `PRAGMA integrity_check` + SHA-256）与 `:core:network` `DropletHttpClientFactory`（自动继承用户代理配置）：
-     - **快照打包器 (`BackupArchiveBuilder` / `BackupArchiveReader`)**：打包 `ledger.db` + `manifest.json`（含 `appVersion`、`schemaVersion`、`createdAtEpochMs`、`dbSha256`、`includesAttachments`、`attachmentCount`、`encrypted`、`formatVersion = 1`）+ 可选 `receipts/` 票据目录（带严格 ZIP Slip 路径穿越拦截），加密开启时经 `BackupPayloadEncryptor` 封装为 `.drp` 加密包（关闭加密时为 `.zip`）；
-     - **WebDAV 客户端 (`WebDavClient` / `OkHttpWebDavClient`)**：基于 OkHttp 实现标准 WebDAV 方法：`PROPFIND`（Depth: 1 列目录与历史快照元数据解析）、`MKCOL`（逐级幂等建目录）、`PUT`（流式上传快照）、`GET`（流式下载快照）、`DELETE`（清理超限过期旧包），使用 `Basic` Auth 且全链路脱敏错误消息，支持 MockWebServer 100% 离线单测；
-     - **安全回滚恢复器 (`SafeDatabaseRestorer`)**：下载目标快照 → 校验解密/验签/SHA-256 → 校验 `schemaVersion <= DropletDatabaseContract.SCHEMA_VERSION` 与 `PRAGMA integrity_check == ok` → **先将本机当前数据库完整备份至 `filesDir/rollback_backups/` 应急回滚目录** → 安全关闭或原子替换数据库文件（清理 `-wal`/`-shm` 并恢复可选票据附件）→ 重新校验可读性；任意环节失败自动从应急回滚备份原样还原，确保本地账本零损坏！
-     - **同步编排器 (`WebDavSyncManager`)**：封装「测试连接」「立即手动备份」「防抖变更自动备份（保留最近 N 份自动清理过期旧包）」「列举远端历史快照列表」「恢复指定远端快照（含输入/复用解密口令与应急回滚保护）」「本地应急回滚点查看与一键回退」。
-4. **WorkManager 防抖/定时调度、DI 与设置 UI 闭环 (`:app` & `:feature:settings`)**：
-   - `:app` 新增 `SyncModule` / `SyncEntryPoint`，通过 `LedgerTransactionWriter.addOnTransactionCommittedListener` 在 `DropletApplication` 注册防抖自动备份触发器（`ExistingWorkPolicy.REPLACE` + 30 秒 `initialDelay` 合并连续记账上传），并新增 `WebDavSyncWorker`（防抖单次与每日定时周期任务 `WebDavSyncScheduler`，支持仅 Wi-Fi 约束）；
-   - `:feature:settings` 落地 Stateless + Hilt Route 分层的 `WebDavSyncScreen` / `Route` / `ViewModel`（`DropletRoutes.WEBDAV_SYNC`，`DropletAppShell` 补充 `webDavSyncPreviewState`），全面打通 `SettingsScreen` 中最后一处占位项「WebDAV 加密备份与恢复」：
-     - 服务器地址 / 用户名 / 密码（掩码+Keystore 加密）/ 远端目录配置 +「测试连接」按钮与脱敏结果胶囊；
-     - 端到端加密开关与独立备份口令设置（提示忘记口令无法找回）、自动变更同步 / 每日定时备份 / 仅 Wi-Fi / 同步票据原图 / 保留份数（5/10/20）配置；
-     - 「立即备份」按钮 + 上次同步状态卡 +「远端历史快照列表」（展示时间/大小/加密标记/一键恢复确认弹窗含应急回滚提示）+ 本地应急回滚恢复入口。
-5. **四层测试与收官验收门禁（`ccarm` + `pu`）**：
-   - L1/L2 单测：`BackupPayloadEncryptor`（正确解密、错口令/篡改字节/截断头均 fail-closed）、`BackupArchiveBuilder`/`Reader`（含 ZIP Slip 防护与 SHA-256 校验）、`OkHttpWebDavClient`（MockWebServer 覆盖 `PROPFIND`/`MKCOL`/`PUT`/`GET`/`DELETE` 与认证失败脱敏）、`SafeDatabaseRestorer`（正常替换 + 损坏包自动回滚零数据丢失）、`WebDavSyncManager` 保留份数自动清理与 `WebDavSyncViewModel` / `WebDavSyncWorker` 测试；
-   - L3 Roborazzi 截图：新增 `webdav_sync_light.png`（完整配置卡 + 加密状态 + 历史快照列表）、`webdav_sync_dark.png`，刷新 `settings_light.png`（`v0.1.0-m5.3` 且「我的」页全部入口 100% 真实无占位），全部拉回肉眼验收；
-   - L4 API 31 E2E：在 `DropletAppE2ETest` 追加 `test10_endToEndWebDavSyncConfigAndBackupPreferences`（从「我的」进入 WebDAV 设置，填写脱敏配置与加密开关/保留策略/自动同步开关，保存后重启 Activity 验证 DataStore + Keystore 持久化与设置页摘要联动，严禁发外网请求）；
-   - `gitleaks` 全历史扫描 + `pu` 全量单测/截图/APK + GitHub Actions 三项 CI 全绿 → 更新 `docs/PROGRESS.md` 标记全部一期 MVP 里程碑（`M0` ~ `M5.3`）100% 完结 → `--no-ff` 合入 `main` 并 `droplet-pu sync` 与更新 `/tmp/droplet-debug.apk`。
+### M5.3 已落地的核心约定（一期 MVP 收官）
+1. **端到端加密引擎与 WebDAV 加密偏好 (`:core:security`)**：
+   - `WebDavBackupCrypto` 严格实现 `ARCHITECTURE.md §6.2` 二进制格式：`DRP1`（4B ASCII）+ 16B `SecureRandom` Salt + 12B `SecureRandom` Nonce + AES-256-GCM 密文与 16B Tag；使用 `PBKDF2WithHmacSHA256`（默认 `120_000` 次迭代派生 256-bit 密钥）并将前 32 字节完整头部作为 AAD 绑定，口令错误或头部/密文/Tag 任意 1-bit 篡改均抛出脱敏 `BackupCryptoException`，派生密钥与口令缓冲在 `finally` 立即清零；
+   - `WebDavSyncPreferences` / `DataStoreWebDavSyncPreferencesRepository` 绑定独立 `droplet_webdav_sync_preferences.preferences_pb`（经 `SecurityModule` `@WebDavSyncDataStore` 注入）：WebDAV 密码与独立备份加密口令分别以独立 AAD（`webdav_password` / `webdav_backup_passphrase`）经既有 `KeystoreSecretCipher` 加密持久化，UI 仅持掩码预览与损坏标记、磁盘零明文、`toString()` 全脱敏；`WebDavUrlValidator` 拦截非 `http(s)`、内嵌凭据与目录穿越，保留份数严格限制在 `1..50`（默认 `10`）。
+2. **一致性快照打包、WebDAV 客户端与无损回滚恢复引擎 (`:core:sync`)**：
+   - `BackupArchiveCodec` 复用 `:core:database` `DatabaseSnapshotExporter`（`PRAGMA wal_checkpoint(TRUNCATE)` + 原子 `VACUUM INTO` + `PRAGMA integrity_check` + SHA-256），连同 `manifest.json`（含 `formatVersion`/`appVersion`/`schemaVersion`/`dbSha256`/`dbSizeBytes`/`includesAttachments`/`attachments`）及可选 `filesDir/receipts/` 票据附件打包为标准 ZIP，加密模式下经 `WebDavBackupCrypto` 封装为 `.drp`（明文模式 `.zip`）；解包严格执行 DRP1 解密验签、Zip-Slip 路径穿越与 Zip-Bomb 体积/条目上限拦截、`schemaVersion <= DropletDatabaseContract.SCHEMA_VERSION` 兼容检查、`ledger.db` 与附件 SHA-256 核验、SQLite `PRAGMA integrity_check` / `PRAGMA foreign_key_check` 与全 16 表存在性校验；
+   - `OkHttpWebDavClient` 复用 `DropletHttpClientFactory`（自动继承 HTTP/SOCKS 代理配置），完整覆盖 `testConnection`（`PROPFIND Depth: 0` + `405/501` 降级 `OPTIONS`）、`ensureRemoteDirectory`（逐级 `MKCOL` 兼容 `201/405/301`）、`listSnapshots`（`XmlPullParser` 命名空间无关解析 `207 Multi-Status` 并按时间倒序）、`uploadSnapshot` (`PUT`)、`downloadSnapshot` (`GET`)、`deleteSnapshot` (`DELETE`) 与 `pruneOldSnapshots`（按 `retentionCount` 自动清理最旧超额快照），全链路经 `WebDavErrorSanitizer` 擦除密码与 Basic 凭据头；
+   - `SafeDatabaseRestoreManager` 与 `DefaultWebDavBackupOrchestrator` 保障绝对零损坏安全恢复：恢复前先自动将本机活库与票据打包留存至 `filesDir/rollback_backups/pre-restore-*.zip`（保留最近 5 份本地回滚包）；通过独立只读 SQLite 连接读取验证后的暂存库并在 Room `database.runInTransaction` 内保持外键开启按 16 表精确拓扑顺序原子替换（对 `accounts.parent_id` 与 `transactions.ref_transaction_id` 采用两阶段自引用写入），提交前复检 `PRAGMA foreign_key_check`，避免 `ATTACH DATABASE` 重置 WAL 连接池导致 Room TEMP 追踪表失效，保持 `@Singleton DropletDatabase` 与全部活跃 `Flow` 实时存活刷新，任意异常（含附件替换异常）自动完整回滚；同时支持手动创建与一键回滚本机离线安全快照。
+3. **30 秒防抖自动上传、每日定时备份与零占位设置闭环 (`:app` & `:feature:settings`)**：
+   - `:app` 新增 `WebDavSyncModule` / `WebDavSyncEntryPoint`、`WebDavBackupWorker`（经 `EntryPointAccessors` 解析编排器，瞬时网络错误自动 `Result.retry()`、鉴权/口令错误直接失败）与 `WebDavSyncScheduler`；在 `DropletApplication.onCreate()` 注册 `LedgerTransactionWriter.addOnTransactionCommittedListener` 实现记账变更后 `30s` 防抖合并上传（`ExistingWorkPolicy.REPLACE`），并持续监听偏好自动维护 24h 每日定时周期任务与仅 Wi-Fi 约束，零 Hilt 循环依赖；
+   - `:feature:settings` 落地 Stateless + Hilt Route 分层的 `WebDavSyncScreen` / `Route` / `ViewModel`（`DropletRoutes.WEBDAV_SYNC`，`DropletAppShell` 新增 `webDavSyncPreviewState`），替换 `SettingsScreen` 中最后一处占位项并从 `MainActivity` 透传实时摘要（至此「我的」页 0 占位项）；Room Schema `v1` 全程保持零变更。
+
+### 一期 MVP 收官验收与二期演进建议
+1. **一期 MVP 达成总览**：全部 14 个开发切片（`DOCS`、`M0`、`M1.1–M1.4`、`M2.1–M2.3`、`M3.1–M3.3`、`M4.1–M4.2`、`M5.1–M5.3`）已 100% 达成并合入 `main`，产出 `v0.1.0-m5.3` Debug APK（17.5 MB），具备 **385 项自动化单测 + 34 张 Roborazzi 视觉黄金截图 + 10 项 API 31 KVM 模拟器端到端 E2E 测试 + 全历史 `gitleaks` 零泄露** 完整质量防线。
+2. **真机试用验收清单（Android 12+）**：
+   - 生物识别隐私锁（指纹/面容/设备 PIN 兜底 + 切后台超时重锁 + `FLAG_SECURE` 截屏拦截）；
+   - 真实 AI 网关配置（自定义 `BaseURL`/`API Key`/模型 + 拍照/相册长图/系统分享直达/系统语音与 Whisper 转写）；
+   - 真实 WebDAV 网盘（如坚果云/Nextcloud/Alist）：连接测试 → 设置独立 DRP1 加密口令 → 立即备份与记账后 30 秒防抖自动上传 → 浏览远端历史快照并执行一次安全恢复验证本机应急回滚点生成与全表还原。
+3. **二期演进方向（对齐 `PRD.md §4`）**：
+   - 历史账单迁移导入（一木记账 / 微信 / 支付宝 CSV/XLSX 映射向导）；
+   - 多 Android 设备增量同步与冲突合并；
+   - 投资精算增强（佣金印花税、红利再投、拆合股、XIRR 年化收益）与房贷 LPR 调整/提前还款重算；
+   - 资金流向桑基图、年度消费热力图、Glance 桌面小组件与原生 Anthropic/Gemini 协议直连；
+   - Release 签名配置与受保护发版 Tag Workflow（严格隔离发布 Secrets）。
 
 ---
 
@@ -270,3 +270,4 @@
 - **[M4.2] Kotlin KDoc 嵌套 `/*` 与 Robolectric Room Flow ViewModel 单测调度**：Kotlin 块注释支持嵌套，在 `/** ... */` KDoc 中书写 MIME 字面量 `image/*` 会意外开启嵌套注释导致 `Unclosed comment` 编译错误，应改用自然语言描述；Robolectric 下测试订阅了 Room `Flow` 的 ViewModel 时，`StandardTestDispatcher` + `advanceUntilIdle()` 无法等待 Room 后台线程发射更新，须沿用 `UnconfinedTestDispatcher()` + `runBlocking` + `withTimeout(5_000L) { uiState.first { ... } }` 确定性等待状态收敛；系统分享 `ACTION_SEND`/`ACTION_SEND_MULTIPLE` 在 `DropletApp` 须由 `LaunchedEffect(pendingAiSharePayload?.id, isAppLocked)` 严格守卫，确保应用隐私锁未解锁前绝不提前跳转或消费分享负载。
 - **[M5.1] SQLite UNIQUE 索引 `NULL` 判重、卡片 `clickable` 语义合并与无环事务后监听**：SQLite 中 `UNIQUE (period, category_account_id, currency)` 对多条 `category_account_id IS NULL`（总预算）互不判冲突，仓储写入前须通过 `BudgetDao.findDuplicate` 使用 `(category_account_id IS NULL AND :categoryAccountId IS NULL) OR category_account_id = :categoryAccountId` 显式防重；Compose 卡片外层若附加 `Modifier.clickable` 且内部含多个可断言 `testTag`（如总预算金额、规则状态徽标、暂停开关），默认 `mergeDescendants = true` 会吞并子 `testTag`，应改用显式操作按钮（如「调整」「编辑规则」）隔离点击区，既提升触控准确性又确保截图与 E2E 断言稳定；记账提交后即时评估预算预警应通过 `LedgerTransactionWriter.addOnTransactionCommittedListener` 在 `DropletApplication` 注册异步监听，避免 `LedgerDataModule` 与 `PlanningModule` 形成 Hilt 循环依赖。
 - **[M5.2] 零 POI 轻量 OOXML、标签筛选关联退款继承、图表排版与 Roborazzi 录制命令隔离**：纯 Kotlin `inlineStr` + `ZipOutputStream` 生成标准 3 工作表 `.xlsx` 无需 `sharedStrings.xml` 且完全避开 Apache POI 膨胀（Debug APK 保持 17.3 MB）；统计按标签筛选时，关联 `REFUND` 若未手动打标应自动合并原交易 `tagIds`，确保分标签净支出仍准确扣减退款；原生 Compose 图表采用 `Row`/`Column` 布局标准 Compose `Text` 渲染 Y/X 坐标轴与数值浮条、仅用 `Canvas` 负责矢量柱/环/折线，彻底规避不同环境下 `drawText` 字体错位与重叠截断；Gradle 调用中严禁将 `:app:recordRoborazziDebug` 与 `:app:testDebugUnitTest` / `:app:verifyRoborazziDebug` 混在同一次命令中（前者会先触发普通 `testDebugUnitTest` 验证未录制的黄金 PNG 导致失败），须分步先 `recordRoborazziDebug` 再 `verifyRoborazziDebug`。
+- **[M5.3] Android WAL 连接池 `ATTACH` 重置 Room TEMP 追踪表、`OutlinedTextField` 语义合并与 KDoc `gitleaks` 误报**：在 Android WAL 模式活库存在活跃 Room `Flow` 订阅时执行 `ATTACH DATABASE` 会触发 `SQLiteConnectionPool` 重配置并丢失挂在原连接上的 `TEMP TABLE room_table_modification_log`；改为由独立只读 `SQLiteDatabase` 连接读取暂存库并在 Room `database.runInTransaction` 内保持外键开启按 16 表外键拓扑顺序两阶段替换自引用列（`accounts.parent_id`、`transactions.ref_transaction_id`），既实现严格单事务原子回滚又 100% 保活所有活跃 `Flow`；Material 3 `OutlinedTextField` 默认 `mergeDescendants = true` 会吞并 `supportingText` 子节点 `testTag`，UI/E2E 断言该类子徽标须使用 `useUnmergedTree = true`；此外 `gitleaks` 的 `generic-api-key` 熵检规则会对 KDoc 中紧邻 `encryption:` 的斜杠算法字面量产生高熵误报，提交前必须始终执行 `gitleaks protect --staged` 与 `scripts/pre-commit-secret-check.sh`。
